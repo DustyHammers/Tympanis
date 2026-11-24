@@ -1,6 +1,5 @@
-"""REFERENCE ONLY (docs/UI.md): the approved mockups, as drawn for Kris on 2026-11-24. The approved
-DRUM page has no Velocity Sensitivity knob (LEVEL at 637, PAN at 937); this last version draws the
-Velocity Sensitivity variant, which waits for that parameter. The plugin ports the wireframes in
+"""REFERENCE ONLY (docs/UI.md): the approved mockups, as drawn for Kris on 2026-11-24. The DRUM page
+as built: VELOCITY SENSITIVITY / LEVEL / PAN at 487 / 787 / 1087. The plugin ports the wireframes in
 plugin/ui/DrumModel.cpp. Paths point at a Cymbalis checkout.
 
 Tympanis UI mockups: the DRUM page, the TUNING page and the KIT page, 1536x1024

@@ -59,7 +59,7 @@ public:
     struct HitEvent
     {
         std::int8_t row;   // index into kRows
-        float velocity;    // 0..1, the note's
+        float velocity;    // 0..1, as the drum plays it (after its Velocity Sensitivity)
     };
     static constexpr int hitFifoSize = 64;
     bool popHit(HitEvent& e) noexcept;
@@ -106,6 +106,7 @@ private:
         std::atomic<float>* size = nullptr;
         std::atomic<float>* level = nullptr;
         std::atomic<float>* pan = nullptr;
+        std::atomic<float>* velSens = nullptr;     // read at each strike
         float last[5] {};                          // tune, lug, decay, strike, size as last applied
     };
     std::array<DrumParams, tympanis::kDrums.size()> drumParams {};

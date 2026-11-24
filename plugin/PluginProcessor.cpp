@@ -8,6 +8,11 @@ using namespace tympanis;
 namespace
 {
 constexpr int kStateVersion = 1;
+// Velocity Sensitivity (as Cymbalis): the velocity the drum plays is vf + s (v - vf), v the
+// note's velocity / 127, s the drum's Velocity Sensitivity. At 100 % the model's own response;
+// lower, the dynamics narrow toward velocity 100; at 0 % every hit plays at velocity 100.
+constexpr float kVelocityFloor = 100.0f / 127.0f;
+juce::String percentText(float v, int) { return juce::String(juce::roundToInt(v * 100.0f)) + "%"; }
 
 juce::String pid(size_t d, const char* what) { return juce::String(kDrums[d].key) + "_" + what; }
 
@@ -69,6 +74,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout TympanisProcessor::createLay
             levelRange(), 0.0f, A().withLabel("dB").withStringFromValueFunction(dbText)));
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "pan"), 1 }, name + " Pan",
             juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), 0.0f));
+        group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "vel_sens"), 1 }, name + " Velocity Sensitivity",
+            juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 1.0f,
+            A().withStringFromValueFunction(percentText)
+               .withValueFromStringFunction([](const juce::String& s) { return s.retainCharacters("0123456789.-").getFloatValue() / 100.0f; })));
         layout.add(std::move(group));
     }
     layout.add(std::make_unique<P>(juce::ParameterID { "snare_buzz", 1 }, "Snare Buzz",
@@ -92,6 +101,7 @@ TympanisProcessor::TympanisProcessor()
         p.size = params.getRawParameterValue(pid(d, "size"));
         p.level = params.getRawParameterValue(pid(d, "level"));
         p.pan = params.getRawParameterValue(pid(d, "pan"));
+        p.velSens = params.getRawParameterValue(pid(d, "vel_sens"));
     }
     buzzParam = params.getRawParameterValue("snare_buzz");
     mainParam = params.getRawParameterValue("main_volume");
@@ -222,8 +232,10 @@ void TympanisProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         for (size_t r = 0; r < kRows.size(); ++r)
             if (rowNotes[r].load() == note)
             {
-                kit.strike(kRows[r].drum, msg.getFloatVelocity(), kRows[r].art);
-                pushHit((int) r, msg.getFloatVelocity());
+                const float s = drumParams[(size_t) kRows[r].drum].velSens->load();
+                const float v = kVelocityFloor + s * (msg.getFloatVelocity() - kVelocityFloor);
+                kit.strike(kRows[r].drum, v, kRows[r].art);
+                pushHit((int) r, v);
                 break;                                                        // a note has at most one row
             }
     }

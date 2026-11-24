@@ -1,8 +1,8 @@
 #pragma once
 
 // The editor (docs/UI.md): three pages in Cymbalis's look, 1536 x 1024 design units scaled with
-// one transform. DRUM: the selected drum's wireframe, its note rows, Level, Pan and Strike
-// Position, and Main Volume. KIT: the kit's wireframe; a click on a drum selects it. TUNING: the
+// one transform. DRUM: the selected drum's wireframe, its note rows, Velocity Sensitivity,
+// Level, Pan and Strike Position, and Main Volume. KIT: the kit's wireframe; a click on a drum selects it. TUNING: the
 // selected drum's parameters as sliders, and the whole kit's.
 
 #include "PluginProcessor.h"
@@ -95,9 +95,9 @@ private:
     juce::Path logoPath;
 
     // DRUM page
-    std::array<KnobSpec, 4> knobSpecs;
-    std::array<std::unique_ptr<Knob>, 4> knobs;
-    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 4> knobAttachments;
+    std::array<KnobSpec, 5> knobSpecs;
+    std::array<std::unique_ptr<Knob>, 5> knobs;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 5> knobAttachments;
     int draggingKnob = -1;
     static constexpr int kMaxRows = 3;
     std::array<std::unique_ptr<NoteBox>, kMaxRows> noteBoxes;

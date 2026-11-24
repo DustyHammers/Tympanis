@@ -1,6 +1,6 @@
 # Editor
 
-The approved mockups (Kris, 2026-11-24) are drawn by `docs/ui/tympanis_mockup.py` (reference only; its paths point at a Cymbalis checkout). The approved DRUM page is the one without the Velocity Sensitivity knob: LEVEL at x 637 and PAN at 937 (the script's last version draws the Velocity Sensitivity variant, which waits for that parameter).
+The approved mockups (Kris, 2026-11-24) are drawn by `docs/ui/tympanis_mockup.py` (reference only; its paths point at a Cymbalis checkout). The DRUM page is the script's last version, with the Velocity Sensitivity knob (approved as the to-do layout, built 2026-11-24).
 
 Everything is in design units of a 1536 x 1024 artwork, scaled with one transform; the editor resizes at 3:2 from 960 x 640 to 1536 x 1024 (as Cymbalis). Look, fonts, palette, knob filmstrip with position arcs, boxes, popups and the DHammers logo are Cymbalis's (its `docs/UI_SPEC.md`), the code mostly ported from its `PluginEditor.cpp`.
 
@@ -17,7 +17,7 @@ Everything is in design units of a 1536 x 1024 artwork, scaled with one transfor
 
 Common: the title (in the background), the tabs DRUM / KIT / TUNING (y 258; the active one bright, a bronze line under it), MIDI CHANNEL (a 4 x 4 grid of channels), the DHammers logo. On DRUM and TUNING: the DRUM box (the 17 drums, two columns) and the spec line under it (`13" × 10"  ·  6 LUGS`).
 
-- **DRUM**: the selected drum's wireframe (area 400,40 to 1180,750); the right column's ARTICULATION and MIDI NOTE rows (HEAD, RIM SHOT, SIDE STICK as the drum has them; a row lights while its hit's flash lasts); STRIKE POSITION (1349, 642; hidden on the bass drums, which have none); MAIN VOLUME (1350, 881); the drum's LEVEL (637, 881) and PAN (937, 881). A dragged knob shows its value in place of its label; double-click resets; no mouse wheel.
+- **DRUM**: the selected drum's wireframe (area 400,40 to 1180,750); the right column's ARTICULATION and MIDI NOTE rows (HEAD, RIM SHOT, SIDE STICK as the drum has them; a row lights while its hit's flash lasts); STRIKE POSITION (1349, 642; hidden on the bass drums, which have none); MAIN VOLUME (1350, 881); the drum's VELOCITY SENSITIVITY (487, 881), LEVEL (787, 881) and PAN (1087, 881). A dragged knob shows its value in place of its label; double-click resets; no mouse wheel.
 - **KIT**: the kit's wireframe in the approved layout (Snare 1 is drawn for Snare 1 and 2; Snare 3, the gong drum and the octobans are not drawn yet but play). A click on a drum selects it (a click on the selected Snare 1 selects Snare 2); the selected drum is drawn 35 % brighter and named top right.
 - **TUNING**: the selected drum's TUNE, LUG DETUNE, DECAY, STRIKE POSITION (not on the bass drums), SIZE, LEVEL and PAN, and the whole kit's SNARE BUZZ and MAIN VOLUME, as sliders with the value in a box (double-click it to type one) and a reset arrow; a bronze mark at a row whose value is not the default, MODIFIED when any is; RESET DRUM, RESET ALL (every parameter). A small wireframe of the drum in the left column.
 

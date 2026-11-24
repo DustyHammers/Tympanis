@@ -2,7 +2,7 @@
 
 macOS VST3 + AU instrument (JUCE 7.0.12), universal arm64 + x86_64, macOS 11+. Identity: company DHammers, manufacturer code `Dham`, plugin code `Tymp`, bundle ID `com.dhammers.tympanis` (code and name are working choices).
 
-## Host parameters (119)
+## Host parameters (136)
 
 Per drum (`<drum>` = `kick1 kick2 snare1..snare4 tom1..tom6 gong octo1..octo4`):
 
@@ -15,10 +15,11 @@ Per drum (`<drum>` = `kick1 kick2 snare1..snare4 tom1..tom6 gong octo1..octo4`):
 | `<drum>_size` | `<Drum> Size` | 0.5 .. 2 x the catalog diameter, inches | catalog size |
 | `<drum>_level` | `<Drum> Level` | -inf (bottom, -60) .. +6 dB | 0 dB |
 | `<drum>_pan` | `<Drum> Pan` | -1 (left) .. +1 (right), -3 dB compensated constant power (0 dB centre, +3 dB hard) | 0 |
+| `<drum>_vel_sens` | `<Drum> Velocity Sensitivity` | 0 .. 1, shown 0% .. 100%. The velocity the drum plays is vf + s (v - vf), v the note's velocity / 127, vf = 100/127 (as Cymbalis). 100%: the model's full velocity response; lower narrows the dynamics toward velocity 100; 0%: every hit plays as velocity 100 | 1 (100%) |
 
 Kit: `snare_buzz` Snare Buzz 0 .. 1 (0.5); `main_volume` Main Volume -inf .. +6 dB (0 dB), on the summed stereo output.
 
-Decisions (Kris, 2026-11-24): decay, strike position, size, tune and lug detune exposed per drum; independent level and pan per drum; main volume on the 2-channel sum; individual outputs later. The kicks have no strike position: their beater position is fixed (as sampled) and the engine ignores it. Re-strike damping and hit-to-hit variation are hardwired; glide amount, click and noise mix, velocity range (24 dB) and tube length are not exposed.
+Decisions (Kris, 2026-11-24): decay, strike position, size, tune and lug detune exposed per drum; independent level and pan per drum; main volume on the 2-channel sum; individual outputs later. Velocity Sensitivity per drum (Kris, 2026-11-24), as Cymbalis's. The kicks have no strike position: their beater position is fixed (as sampled) and the engine ignores it. Re-strike damping and hit-to-hit variation are hardwired; glide amount, click and noise mix, velocity range (24 dB) and tube length are not exposed.
 
 Strike position applies to head hits and rim shots (the stick's head contact), not side sticks. Tune, decay and size act live on ringing drums; strike position from the next hit. Level and pan ramp over each rendered piece (no zipper noise). A snare's sympathetic head ring and wire buzz follow that snare's level and pan; the coupling itself uses the unfaded kit, as in a room.
 
@@ -52,9 +53,8 @@ Stereo out (mono out: (L + R) / 2). Under Main Volume a fixed gain of 0.2: full-
 
 - Individual outputs (later)
 - Plugin code and final name
-- Velocity Sensitivity per drum (to do: 17 new parameters, DRUM page bottom row VS / LEVEL / PAN)
 - Snare 1 and 2 as one drum with shared settings, or two (now two)
 
 ## Checks (`tympanis_hosttest checks`, run in CI)
 
-The baked kit loads; 119 parameters, none for the kicks' strike position; every row plays on its default note; another channel plays nothing; host block sizes 1..4096 give the same level in every 100 ms window; saved state restores parameters, channel and notes (including a row set to none); a note moved to another row, and a saved state with a shared note; level (-inf silences the drum), pan (hard left: right silent, +3 dB left), main volume; size lowers the pitch, decay lengthens the ring, strike near the rim is brighter; the tail falls silent; the editor's hits (one event per strike, row and velocity; a full FIFO drops, never blocks); MIDI learn (the next note on the channel, other channels ignored); the editor's page, drum and size restored; the editor opens at the saved size and adds no parameters.
+The baked kit loads; 136 parameters, none for the kicks' strike position; every row plays on its default note; another channel plays nothing; host block sizes 1..4096 give the same level in every 100 ms window; saved state restores parameters, channel and notes (including a row set to none); a note moved to another row, and a saved state with a shared note; level (-inf silences the drum), pan (hard left: right silent, +3 dB left), main volume; size lowers the pitch, decay lengthens the ring, strike near the rim is brighter; the tail falls silent; velocity sensitivity (default 100%; at 0% velocities 1 and 127 play the same, as velocity 100; 50% narrows 127 vs 40; per drum; the editor sees the velocity played); the editor's hits (one event per strike, row and velocity; a full FIFO drops, never blocks); MIDI learn (the next note on the channel, other channels ignored); the editor's page, drum and size restored; the editor opens at the saved size and adds no parameters.
