@@ -24,10 +24,11 @@ struct DrumInfo
     bool strikePos;      // has a Strike Position parameter (not the bass drums: fixed beater, as sampled)
 };
 
-// Same order as tools/bake_kit.py KIT (the engine's drum index). Sizes as prototype/engine.py NATIVE_IN.
+// Same order as tools/bake_kit.py KIT (the engine's drum index). Sizes as prototype/engine.py NATIVE_IN,
+// except Snare 4, a 10" snare (Kris, 2026-11-24; tools/bake_kit.py CATALOG_IN).
 constexpr std::array<DrumInfo, 17> kDrums { {
     { "kick1", "Kick 1", 22, false },   { "kick2", "Kick 2", 22, false },
-    { "snare1", "Snare 1", 14, true }, { "snare2", "Snare 2", 14, true }, { "snare3", "Snare 3", 14, true }, { "snare4", "Snare 4", 14, true },
+    { "snare1", "Snare 1", 14, true }, { "snare2", "Snare 2", 14, true }, { "snare3", "Snare 3", 14, true }, { "snare4", "Snare 4", 10, true },
     { "tom1", "Tom 1", 10, true },     { "tom2", "Tom 2", 12, true },     { "tom3", "Tom 3", 13, true },     { "tom4", "Tom 4", 14, true },
     { "tom5", "Tom 5", 16, true },     { "tom6", "Tom 6", 18, true },
     { "gong", "Gong Drum", 22, true },

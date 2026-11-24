@@ -38,6 +38,7 @@ The CMake build gzips the bake into the plugin. `python3 tools/bake_kit.py --che
 - Noise uses different random sequences (same spectra and levels).
 - Hit-to-hit variation uses its own generator, seeded per drum.
 - Strike-position gain and mode shapes come from the baked grids, interpolated between grid points (exact at them; the native radius 0.35 and the contact radii are grid points).
+- Snare 4's reference size is 10" (the bake's `native_in`, `CATALOG_IN` in `tools/bake_kit.py`; Kris, 2026-11-24), where the prototype's NATIVE_IN has 14" for every snare. The model is unchanged: at its catalog size it sounds as before; a Size of S" in the plugin is the prototype's size_in = 1.4 x S.
 - A size change keeps the noise bands' baked level corrections (the prototype re-measures the moved bands on its random sequence). The band filters are re-designed live, with the exact noise gain from the filters' state-space Gramian (cheap, allocation-free).
 - A slot that has decayed 140 dB below a full hit is cleared and skipped; glide below 1e-12 counts as ended and the poles stop being recomputed (CPU).
 - With `lug_detune` turned to 0 while twins still ring, the twins ring on at even tension (the prototype froze them and resumed them later).
