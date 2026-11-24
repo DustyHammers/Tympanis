@@ -4,9 +4,12 @@
 // resonator bank (snares: head, rim shot, side stick; toms: head, rim shot; kicks, gong drum and
 // octobans: head). Notes and the MIDI channel are session state, not host parameters.
 //
-// The default notes are a PLACEHOLDER (GM-like where GM has a matching sound, the rest on free
-// notes away from GM's cymbal notes). The layout is still to be decided by Kris. A note belongs
-// to at most one row (Kris, 2026-11-24): giving a row a note another row has clears that row.
+// The default notes follow General MIDI (Kris, 2026-11-24, "default to GM for now"): GM's bass
+// drums, snare, side stick and six toms where GM has the sound (Snare 1's rim shot on GM's
+// electric snare, 40, as most GM-compatible drum maps); the rows GM has no sound for on notes
+// below GM's range (24..32) and on GM's bongo/conga and whistle/guiro/claves/wood-block notes
+// (60..64, 72..77), away from its cymbals. A note belongs to at most one row (Kris, 2026-11-24):
+// giving a row a note another row has clears that row.
 #pragma once
 
 #include "dsp/KitData.h"
@@ -41,7 +44,7 @@ struct NoteRow
     const char* name;
     int drum;            // index into kDrums
     Art art;
-    int defaultNote;     // placeholder, see above
+    int defaultNote;     // General MIDI, see above
 };
 
 constexpr std::array<NoteRow, 31> kRows { {

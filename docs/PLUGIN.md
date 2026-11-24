@@ -38,7 +38,7 @@ As in Cymbalis: one MIDI channel for the plugin (default 10) and one note per ro
 | Snare 4 / rim shot / side stick | 30 / 31 / 32 | Tom 6 / rim shot | 41 / 77 |
 | Gong Drum | 64 | Octoban 1..4 | 60..63 |
 
-The default notes are a **placeholder** (GM-like where GM has the sound, the rest on free notes away from GM's cymbal notes). The editor sets the channel (MIDI CHANNEL box) and each row's note (the DRUM page's MIDI NOTE boxes: drag, pick from the list, NONE, RESET DEFAULT or MIDI LEARN: the next note-on on the channel goes to the row and plays it).
+The default notes follow **General MIDI** (Kris, 2026-11-24, for now): GM's notes where GM has the sound (kicks 36/35, snare 38, side stick 37, toms 50/48/47/45/43/41; Snare 1's rim shot on GM's electric snare, 40, as most GM-compatible drum maps). The rows GM has no sound for sit below GM's range (24..32) and on GM's bongo/conga notes (60..64: gong drum, octobans) and whistle/guiro/claves/wood-block notes (72..77: tom rim shots), away from its cymbals; a GM drum part that uses those percussion notes plays these drums. The editor sets the channel (MIDI CHANNEL box) and each row's note (the DRUM page's MIDI NOTE boxes: drag, pick from the list, NONE, RESET DEFAULT or MIDI LEARN: the next note-on on the channel goes to the row and plays it).
 
 ## Editor
 
@@ -50,7 +50,6 @@ Stereo out (mono out: (L + R) / 2). Under Main Volume a fixed gain of 0.2: full-
 
 ## Open decisions (Kris)
 
-- Default note layout
 - Individual outputs (later)
 - Plugin code and final name
 - Velocity Sensitivity per drum (to do: 17 new parameters, DRUM page bottom row VS / LEVEL / PAN)
