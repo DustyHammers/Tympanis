@@ -242,6 +242,53 @@ int runChecks()
         const auto y = h.play({ { 0, 41, 127 }, { 0, 36, 127 }, { 0, 64, 127 } }, 44100 * 30, 512);
         check(peak(y, y.size() - 44100) < 1e-5, "silent 29 s after a hit (" + juce::String(20 * std::log10(peak(y, y.size() - 44100) + 1e-30), 1) + " dBFS)");
     }
+    {
+        // the editor's hits: one event per strike, the row and velocity
+        Host h(44100, 256);
+        h.p->clearHits();
+        h.play({ { 10, kRows[18].defaultNote, 100 }, { 300, kRows[19].defaultNote, 64 }, { 400, 120, 127 } }, 2048, 256);
+        TympanisProcessor::HitEvent e {};
+        std::vector<TympanisProcessor::HitEvent> got;
+        while (h.p->popHit(e)) got.push_back(e);
+        check(got.size() == 2 && got[0].row == 18 && got[1].row == 19 && std::abs(got[0].velocity - 100.0f / 127.0f) < 1e-3f,
+              "hits for the editor: one per strike, with its row and velocity (" + juce::String((int) got.size()) + " events)");
+        // a full FIFO drops events, never blocks
+        std::vector<std::tuple<int64_t, int, int>> many;
+        for (int i = 0; i < 100; ++i) many.push_back({ i, kRows[0].defaultNote, 100 });
+        h.play(many, 256, 256);
+        int n = 0;
+        while (h.p->popHit(e)) ++n;
+        check(n == TympanisProcessor::hitFifoSize, "hits: a full FIFO keeps " + juce::String(TympanisProcessor::hitFifoSize) + " (" + juce::String(n) + ")");
+    }
+    {
+        // MIDI learn: the next note-on goes to the row, and plays it
+        Host h(44100, 256);
+        h.p->startMidiLearn(20);
+        const auto y = h.play({ { 10, 99, 127 } }, 4410, 256);
+        check(h.p->getRowNote(20) == 99 && h.p->midiLearnRow() == -1 && peak(y) > 0.01, "MIDI learn: the next note goes to the row and plays it");
+        h.p->startMidiLearn(20);
+        h.play({ { 10, 98, 127 } }, 256, 256, 1);
+        check(h.p->getRowNote(20) == 99 && h.p->midiLearnRow() == 20, "MIDI learn: a note on another channel is ignored");
+        h.p->cancelMidiLearn();
+    }
+    {
+        // the editor's state: page, drum and size are saved with the session
+        Host a(44100, 256);
+        a.p->setEditorPage(2);
+        a.p->setSelectedDrum(11);
+        a.p->setEditorSize(1200, 800);
+        juce::MemoryBlock mb;
+        a.p->getStateInformation(mb);
+        Host b(44100, 256);
+        b.p->setStateInformation(mb.getData(), (int) mb.getSize());
+        check(b.p->editorPage() == 2 && b.p->selectedDrum() == 11 && b.p->editorSize() == juce::Point<int>(1200, 800),
+              "state: the editor's page, drum and size restored");
+        // the editor opens, on the saved page, and closes
+        std::unique_ptr<juce::AudioProcessorEditor> ed(b.p->createEditor());
+        check(ed != nullptr && ed->getWidth() == 1200 && ed->getHeight() == 800, "the editor opens at the saved size");
+        ed.reset();
+        check(b.p->getParameters().size() == 119, "the editor adds no parameters (119)");
+    }
     std::cout << (failures ? "FAILED: " + std::to_string(failures) : std::string("all passed")) << "\n";
     return failures ? 1 : 0;
 }

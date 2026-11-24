@@ -38,7 +38,11 @@ As in Cymbalis: one MIDI channel for the plugin (default 10) and one note per ro
 | Snare 4 / rim shot / side stick | 30 / 31 / 32 | Tom 6 / rim shot | 41 / 77 |
 | Gong Drum | 64 | Octoban 1..4 | 60..63 |
 
-The default notes are a **placeholder** (GM-like where GM has the sound, the rest on free notes away from GM's cymbal notes). The channel dropdown and note boxes need the UI, which waits for an approved mockup; until then the plugin shows JUCE's generic parameter editor and the map stays at its defaults (it is saved and restored already).
+The default notes are a **placeholder** (GM-like where GM has the sound, the rest on free notes away from GM's cymbal notes). The editor sets the channel (MIDI CHANNEL box) and each row's note (the DRUM page's MIDI NOTE boxes: drag, pick from the list, NONE, RESET DEFAULT or MIDI LEARN: the next note-on on the channel goes to the row and plays it).
+
+## Editor
+
+Three pages in Cymbalis's look (docs/UI.md): DRUM, KIT and TUNING. The page, the selected drum and the editor's size are saved with the session (not parameters).
 
 ## Output
 
@@ -49,8 +53,9 @@ Stereo out (mono out: (L + R) / 2). Under Main Volume a fixed gain of 0.2: full-
 - Default note layout
 - Individual outputs (later)
 - Plugin code and final name
-- UI (mockup first)
+- Velocity Sensitivity per drum (to do: 17 new parameters, DRUM page bottom row VS / LEVEL / PAN)
+- Snare 1 and 2 as one drum with shared settings, or two (now two)
 
 ## Checks (`tympanis_hosttest checks`, run in CI)
 
-The baked kit loads; 119 parameters, none for the kicks' strike position; every row plays on its default note; another channel plays nothing; host block sizes 1..4096 give the same level in every 100 ms window; saved state restores parameters, channel and notes (including a row set to none); a note moved to another row, and a saved state with a shared note; level (-inf silences the drum), pan (hard left: right silent, +3 dB left), main volume; size lowers the pitch, decay lengthens the ring, strike near the rim is brighter; the tail falls silent.
+The baked kit loads; 119 parameters, none for the kicks' strike position; every row plays on its default note; another channel plays nothing; host block sizes 1..4096 give the same level in every 100 ms window; saved state restores parameters, channel and notes (including a row set to none); a note moved to another row, and a saved state with a shared note; level (-inf silences the drum), pan (hard left: right silent, +3 dB left), main volume; size lowers the pitch, decay lengthens the ring, strike near the rim is brighter; the tail falls silent; the editor's hits (one event per strike, row and velocity; a full FIFO drops, never blocks); MIDI learn (the next note on the channel, other channels ignored); the editor's page, drum and size restored; the editor opens at the saved size and adds no parameters.

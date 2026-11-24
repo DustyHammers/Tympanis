@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 
 #include "BinaryData.h"
+#include "PluginEditor.h"
 
 using namespace tympanis;
 
@@ -215,20 +216,44 @@ void TympanisProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         const int at = juce::jlimit(0, n, meta.samplePosition);
         if (at > pos) { renderTo(pos, at); pos = at; }
         const int note = msg.getNoteNumber();
+        int learning = learnRow.load();
+        if (learning >= 0 && learnRow.compare_exchange_strong(learning, -1))
+            setRowNote(learning, note);                                       // then it plays
         for (size_t r = 0; r < kRows.size(); ++r)
             if (rowNotes[r].load() == note)
             {
                 kit.strike(kRows[r].drum, msg.getFloatVelocity(), kRows[r].art);
+                pushHit((int) r, msg.getFloatVelocity());
                 break;                                                        // a note has at most one row
             }
     }
     renderTo(pos, n);
 }
 
+void TympanisProcessor::pushHit(int row, float velocity) noexcept
+{
+    const auto scope = hitFifo.write(1);
+    if (scope.blockSize1 > 0)
+        hitBuffer[(size_t) scope.startIndex1] = { (std::int8_t) row, velocity };
+}
+
+bool TympanisProcessor::popHit(HitEvent& e) noexcept
+{
+    const auto scope = hitFifo.read(1);
+    if (scope.blockSize1 <= 0) return false;
+    e = hitBuffer[(size_t) scope.startIndex1];
+    return true;
+}
+
+void TympanisProcessor::clearHits() noexcept
+{
+    HitEvent e;
+    while (popHit(e)) {}
+}
+
 juce::AudioProcessorEditor* TympanisProcessor::createEditor()
 {
-    // Placeholder until the UI mockup is approved: the host's generic parameter view.
-    return new juce::GenericAudioProcessorEditor(*this);
+    return new TympanisEditor(*this);
 }
 
 void TympanisProcessor::getStateInformation(juce::MemoryBlock& destData)
@@ -241,6 +266,12 @@ void TympanisProcessor::getStateInformation(juce::MemoryBlock& destData)
     map.setProperty("channel", midiChannel.load(), nullptr);
     for (size_t r = 0; r < kRows.size(); ++r) map.setProperty(kRows[r].id, rowNotes[r].load(), nullptr);
     root.appendChild(map, nullptr);
+    juce::ValueTree ui("Editor");
+    ui.setProperty("page", uiPage.load(), nullptr);
+    ui.setProperty("drum", kDrums[(size_t) uiDrum.load()].key, nullptr);
+    ui.setProperty("width", editorWidth.load(), nullptr);
+    ui.setProperty("height", editorHeight.load(), nullptr);
+    root.appendChild(ui, nullptr);
     if (auto xml = root.createXml()) copyXmlToBinary(*xml, destData);
 }
 
@@ -266,6 +297,16 @@ void TympanisProcessor::setStateInformation(const void* data, int sizeInBytes)
             if (note >= 0) used[(size_t) note] = true;
             rowNotes[r].store(note);
         }
+    }
+    const auto ui = root.getChildWithName("Editor");
+    if (ui.isValid())
+    {
+        setEditorPage((int) ui.getProperty("page", 0));
+        const juce::String key = ui.getProperty("drum", "").toString();
+        for (size_t d = 0; d < kDrums.size(); ++d)
+            if (key == kDrums[d].key) setSelectedDrum((int) d);
+        const int w = (int) ui.getProperty("width", 0), h = (int) ui.getProperty("height", 0);
+        if (w > 0 && h > 0) setEditorSize(w, h);
     }
 }
 

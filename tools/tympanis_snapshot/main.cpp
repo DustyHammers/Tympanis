@@ -1,0 +1,155 @@
+// tympanis_snapshot — renders the editor's pages to PNG files (docs/UI.md).
+//
+//   tympanis_snapshot OUT_DIR
+//
+// Writes, at 1536 x 1024 unless said:
+//   drum-tom3.png           DRUM page, Tom 3 at rest
+//   drum-tom3-960.png       the same at the smallest size, 960 x 640
+//   drum-snare2-hit.png     DRUM page, Snare 2 50 ms after a full-velocity head hit
+//   drum-<key>.png          DRUM page, every other drum at rest
+//   kit-tom3.png            KIT page, Tom 3 selected
+//   kit-snare1-hit.png      KIT page, Tom 3 selected, Snare 1 50 ms after a hit
+//   tuning-tom3.png         TUNING page, Tom 3
+//   tuning-kick1.png        TUNING page, Kick 1 (no Strike Position)
+//   drum-snare2-hit-2x.png  the DRUM page's hit at twice the pixels (a Retina display)
+// and prints how long the wireframes took to draw: the still drawing, and one moving frame.
+//
+// JUCE shows its splash logo in editors opened in the two seconds after the first is painted;
+// the first editor here only starts that time (as Cymbalis's snapshot tool).
+#include "PluginEditor.h"
+#include "PluginProcessor.h"
+
+#include <cstdio>
+
+namespace
+{
+int failures = 0;
+
+void save (juce::AudioProcessorEditor& editor, const juce::File& file)
+{
+    const auto image = editor.createComponentSnapshot (editor.getLocalBounds(), true, 1.0f);
+    file.deleteFile();
+    juce::FileOutputStream out (file);
+    juce::PNGImageFormat png;
+    if (! out.openedOk() || ! png.writeImageToStream (image, out))
+    {
+        std::fprintf (stderr, "cannot write %s\n", file.getFullPathName().toRawUTF8());
+        ++failures;
+        return;
+    }
+    std::printf ("%s (%d x %d)\n", file.getFileName().toRawUTF8(), image.getWidth(), image.getHeight());
+}
+
+void save2x (juce::AudioProcessorEditor& editor, const juce::File& file)
+{
+    const auto image = editor.createComponentSnapshot (editor.getLocalBounds(), true, 2.0f);
+    file.deleteFile();
+    juce::FileOutputStream out (file);
+    juce::PNGImageFormat png;
+    if (! out.openedOk() || ! png.writeImageToStream (image, out))
+        ++failures;
+    else
+        std::printf ("%s (%d x %d)\n", file.getFileName().toRawUTF8(), image.getWidth(), image.getHeight());
+}
+
+int rowOf (const char* id)
+{
+    for (size_t r = 0; r < tympanis::kRows.size(); ++r)
+        if (juce::String (tympanis::kRows[r].id) == id)
+            return (int) r;
+    return 0;
+}
+} // namespace
+
+int main (int argc, char** argv)
+{
+    if (argc < 2)
+    {
+        std::fprintf (stderr, "usage: tympanis_snapshot OUT_DIR\n");
+        return 2;
+    }
+    juce::ScopedJuceInitialiser_GUI gui;
+    const juce::File dir = juce::File::getCurrentWorkingDirectory().getChildFile (argv[1]);
+    dir.createDirectory();
+
+    TympanisProcessor processor;
+    if (! processor.isKitLoaded())
+        std::fprintf (stderr, "warning: kit failed to load: %s\n", processor.getLoadError().toRawUTF8());
+    {
+        std::unique_ptr<juce::AudioProcessorEditor> first (processor.createEditor());
+        first->createComponentSnapshot (first->getLocalBounds(), true, 1.0f);
+        juce::Thread::sleep (2500);
+    }
+
+    using Content = tympanis::ui::Content;
+    auto open = [&processor] (int page, int drum, int width = 1536) {
+        processor.setEditorPage (page);
+        processor.setSelectedDrum (drum);
+        std::unique_ptr<TympanisEditor> e (dynamic_cast<TympanisEditor*> (processor.createEditor()));
+        e->setSize (width, width * 2 / 3);
+        return e;
+    };
+    auto timing = [] (const char* what, tympanis::ui::WireView* v) {
+        std::printf ("  %s: still %.1f ms, moving frame %.1f ms\n", what, v->lastStillMs(), v->lastFrameMs());
+    };
+
+    {
+        auto e = open (Content::drumPage, 8);
+        save (*e, dir.getChildFile ("drum-tom3.png"));
+        timing ("DRUM page", e->content().wireView (Content::drumPage));
+    }
+    {
+        auto e = open (Content::drumPage, 8, 960);
+        save (*e, dir.getChildFile ("drum-tom3-960.png"));
+    }
+    {
+        auto e = open (Content::drumPage, 3);
+        save (*e, dir.getChildFile ("drum-snare2.png")); // builds the drawing
+        e->content().showHit (rowOf ("snare2"), 1.0f, 0.05);
+        save (*e, dir.getChildFile ("drum-snare2-hit.png"));
+        timing ("DRUM page, hit", e->content().wireView (Content::drumPage));
+    }
+    for (int d = 0; d < (int) tympanis::kDrums.size(); ++d)
+    {
+        if (d == 3 || d == 8)
+            continue;
+        auto e = open (Content::drumPage, d);
+        save (*e, dir.getChildFile (juce::String ("drum-") + tympanis::kDrums[(size_t) d].key + ".png"));
+    }
+    {
+        auto e = open (Content::kitPage, 8);
+        save (*e, dir.getChildFile ("kit-tom3.png"));
+        timing ("KIT page", e->content().wireView (Content::kitPage));
+        e->content().showHit (rowOf ("snare1"), 0.9f, 0.05);
+        save (*e, dir.getChildFile ("kit-snare1-hit.png"));
+        timing ("KIT page, hit", e->content().wireView (Content::kitPage));
+    }
+    {
+        // a Retina display: twice the pixels (timings only)
+        auto e = open (Content::drumPage, 3);
+        e->createComponentSnapshot (e->getLocalBounds(), true, 2.0f);
+        timing ("DRUM page at 2x", e->content().wireView (Content::drumPage));
+        e->content().showHit (rowOf ("snare2"), 1.0f, 0.05);
+        save2x (*e, dir.getChildFile ("drum-snare2-hit-2x.png"));
+        timing ("DRUM page at 2x, hit", e->content().wireView (Content::drumPage));
+    }
+    {
+        auto e = open (Content::kitPage, 8);
+        e->createComponentSnapshot (e->getLocalBounds(), true, 2.0f);
+        timing ("KIT page at 2x", e->content().wireView (Content::kitPage));
+        e->content().selectDrum (10);
+        timing ("KIT page at 2x, another drum selected", e->content().wireView (Content::kitPage));
+        e->content().showHit (rowOf ("tom5"), 1.0f, 0.05);
+        timing ("KIT page at 2x, hit", e->content().wireView (Content::kitPage));
+    }
+    {
+        auto e = open (Content::tuningPage, 8);
+        save (*e, dir.getChildFile ("tuning-tom3.png"));
+        timing ("TUNING page", e->content().wireView (Content::tuningPage));
+    }
+    {
+        auto e = open (Content::tuningPage, 0);
+        save (*e, dir.getChildFile ("tuning-kick1.png"));
+    }
+    return failures == 0 ? 0 : 1;
+}
