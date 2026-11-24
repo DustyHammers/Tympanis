@@ -1,0 +1,218 @@
+name: Build macOS (VST3 + AU)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore: ['docs/**', '**.md']
+  pull_request:
+    paths-ignore: ['docs/**', '**.md']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write   # needed to attach zips to a GitHub Release on v* tags
+
+env:
+  BUILD_TYPE: Release
+  PRODUCT: Tympanis
+  AU_TYPE: aumu
+  AU_SUBTYPE: Tymp
+  AU_MANUFACTURER: Dham
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      XCODE_VERSION: '16.4'
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode ${{ env.XCODE_VERSION }}
+        run: |
+          XCODE="/Applications/Xcode_${XCODE_VERSION}.app"
+          if [ ! -d "$XCODE" ]; then
+            echo "::error::$XCODE is not on this runner image; it has $(ls -d /Applications/Xcode*.app | xargs -n1 basename | tr '\n' ' ')"
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+          echo "SDK $(xcrun --show-sdk-version)"
+
+      - name: Install Ninja
+        run: brew list ninja >/dev/null 2>&1 || brew install ninja
+
+      - name: Cache JUCE source
+        uses: actions/cache@v4
+        with:
+          path: .deps
+          key: deps-${{ runner.os }}-xcode${{ env.XCODE_VERSION }}-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-${{ env.BUILD_TYPE }}
+
+      - name: Configure (universal arm64 + x86_64)
+        run: |
+          set -o pipefail
+          if ! cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DFETCHCONTENT_BASE_DIR="${GITHUB_WORKSPACE}/.deps" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache 2>&1 | tee configure.log; then
+            .github/scripts/annotate_errors.sh configure.log Configure
+            exit 1
+          fi
+
+      - name: Build
+        run: |
+          set -o pipefail
+          if ! cmake --build build --target ${PRODUCT}_VST3 ${PRODUCT}_AU TympanisHostTest tympanis_render --parallel 2>&1 | tee build.log; then
+            .github/scripts/annotate_errors.sh build.log Build
+            exit 1
+          fi
+
+      # The processor as a host drives it: the baked kit loads, 35 parameters, every MIDI note
+      # row plays, other channels are ignored, host block sizes 1..4096, saved state (parameters,
+      # MIDI channel, notes), the tail falls silent (tools/tympanis_hosttest).
+      - name: Processor checks
+        run: |
+          HOSTTEST=$(find build/TympanisHostTest_artefacts -type f -perm -u+x -name 'TympanisHostTest' | head -1)
+          echo "HOSTTEST=$HOSTTEST" >> "$GITHUB_ENV"
+          "$HOSTTEST" checks
+
+      - name: CPU benchmark (every drum struck every 250 ms)
+        run: |
+          CPU=$(sysctl -n machdep.cpu.brand_string)
+          { echo "### CPU on ${CPU}"; echo '```'; "$HOSTTEST" bench; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+          test "${PIPESTATUS[0]}" -eq 0
+
+      - name: Locate bundles
+        run: |
+          ART="build/${PRODUCT}_artefacts/${BUILD_TYPE}"
+          echo "VST3=$ART/VST3/${PRODUCT}.vst3" >> "$GITHUB_ENV"
+          echo "AU=$ART/AU/${PRODUCT}.component" >> "$GITHUB_ENV"
+          ls -la "$ART/VST3" "$ART/AU"
+
+      - name: Check both architectures are present
+        run: |
+          check() {
+            local BIN="$1/Contents/MacOS/$2"
+            ARCHS=$(lipo -archs "$BIN")
+            echo "$BIN -> $ARCHS, $(stat -f%z "$BIN") bytes"
+            [[ "$ARCHS" == *arm64* && "$ARCHS" == *x86_64* ]] || { echo "::error::$BIN is not universal"; exit 1; }
+          }
+          check "$VST3" "$PRODUCT"; check "$AU" "$PRODUCT"
+
+      - name: Check minimum macOS is 11.0 (both architectures)
+        run: |
+          for B in "$VST3" "$AU"; do
+            BIN="$B/Contents/MacOS/${PRODUCT}"
+            for A in arm64 x86_64; do
+              read -r MINOS SDK < <(otool -arch "$A" -l "$BIN" | awk '/cmd LC_BUILD_VERSION/ { f = 1 } f && $1 == "minos" { m = $2 } f && $1 == "sdk" { print m, $2; exit }') || true
+              echo "$BIN ($A): minos ${MINOS:-none}, sdk ${SDK:-none}"
+              [ "$MINOS" = "11.0" ] || { echo "::error::$BIN ($A) has minimum macOS ${MINOS:-none}, not 11.0"; exit 1; }
+            done
+          done
+
+      - name: Check x86_64 slice has no AVX instructions
+        run: |
+          BIN="$VST3/Contents/MacOS/${PRODUCT}"
+          COUNT=$(otool -arch x86_64 -tv "$BIN" | grep -cE '%[yz]mm' || true)
+          echo "AVX/AVX-512 register uses in the x86_64 slice of $BIN: $COUNT"
+          [ "$COUNT" -eq 0 ] || { echo "::error::AVX found in x86_64 slice (Rosetta 2 crash risk)"; exit 1; }
+
+      - name: Ad-hoc code sign
+        run: |
+          for B in "$VST3" "$AU"; do
+            codesign --force --deep --sign - "$B"
+            codesign --verify --deep --strict --verbose=2 "$B"
+          done
+
+      - name: Validate VST3 (pluginval)
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          ./pluginval.app/Contents/MacOS/pluginval \
+            --strictness-level 5 \
+            --validate-in-process \
+            --skip-gui-tests \
+            --timeout-ms 300000 \
+            --validate "$VST3"
+
+      - name: Validate AU (auval, native + Rosetta)
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "$AU" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          sleep 2
+          auval -a | grep -i "$AU_MANUFACTURER" || true
+          auval -strict -v $AU_TYPE $AU_SUBTYPE $AU_MANUFACTURER
+          if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+            echo "Rosetta is not installed on this runner; installing it"
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+          echo "--- x86_64 slice under Rosetta ---"
+          arch -x86_64 auval -strict -v $AU_TYPE $AU_SUBTYPE $AU_MANUFACTURER
+
+      - name: Package
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="${GITHUB_REF_NAME}"; else TAG="$SHA"; fi
+          mkdir -p dist
+          ditto -c -k --keepParent "$VST3"  "dist/${PRODUCT}-VST3-macOS-${TAG}.zip"
+          ditto -c -k --keepParent "$AU"    "dist/${PRODUCT}-AU-macOS-${TAG}.zip"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          ls -la dist
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PRODUCT }}-macOS-${{ env.TAG }}
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release (v* tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+
+  # The baked kit must be what tools/bake_kit.py makes from the locked models, and the C++
+  # engine must match the Python prototype on everything that is not random (numbers only;
+  # no audio is written or kept).
+  engine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python
+        run: |
+          python3 -m pip install --break-system-packages numpy scipy
+          python3 -c "import numpy, scipy; print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
+
+      - name: Locked files
+        run: md5sum -c docs/locked.md5
+
+      - name: Bake is current
+        run: python3 tools/bake_kit.py --check
+
+      - name: Build the engine (no JUCE)
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DTYMPANIS_BUILD_PLUGIN=OFF
+          cmake --build build --parallel
+
+      - name: Port check against prototype/engine.py
+        run: python3 tools/ref_check.py --render build/tools/tympanis_render/tympanis_render
