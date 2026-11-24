@@ -7,6 +7,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -40,12 +41,38 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
-    // MIDI map (session state; the note-row UI will use these once its mockup is approved)
+    // MIDI map (session state, set from the editor's MIDI CHANNEL box and MIDI NOTE boxes)
     int getMidiChannel() const { return midiChannel.load(); }
     void setMidiChannel(int ch) { midiChannel.store(juce::jlimit(1, 16, ch)); }
     int getRowNote(int row) const { return rowNotes[(size_t) row].load(); }
     // A note belongs to at most one row: giving a row a note another row has sets that row to none.
     void setRowNote(int row, int note);
+
+    // MIDI learn: the next note-on on the MIDI channel goes to this row (and plays it).
+    void startMidiLearn(int row) noexcept { learnRow.store(row); }
+    void cancelMidiLearn() noexcept { learnRow.store(-1); }
+    int midiLearnRow() const noexcept { return learnRow.load(); }
+
+    // Hits for the editor (the lit rows and the moving heads): one event per strike. The audio
+    // thread writes it into a preallocated single-producer, single-consumer FIFO; when the FIFO
+    // is full, as when no editor reads it, the event is dropped. The editor takes them on its timer.
+    struct HitEvent
+    {
+        std::int8_t row;   // index into kRows
+        float velocity;    // 0..1, the note's
+    };
+    static constexpr int hitFifoSize = 64;
+    bool popHit(HitEvent& e) noexcept;
+    void clearHits() noexcept; // the editor, when it opens: drops what waited without one
+
+    // Editor state, saved with the session (not host parameters): the page shown (0 DRUM,
+    // 1 KIT, 2 TUNING), the selected drum (KitMap.h index) and the editor's size (0 x 0: never set).
+    int editorPage() const noexcept { return uiPage.load(); }
+    void setEditorPage(int p) noexcept { uiPage.store(juce::jlimit(0, 2, p)); }
+    int selectedDrum() const noexcept { return uiDrum.load(); }
+    void setSelectedDrum(int d) noexcept { uiDrum.store(juce::jlimit(0, (int) tympanis::kDrums.size() - 1, d)); }
+    juce::Point<int> editorSize() const noexcept { return { editorWidth.load(), editorHeight.load() }; }
+    void setEditorSize(int w, int h) noexcept { editorWidth.store(w); editorHeight.store(h); }
 
     bool isKitLoaded() const { return kitLoaded; }
     const juce::String& getLoadError() const { return loadError; }
@@ -88,6 +115,14 @@ private:
 
     std::atomic<int> midiChannel { tympanis::kDefaultMidiChannel };
     std::array<std::atomic<int>, tympanis::kRows.size()> rowNotes {};
+    std::atomic<int> learnRow { -1 };
+
+    void pushHit(int row, float velocity) noexcept;
+    juce::AbstractFifo hitFifo { hitFifoSize + 1 }; // room for hitFifoSize events
+    std::array<HitEvent, hitFifoSize + 1> hitBuffer {};
+
+    std::atomic<int> uiPage { 0 }, uiDrum { 8 };    // DRUM page, Tom 3 (as the mockups)
+    std::atomic<int> editorWidth { 0 }, editorHeight { 0 };
 
     std::vector<double> left, right;
 

@@ -62,6 +62,14 @@ foreach(key ${TYMPANIS_BAKE_KEYS})
     list(APPEND TYMPANIS_RESOURCES "${gz}")
 endforeach()
 
+# The editor's artwork and fonts (docs/UI.md).
+list(APPEND TYMPANIS_RESOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/ui/TYMPANIS_Background.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/ui/knob.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/ui/Carlito-Regular.ttf"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/ui/PinyonScript-Regular.ttf"
+)
+
 juce_add_binary_data(TympanisBinaryData
     HEADER_NAME BinaryData.h
     NAMESPACE BinaryData
@@ -71,6 +79,11 @@ set_target_properties(TympanisBinaryData PROPERTIES POSITION_INDEPENDENT_CODE ON
 
 target_sources(Tympanis PRIVATE
     plugin/PluginProcessor.cpp
+    plugin/PluginEditor.cpp
+    plugin/ui/UiAssets.cpp
+    plugin/ui/DrumModel.cpp
+    plugin/ui/WireRaster.cpp
+    plugin/ui/WireView.cpp
 )
 target_include_directories(Tympanis PRIVATE plugin)
 
@@ -106,6 +119,21 @@ target_link_libraries(TympanisHostTest
         Tympanis
         tympanis_engine
         juce::juce_audio_formats
+    PUBLIC
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags
+)
+
+# Renders the editor's pages to PNG files (docs/UI.md), for checking the UI.
+juce_add_console_app(TympanisSnapshot PRODUCT_NAME "tympanis_snapshot")
+target_sources(TympanisSnapshot PRIVATE tools/tympanis_snapshot/main.cpp)
+target_include_directories(TympanisSnapshot PRIVATE plugin)
+target_compile_definitions(TympanisSnapshot PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+target_link_libraries(TympanisSnapshot
+    PRIVATE
+        Tympanis
+        tympanis_engine
+        juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags
