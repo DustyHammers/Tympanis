@@ -45,6 +45,11 @@ KIT = [
     ('octo3',   'TOM_738_SPoctoban3_DRY7S'),
     ('octo4',   'TOM_739_SPoctoban4_DRY7S'),
 ]
+# The kit's catalog head diameters where they differ from the prototype's NATIVE_IN, which gives
+# every snare 14" (Kris, 2026-11-24: Snare 4 is a 10" snare). native_in is only the Size
+# parameter's reference: at the catalog size the drum sounds as modelled (sf = 1); its range is
+# 0.5x .. 2x that. Nothing else in the bake depends on it.
+CATALOG_IN = {'snare4': 10.0}
 GRID_STEP = 0.01          # radius grid r = i / 100, i = 0 .. 95 (0 = centre, 0.95 = max strike_pos)
 GRID_N = 96
 SR = E.SR
@@ -131,7 +136,7 @@ def bake_drum(key, model):
     out = {
         'key': key, 'model': model, 'K': K,
         'kind': 'kick' if d.is_kick else ('snare' if model.startswith('SNRE') else ('octoban' if d.is_octoban else 'tom')),
-        'native_in': float(d.D0), 'f_main': float(d.f_main), 'fref': float(d.fref), 'r0': float(d.r0),
+        'native_in': float(CATALOG_IN.get(key, d.D0)), 'f_main': float(d.f_main), 'fref': float(d.fref), 'r0': float(d.r0),
         'glide_gmax': float(d.gmax),
         'bands': [[float(lo), float(hi)] for lo, hi in d.bands],
         'band_norm_corr': corr,

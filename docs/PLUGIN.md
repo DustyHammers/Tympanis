@@ -22,7 +22,7 @@ Decisions (Kris, 2026-11-24): decay, strike position, size, tune and lug detune 
 
 Strike position applies to head hits and rim shots (the stick's head contact), not side sticks. Tune, decay and size act live on ringing drums; strike position from the next hit. Level and pan ramp over each rendered piece (no zipper noise). A snare's sympathetic head ring and wire buzz follow that snare's level and pan; the coupling itself uses the unfaded kit, as in a room.
 
-Catalog sizes: kicks 22", snares 14", toms 10/12/13/14/16/18", gong drum 22", octobans 6".
+Catalog sizes: kicks 22", snares 1-3 14", Snare 4 10" (Kris, 2026-11-24; its Size runs 5" .. 20"), toms 10/12/13/14", floor toms 16 x 16" and 18 x 16", gong drum 22", octobans 6". At the catalog size every drum sounds as modelled.
 
 ## MIDI map (session state, not parameters)
 

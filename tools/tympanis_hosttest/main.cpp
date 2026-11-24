@@ -96,6 +96,12 @@ int runChecks()
         check(h.p->params.getParameter("kick1_strike_pos") == nullptr && h.p->params.getParameter("tom1_strike_pos") != nullptr,
               "no strike position on the bass drums");
         check(h.p->getMidiChannel() == kDefaultMidiChannel, "default MIDI channel " + juce::String(kDefaultMidiChannel));
+        {
+            auto* s4 = h.p->params.getParameter("snare4_size");
+            const auto r = s4->getNormalisableRange();
+            check(std::abs(s4->convertFrom0to1(s4->getDefaultValue()) - 10.0f) < 1e-3f && std::abs(r.start - 5.0f) < 1e-3f && std::abs(r.end - 20.0f) < 1e-3f,
+                  "Snare 4 is a 10\" snare: Size 10\" (5\" .. 20\")");
+        }
         // every row plays on its default note
         for (size_t r = 0; r < kRows.size(); ++r)
         {
