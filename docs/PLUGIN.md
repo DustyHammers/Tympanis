@@ -2,19 +2,31 @@
 
 macOS VST3 + AU instrument (JUCE 7.0.12), universal arm64 + x86_64, macOS 11+. Identity: company DHammers, manufacturer code `Dham`, plugin code `Tymp`, bundle ID `com.dhammers.tympanis` (code and name are working choices).
 
-## Host parameters (35)
+## Host parameters (119)
+
+Per drum (`<drum>` = `kick1 kick2 snare1..snare4 tom1..tom6 gong octo1..octo4`):
 
 | ID | Name | Range | Default |
 |---|---|---|---|
 | `<drum>_tune` | `<Drum> Tune` | -2 .. +2 semitones | 0 |
 | `<drum>_lug_detune` | `<Drum> Lug Detune` | 0 .. 1 (1 = 5 % RMS tension error between lugs) | 0 |
-| `snare_buzz` | Snare Buzz | 0 .. 1 | 0.5 |
+| `<drum>_decay` | `<Drum> Decay` | 0.25 .. 4 x ring time (highs change less) | 1 |
+| `<drum>_strike_pos` | `<Drum> Strike Position` | 0 (centre) .. 0.95 (near the rim); not on the bass drums | 0.35 |
+| `<drum>_size` | `<Drum> Size` | 0.5 .. 2 x the catalog diameter, inches | catalog size |
+| `<drum>_level` | `<Drum> Level` | -inf (bottom, -60) .. +6 dB | 0 dB |
+| `<drum>_pan` | `<Drum> Pan` | -1 (left) .. +1 (right), -3 dB compensated constant power (0 dB centre, +3 dB hard) | 0 |
 
-`<drum>` is each of the 17 drums: `kick1 kick2 snare1..snare4 tom1..tom6 gong octo1..octo4`. Re-strike damping and hit-to-hit variation are hardwired. The engine's other settings (decay, glide amount, click and noise mix, velocity range, strike position, size, tube length) are not exposed; velocity range is 24 dB.
+Kit: `snare_buzz` Snare Buzz 0 .. 1 (0.5); `main_volume` Main Volume -inf .. +6 dB (0 dB), on the summed stereo output.
+
+Decisions (Kris, 2026-11-24): decay, strike position, size, tune and lug detune exposed per drum; independent level and pan per drum; main volume on the 2-channel sum; individual outputs later. The kicks have no strike position: their beater position is fixed (as sampled) and the engine ignores it. Re-strike damping and hit-to-hit variation are hardwired; glide amount, click and noise mix, velocity range (24 dB) and tube length are not exposed.
+
+Strike position applies to head hits and rim shots (the stick's head contact), not side sticks. Tune, decay and size act live on ringing drums; strike position from the next hit. Level and pan ramp over each rendered piece (no zipper noise). A snare's sympathetic head ring and wire buzz follow that snare's level and pan; the coupling itself uses the unfaded kit, as in a room.
+
+Catalog sizes: kicks 22", snares 14", toms 10/12/13/14/16/18", gong drum 22", octobans 6".
 
 ## MIDI map (session state, not parameters)
 
-As in Cymbalis: one MIDI channel for the plugin and one note per row, saved with the session. Every articulation is its own row; rows of one drum play its one shared bank. Note-offs are ignored (drums ring on). If two rows have the same note, both play.
+As in Cymbalis: one MIDI channel for the plugin (default 10) and one note per row, saved with the session. Every articulation is its own row; rows of one drum play its one shared bank. Note-offs are ignored (drums ring on). A note belongs to at most one row: giving a row a note another row has sets that row to none; a saved state where rows share a note keeps it on the first row.
 
 | Row | Default note | Row | Default note |
 |---|---|---|---|
@@ -26,20 +38,19 @@ As in Cymbalis: one MIDI channel for the plugin and one note per row, saved with
 | Snare 4 / rim shot / side stick | 30 / 31 / 32 | Tom 6 / rim shot | 41 / 77 |
 | Gong Drum | 64 | Octoban 1..4 | 60..63 |
 
-The defaults are a **placeholder** (GM-like where GM has the sound, the rest on free notes away from GM's cymbal notes); default channel 10 is a placeholder too. The channel dropdown and note boxes need the UI, which waits for an approved mockup; until then the plugin shows JUCE's generic parameter editor and the map stays at its defaults (it is saved and restored already).
+The default notes are a **placeholder** (GM-like where GM has the sound, the rest on free notes away from GM's cymbal notes). The channel dropdown and note boxes need the UI, which waits for an approved mockup; until then the plugin shows JUCE's generic parameter editor and the map stays at its defaults (it is saved and restored already).
 
 ## Output
 
-Stereo (or mono) out, the mono kit on both channels. Fixed output gain 0.2: full-velocity head hits peak around -13 dBFS; the loudest single hit, tom 3's rim shot, about -2 dBFS.
+Stereo out (mono out: (L + R) / 2). Under Main Volume a fixed gain of 0.2: full-velocity head hits peak around -13 dBFS at 0 dB level, centre pan; the loudest single hit, tom 3's rim shot, about -2 dBFS. Individual outputs come later.
 
 ## Open decisions (Kris)
 
-- Default note layout, default MIDI channel (10 or 16), whether rows may share a note
-- Which other engine settings, if any, become parameters
-- Output format: one stereo mix, or multi-out (kick / snares / toms ...)
+- Default note layout
+- Individual outputs (later)
 - Plugin code and final name
 - UI (mockup first)
 
 ## Checks (`tympanis_hosttest checks`, run in CI)
 
-The baked kit loads; 35 parameters; every row plays on its default note; another channel plays nothing; host block sizes 1..4096 give the same level in every 100 ms window; saved state restores parameters, channel and notes (including a row set to none); the tail falls silent.
+The baked kit loads; 119 parameters, none for the kicks' strike position; every row plays on its default note; another channel plays nothing; host block sizes 1..4096 give the same level in every 100 ms window; saved state restores parameters, channel and notes (including a row set to none); a note moved to another row, and a saved state with a shared note; level (-inf silences the drum), pan (hard left: right silent, +3 dB left), main volume; size lowers the pitch, decay lengthens the ring, strike near the rim is brighter; the tail falls silent.

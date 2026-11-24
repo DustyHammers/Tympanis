@@ -124,9 +124,15 @@ DrumData parseDrum(const std::string& text)
     if (! v.at("tube_cluster").isNull())
         for (const auto& s : v.at("tube_cluster").array()) d.tubeCluster.push_back((unsigned char) (s.number() != 0));
     d.gridStep = v.at("grid_step").number();
-    d.strikeGainGrid = grid(v.at("strike_gain_grid"));
+    for (const auto& [name, g] : v.at("strike_gain_grid").object())
+    {
+        const int a = name == "head" ? 0 : name == "rim" ? 1 : name == "side" ? 2 : -1;
+        if (a < 0) throw std::runtime_error("bake: unknown articulation in strike_gain_grid " + name);
+        d.strikeGainGrid[(size_t) a] = grid(g);
+    }
     d.shape2Grid = grid(v.at("shape2_grid"));
-    for (const auto& r : d.strikeGainGrid) if ((int) r.size() != d.K) throw std::runtime_error("bake: strike grid row size");
+    for (const auto& g : d.strikeGainGrid)
+        for (const auto& r : g) if ((int) r.size() != d.K) throw std::runtime_error("bake: strike grid row size");
     for (const auto& r : d.shape2Grid) if ((int) r.size() != d.K) throw std::runtime_error("bake: shape grid row size");
     if (d.shape2Grid.empty()) throw std::runtime_error("bake: no shape2 grid");
     if (const Value* s = v.find("sym"))

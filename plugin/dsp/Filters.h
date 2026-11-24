@@ -116,24 +116,54 @@ struct BandPass
         reset();
     }
 
-    // 1 / RMS gain for unit white noise (1 / sqrt(sum h^2)), from the impulse response.
-    double whiteNoiseNorm(double sr)
+    // 1 / RMS gain for unit white noise: 1 / sqrt(sum h^2), exact, from the state-space
+    // controllability Gramian (Lyapunov sum by doubling). Allocation-free and cheap enough for
+    // the audio thread (a live size change re-designs the bands).
+    double whiteNoiseNorm(double /*sampleRate*/ = 0) const
     {
-        BandPass c = *this;
-        c.reset();
-        double e = 0;
-        const int n = (int) (sr * 5.0);
-        for (int i = 0; i < n; i += 256)
+        const Biquad& p = s[0];
+        const Biquad& q = s[1];
+        // states [z1, z2, w1, w2] of the two transposed-direct-form sections in cascade
+        const double c1 = q.b1 - q.a1 * q.b0, c2 = q.b2 - q.a2 * q.b0;
+        double A[4][4] = { { -p.a1, 1, 0, 0 }, { -p.a2, 0, 0, 0 }, { c1, 0, -q.a1, 1 }, { c2, 0, -q.a2, 0 } };
+        const double B[4] = { p.b1 - p.a1 * p.b0, p.b2 - p.a2 * p.b0, c1 * p.b0, c2 * p.b0 };
+        const double Cv[4] = { q.b0, 0, 1, 0 }, D = q.b0 * p.b0;
+        double P[4][4], T[4][4], M2[4][4];
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < 4; ++j) P[i][j] = B[i] * B[j];
+        for (int it = 0; it < 64; ++it)
         {
-            double eb = 0;
-            for (int j = 0; j < 256; ++j)
-            {
-                const double y = c.tick(i + j == 0 ? 1.0 : 0.0);
-                eb += y * y;
-            }
-            e += eb;
-            if (i > 0 && eb < 1e-20 * e) break;         // the rest of the impulse response is negligible
+            // P += A P A^T ; A = A A
+            for (int i = 0; i < 4; ++i)
+                for (int j = 0; j < 4; ++j)
+                {
+                    double v = 0;
+                    for (int k = 0; k < 4; ++k) v += A[i][k] * P[k][j];
+                    T[i][j] = v;
+                }
+            double add = 0, tot = 0;
+            for (int i = 0; i < 4; ++i)
+                for (int j = 0; j < 4; ++j)
+                {
+                    double v = 0;
+                    for (int k = 0; k < 4; ++k) v += T[i][k] * A[j][k];
+                    P[i][j] += v;
+                    add += std::fabs(v); tot += std::fabs(P[i][j]);
+                }
+            for (int i = 0; i < 4; ++i)
+                for (int j = 0; j < 4; ++j)
+                {
+                    double v = 0;
+                    for (int k = 0; k < 4; ++k) v += A[i][k] * A[k][j];
+                    M2[i][j] = v;
+                }
+            for (int i = 0; i < 4; ++i)
+                for (int j = 0; j < 4; ++j) A[i][j] = M2[i][j];
+            if (add < 1e-18 * tot) break;
         }
+        double e = D * D;
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < 4; ++j) e += Cv[i] * P[i][j] * Cv[j];
         return 1.0 / std::sqrt(e);
     }
 };
