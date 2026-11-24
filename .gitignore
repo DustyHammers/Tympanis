@@ -1,0 +1,12 @@
+build/
+build-*/
+.deps/
+dist/
+.DS_Store
+*.xcodeproj/
+.vscode/
+.idea/
+prototype/.venv/
+__pycache__/
+renders/
+*.wav
