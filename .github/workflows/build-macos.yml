@@ -3,7 +3,6 @@ name: Build macOS (VST3 + AU)
 on:
   push:
     branches: [main]
-    tags: ['v*']
     paths-ignore: ['docs/**', '**.md']
   pull_request:
     paths-ignore: ['docs/**', '**.md']
@@ -13,8 +12,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# No releases: Tympanis is private (Kris, 2026-11-24). Builds are the runs' artifacts only.
 permissions:
-  contents: write   # needed to attach zips to a GitHub Release on v* tags
+  contents: read
 
 env:
   BUILD_TYPE: Release
@@ -175,8 +175,7 @@ jobs:
 
       - name: Package
         run: |
-          SHA=$(git rev-parse --short HEAD)
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="${GITHUB_REF_NAME}"; else TAG="$SHA"; fi
+          TAG=$(git rev-parse --short HEAD)
           mkdir -p dist
           ditto -c -k --keepParent "$VST3"  "dist/${PRODUCT}-VST3-macOS-${TAG}.zip"
           ditto -c -k --keepParent "$AU"    "dist/${PRODUCT}-AU-macOS-${TAG}.zip"
@@ -190,12 +189,6 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
           retention-days: 30
-
-      - name: Publish GitHub Release (v* tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*.zip
 
   # The baked kit must be what tools/bake_kit.py makes from the locked models, and the C++
   # engine must match the Python prototype on everything that is not random (numbers only;

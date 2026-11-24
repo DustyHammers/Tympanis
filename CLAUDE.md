@@ -34,4 +34,4 @@ Tympanis (working name) is a physically modelled drum instrument (macOS VST3 + A
 | `docs/ENGINE.md` | Engine, bake, port notes, checks |
 | `docs/PLUGIN.md` | Parameters, MIDI map, output, open decisions |
 | `docs/UI.md` | Editor: pages, assets, wireframes, hits |
-| `docs/BUILDS.md` | Mac builds in CI: triggers, artifacts, releases, installing |
+| `docs/BUILDS.md` | Mac builds in CI: triggers, artifacts, installing (no releases: private) |

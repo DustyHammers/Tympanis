@@ -8,7 +8,6 @@
 |---|---|
 | A pull request (any branch) | Build, checks, zips as the run's artifact |
 | A push to `main` | The same, for `main` |
-| A tag `v*` pushed (e.g. `v0.1.0`) | The same, and a GitHub Release with the two zips attached |
 | Run workflow (Actions tab, any branch) | The same, by hand |
 
 Changes to `docs/` or Markdown files alone do not start a build.
@@ -17,7 +16,9 @@ Each run: configures and builds (Ninja, ccache, JUCE cached), runs the processor
 
 ## Getting a build
 
-GitHub → Tympanis → Actions → Build macOS (VST3 + AU) → the run for the branch or pull request → Artifacts at the bottom of the run's page. Signed in to GitHub, the artifact downloads as a zip holding the two zips. For a release: tag the commit (`git tag v0.1.0 && git push origin v0.1.0`); the run attaches the zips to a Release under Releases.
+GitHub → Tympanis → Actions → Build macOS (VST3 + AU) → the run for the branch or pull request → Artifacts at the bottom of the run's page. Signed in to GitHub, the artifact downloads as a zip holding the two zips.
+
+No releases: Tympanis is private and copyrighted (Kris, 2026-11-24). The workflow publishes nothing; builds exist only as run artifacts, for 30 days.
 
 ## Installing a CI build
 
@@ -51,4 +52,4 @@ cmake --build build --target Tympanis_VST3 Tympanis_AU
 | Bundle ID | `com.dhammers.tympanis` |
 | AU type | `aumu` (instrument) |
 
-Not notarized yet: that needs an Apple Developer ID and secrets in the repository; to be set up when Kris wants builds for other people.
+Not notarized: builds are for Kris's own machines (the quarantine step above).
