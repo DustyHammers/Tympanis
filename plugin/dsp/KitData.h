@@ -54,7 +54,7 @@ struct DrumData
     LugTable lug;
     std::vector<unsigned char> tubeCluster;            // octobans: air-column (main pitch) slots
     double gridStep = 0.01;
-    std::vector<std::vector<double>> strikeGainGrid;   // [radius index][slot], head; empty for kicks
+    std::array<std::vector<std::vector<double>>, kNumArts> strikeGainGrid;   // per articulation: [radius index][slot]; empty: none
     std::vector<std::vector<double>> shape2Grid;       // [radius index][slot]
     bool hasSym = false;
     SymBank sym;

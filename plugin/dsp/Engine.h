@@ -7,7 +7,7 @@
 // Port notes (deliberate differences from the Python prototype):
 //   - Noise is a different random sequence (the levels and spectra are the same).
 //   - The hit-to-hit variation uses its own random generator, seeded per drum.
-//   - Strike-position gain and mode shapes come from baked radius grids (step 0.01) and are
+//   - Strike-position gain (head and rim) and mode shapes come from baked radius grids (step 0.01) and are
 //     linearly interpolated; at the grid points they are exact.
 //   - A slot that has decayed 140 dB below a full hit is cleared and skipped (CPU); glide below
 //     1e-12 is treated as ended, so the poles stop being recomputed.
@@ -89,7 +89,7 @@ private:
 
     void useArt(Art a);
     void contactDamp(double vel, Art art, std::vector<double>& fac, double& tc);
-    void strikeGain(double r, std::vector<double>& g) const;
+    void strikeGain(double r, Art art, std::vector<double>& g) const;
     void gridRow(const std::vector<std::vector<double>>& grid, double r, std::vector<double>& out) const;
     void updateDecayCache();
     void designBands();
@@ -102,6 +102,7 @@ private:
     void renderTransients(double* out, int n);
     void renderPulses(double* out, int n);
     void renderBursts(double* out, int n);
+    void renderBurstsPart(double* out, int n);
 
     const DrumData* d_ = nullptr;
     const KitData* kit_ = nullptr;
@@ -172,8 +173,16 @@ public:
     void setSnareBuzz(double x) { buzz_ = x < 0 ? 0 : x > 1 ? 1 : x; }
     void setNoiseless(bool b);
 
-    // Writes n samples (mono kit mix) to out.
+    // Writes n samples (mono kit mix, every drum at unity) to out.
     void render(double* out, int n);
+
+    // Per-drum output gains for renderStereo (level, pan and any master gain folded in). Changes
+    // ramp linearly over the next render call. The drums' acoustic coupling (snare buzz) uses
+    // the unfaded sound; a snare's sympathetic head and wire buzz follow that snare's gains.
+    void setDrumGains(int drum, double left, double right);
+    void snapGains() { gainL_ = targetL_; gainR_ = targetR_; }
+    // Writes n samples of the stereo mix to L and R.
+    void renderStereo(double* L, double* R, int n);
 
 private:
     using C = std::complex<double>;
@@ -186,7 +195,7 @@ private:
         double href = 1, env = 0;
         NoiseBank wires;                      // gain per band: band norm x wire-noise peak
     };
-    void renderChunk(double* out, int n);
+    void renderChunk(double* out, double* L, double* R, int n);
 
     const KitData* data_ = nullptr;
     std::vector<Drum> drums_;
@@ -195,7 +204,8 @@ private:
     int chunk_ = kChunk;
     bool noiseless_ = false;
     std::vector<std::vector<double>> outs_;
-    std::vector<double> mix_, head_, drive_;
+    std::vector<double> mix_, head_, drive_, wire_;
+    std::vector<double> gainL_, gainR_, targetL_, targetR_;
 };
 
 } // namespace tympanis

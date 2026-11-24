@@ -4,7 +4,7 @@
 The C++ engine has no Bessel functions and no numpy random generator, so everything that
 the Python engine (prototype/engine.py) derives from those is computed here, once:
 
-  - the strike-position gain per slot on a radius grid (head articulation, not kicks)
+  - the strike-position gain per slot on a radius grid (head and rim articulations, not kicks)
   - the squared mode shape per slot on the same grid (re-strike damping)
   - the uneven-lug-tension tables (which slots get a twin, split size, eigen-angle, strike angle)
   - the noise-band level corrections (the Python engine measures each band filter's gain on a
@@ -105,15 +105,21 @@ def bake_drum(key, model):
             raise SystemExit(f'{model}: {a} click_gain != 0 is not supported by the C++ engine')
     K = len(d.mode_kind)
 
-    # strike-position gain grid, head articulation (what _strike_gain uses for head hits)
-    d._use_art('head')
-    gain_grid = []
+    # strike-position gain grids, per articulation that uses one (head and rim; never side sticks
+    # or bass drums): _strike_gain uses the articulation's own amplitudes and decays
+    gain_grid = {}
     if not d.is_kick:
-        for i in range(GRID_N):
-            d.strike_pos = i / 100
-            g = d._strike_gain()
-            gain_grid.append(fl(np.broadcast_to(np.asarray(g, float), (K,))))
+        for art in arts:
+            if art == 'side': continue
+            d._use_art(art)
+            rows = []
+            for i in range(GRID_N):
+                d.strike_pos = i / 100
+                g = d._strike_gain()
+                rows.append(fl(np.broadcast_to(np.asarray(g, float), (K,))))
+            gain_grid[art] = rows
         d.strike_pos = d.r0
+    d._use_art('head')
     cache = {}
     shape_grid = [fl(shape2_fast(d, i / 100, cache)) for i in range(GRID_N)]
     for r in (0.05, 0.35, 0.55, 0.9):        # the radii the engine actually uses: must equal the prototype's

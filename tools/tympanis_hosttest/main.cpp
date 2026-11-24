@@ -4,7 +4,8 @@
 //   tympanis_hosttest bench            CPU use with every drum ringing (prints a table)
 //   tympanis_hosttest render SEQ OUT   play SEQ (JSON: sample_rate, duration, block,
 //                                      events [[time_s, row_id, velocity 1..127], ...])
-//                                      through processBlock and write a 24-bit WAV
+//                                      through processBlock and write a 24-bit stereo WAV
+//                                      (optional "params": { parameter_id: value, ... })
 #include "PluginProcessor.h"
 #include "dsp/Json.h"
 
@@ -37,10 +38,19 @@ struct Host
         p->setPlayConfigDetails(0, 2, sr, block);
         p->prepareToPlay(sr, block);
     }
-    // Plays (sample, note, velocity) events for n samples in blocks of `blk`; returns the left channel.
+    std::vector<float> lastRight;
+    void set(const char* id, float v)
+    {
+        auto* prm = p->params.getParameter(id);
+        if (prm == nullptr) { std::cout << "  FAIL  no parameter " << id << "\n"; ++failures; return; }
+        prm->setValueNotifyingHost(prm->convertTo0to1(v));
+    }
+    // Plays (sample, note, velocity) events for n samples in blocks of `blk`; returns the left
+    // channel (the right one is in lastRight).
     std::vector<float> play(const std::vector<std::tuple<int64_t, int, int>>& ev, int64_t n, int blk, int channel = 10)
     {
         std::vector<float> out((size_t) n);
+        lastRight.assign((size_t) n, 0.0f);
         juce::AudioBuffer<float> buf(2, blk);
         size_t ei = 0;
         for (int64_t s = 0; s < n; s += blk)
@@ -56,6 +66,7 @@ struct Host
             }
             p->processBlock(buf, midi);
             std::copy(buf.getReadPointer(0), buf.getReadPointer(0) + len, out.begin() + s);
+            std::copy(buf.getReadPointer(1), buf.getReadPointer(1) + len, lastRight.begin() + s);
         }
         return out;
     }
@@ -79,7 +90,11 @@ int runChecks()
     {
         Host h(44100, 256);
         check(h.p->isKitLoaded(), "baked kit loads" + (h.p->isKitLoaded() ? juce::String() : ": " + h.p->getLoadError()));
-        check(h.p->getParameters().size() == 35, "35 host parameters (17 x tune, 17 x lug detune, snare buzz): " + juce::String(h.p->getParameters().size()));
+        check(h.p->getParameters().size() == 119,
+              "119 host parameters (17 x tune, lug detune, decay, size, level, pan; 15 x strike position; snare buzz; main volume): "
+                  + juce::String(h.p->getParameters().size()));
+        check(h.p->params.getParameter("kick1_strike_pos") == nullptr && h.p->params.getParameter("tom1_strike_pos") != nullptr,
+              "no strike position on the bass drums");
         check(h.p->getMidiChannel() == kDefaultMidiChannel, "default MIDI channel " + juce::String(kDefaultMidiChannel));
         // every row plays on its default note
         for (size_t r = 0; r < kRows.size(); ++r)
@@ -147,10 +162,132 @@ int runChecks()
         check(peak(z) < 1e-30, "state: a row set to NONE plays nothing");
     }
     {
+        // a note belongs to one row
+        Host h(44100, 256);
+        h.p->setRowNote(3, 38);                      // snare 1 rim shot takes snare 1's note
+        check(h.p->getRowNote(3) == 38 && h.p->getRowNote(2) == kNoteNone, "a note given to another row moves (the old row is set to none)");
+        const auto y = h.play({ { 10, 38, 127 } }, 8820, 256);
+        check(peak(y) > 0.01, "the moved note plays its new row");
+        // a saved state where two rows share a note: the first row keeps it
+        juce::ValueTree root("TympanisState");
+        root.appendChild(h.p->params.copyState(), nullptr);
+        juce::ValueTree map("MidiMap");
+        map.setProperty("channel", 10, nullptr);
+        map.setProperty("tom1", 50, nullptr);
+        map.setProperty("tom2", 50, nullptr);
+        root.appendChild(map, nullptr);
+        juce::MemoryBlock mb;
+        h.p->copyXmlToBinary(*root.createXml(), mb);
+        Host b(44100, 256);
+        b.p->setStateInformation(mb.getData(), (int) mb.getSize());
+        check(b.p->getRowNote(14) == 50 && b.p->getRowNote(16) == kNoteNone, "a saved state with a shared note: the first row keeps it");
+    }
+    {
+        // mixer: level, pan, main volume
+        const int note = kRows[2].defaultNote;    // snare 1
+        Host ref(44100, 256);
+        ref.set("snare_buzz", 0.0f);
+        const auto y0 = ref.play({ { 10, note, 127 } }, 22050, 256);
+        const double p0 = peak(y0);
+        check(std::abs(peak(y0) - peak(ref.lastRight)) < 1e-6 * p0, "centre pan: left = right");
+        Host off(44100, 256);
+        off.set("snare1_level", -60.0f);
+        off.set("snare_buzz", 0.0f);                 // else snares 2..4 buzz along, on their own channels
+        check(peak(off.play({ { 10, note, 127 } }, 22050, 256)) < 1e-30, "level at the bottom (-inf): the drum is silent");
+        Host left(44100, 256);
+        left.set("snare1_pan", -1.0f);
+        left.set("snare_buzz", 0.0f);
+        const auto yl = left.play({ { 10, note, 127 } }, 22050, 256);
+        check(peak(left.lastRight) < 1e-6 * p0 && std::abs(peak(yl) / p0 - std::sqrt(2.0)) < 0.15,
+              "hard left: right silent, left +3 dB (left " + juce::String(20 * std::log10(peak(yl) / p0), 2) + " dB)");
+        Host vol(44100, 256);
+        vol.set("main_volume", -6.0f);
+        vol.set("snare_buzz", 0.0f);
+        vol.set("snare1_level", -6.0f);
+        const double r = peak(vol.play({ { 10, note, 127 } }, 22050, 256)) / p0;
+        check(std::abs(20 * std::log10(r) + 12.0) < 1.0, "main volume -6 dB and level -6 dB: -12 dB (" + juce::String(20 * std::log10(r), 2) + " dB)");
+    }
+    {
+        // drum controls act on the sound
+        auto crossings = [](const std::vector<float>& x, size_t a, size_t b) {
+            int c = 0;
+            for (size_t i = a + 1; i < b; ++i) c += (x[i - 1] < 0) != (x[i] < 0);
+            return c;
+        };
+        auto energy = [](const std::vector<float>& x, size_t a, size_t b) {
+            double e = 0;
+            for (size_t i = a; i < b; ++i) e += (double) x[i] * x[i];
+            return e;
+        };
+        const int tom3 = kRows[18].defaultNote;
+        Host a(44100, 256), big(44100, 256), longd(44100, 256), centre(44100, 256), rim(44100, 256);
+        big.set("tom3_size", 20.0f);
+        longd.set("tom3_decay", 3.0f);
+        centre.set("tom3_strike_pos", 0.05f);
+        rim.set("tom3_strike_pos", 0.85f);
+        const auto ya = a.play({ { 0, tom3, 110 } }, 66150, 256);
+        const auto yb = big.play({ { 0, tom3, 110 } }, 66150, 256);
+        const auto yd = longd.play({ { 0, tom3, 110 } }, 66150, 256);
+        const auto yc = centre.play({ { 0, tom3, 110 } }, 66150, 256);
+        const auto yr = rim.play({ { 0, tom3, 110 } }, 66150, 256);
+        check(crossings(yb, 2205, 44100) < 0.8 * crossings(ya, 2205, 44100),
+              "tom 3 size 20\": lower pitch (zero crossings " + juce::String(crossings(yb, 2205, 44100)) + " vs " + juce::String(crossings(ya, 2205, 44100)) + ")");
+        check(energy(yd, 22050, 66150) > 2.0 * energy(ya, 22050, 66150), "tom 3 decay 3x: more sound 0.5..1.5 s after the hit");
+        check(crossings(yr, 441, 22050) > crossings(yc, 441, 22050),
+              "tom 3 strike near the rim is brighter than at the centre (zero crossings " + juce::String(crossings(yr, 441, 22050)) + " vs " + juce::String(crossings(yc, 441, 22050)) + ")");
+    }
+    {
         // tail: the kit falls silent
         Host h(44100, 512);
         const auto y = h.play({ { 0, 41, 127 }, { 0, 36, 127 }, { 0, 64, 127 } }, 44100 * 30, 512);
         check(peak(y, y.size() - 44100) < 1e-5, "silent 29 s after a hit (" + juce::String(20 * std::log10(peak(y, y.size() - 44100) + 1e-30), 1) + " dBFS)");
+    }
+    {
+        // the editor's hits: one event per strike, the row and velocity
+        Host h(44100, 256);
+        h.p->clearHits();
+        h.play({ { 10, kRows[18].defaultNote, 100 }, { 300, kRows[19].defaultNote, 64 }, { 400, 120, 127 } }, 2048, 256);
+        TympanisProcessor::HitEvent e {};
+        std::vector<TympanisProcessor::HitEvent> got;
+        while (h.p->popHit(e)) got.push_back(e);
+        check(got.size() == 2 && got[0].row == 18 && got[1].row == 19 && std::abs(got[0].velocity - 100.0f / 127.0f) < 1e-3f,
+              "hits for the editor: one per strike, with its row and velocity (" + juce::String((int) got.size()) + " events)");
+        // a full FIFO drops events, never blocks
+        std::vector<std::tuple<int64_t, int, int>> many;
+        for (int i = 0; i < 100; ++i) many.push_back({ i, kRows[0].defaultNote, 100 });
+        h.play(many, 256, 256);
+        int n = 0;
+        while (h.p->popHit(e)) ++n;
+        check(n == TympanisProcessor::hitFifoSize, "hits: a full FIFO keeps " + juce::String(TympanisProcessor::hitFifoSize) + " (" + juce::String(n) + ")");
+    }
+    {
+        // MIDI learn: the next note-on goes to the row, and plays it
+        Host h(44100, 256);
+        h.p->startMidiLearn(20);
+        const auto y = h.play({ { 10, 99, 127 } }, 4410, 256);
+        check(h.p->getRowNote(20) == 99 && h.p->midiLearnRow() == -1 && peak(y) > 0.01, "MIDI learn: the next note goes to the row and plays it");
+        h.p->startMidiLearn(20);
+        h.play({ { 10, 98, 127 } }, 256, 256, 1);
+        check(h.p->getRowNote(20) == 99 && h.p->midiLearnRow() == 20, "MIDI learn: a note on another channel is ignored");
+        h.p->cancelMidiLearn();
+    }
+    {
+        // the editor's state: page, drum and size are saved with the session
+        Host a(44100, 256);
+        a.p->setEditorPage(2);
+        a.p->setSelectedDrum(11);
+        a.p->setEditorSize(1200, 800);
+        juce::MemoryBlock mb;
+        a.p->getStateInformation(mb);
+        Host b(44100, 256);
+        b.p->setStateInformation(mb.getData(), (int) mb.getSize());
+        check(b.p->editorPage() == 2 && b.p->selectedDrum() == 11 && b.p->editorSize() == juce::Point<int>(1200, 800),
+              "state: the editor's page, drum and size restored");
+        // the editor opens, on the saved page, and closes
+        std::unique_ptr<juce::AudioProcessorEditor> ed(b.p->createEditor());
+        check(ed != nullptr && ed->getWidth() == 1200 && ed->getHeight() == 800, "the editor opens at the saved size");
+        ed.reset();
+        check(b.p->getParameters().size() == 119, "the editor adds no parameters (119)");
     }
     std::cout << (failures ? "FAILED: " + std::to_string(failures) : std::string("all passed")) << "\n";
     return failures ? 1 : 0;
@@ -197,15 +334,16 @@ int runRender(const std::string& seqPath, const std::string& outPath)
     }
     std::stable_sort(ev.begin(), ev.end(), [](auto& x, auto& y) { return std::get<0>(x) < std::get<0>(y); });
     const auto y = h.play(ev, n, blk);
-    juce::AudioBuffer<float> buf(1, (int) n);
+    juce::AudioBuffer<float> buf(2, (int) n);
     std::copy(y.begin(), y.end(), buf.getWritePointer(0));
+    std::copy(h.lastRight.begin(), h.lastRight.end(), buf.getWritePointer(1));
     juce::File f(outPath);
     f.deleteFile();
     juce::WavAudioFormat wav;
-    std::unique_ptr<juce::AudioFormatWriter> w(wav.createWriterFor(new juce::FileOutputStream(f), sr, 1, 24, {}, 0));
+    std::unique_ptr<juce::AudioFormatWriter> w(wav.createWriterFor(new juce::FileOutputStream(f), sr, 2, 24, {}, 0));
     if (! w) { std::cerr << "cannot write " << outPath << "\n"; return 1; }
     w->writeFromAudioSampleBuffer(buf, 0, buf.getNumSamples());
-    std::cout << "peak " << juce::Decibels::gainToDecibels(peak(y)) << " dBFS\n";
+    std::cout << "peak " << juce::Decibels::gainToDecibels(std::max(peak(y), peak(h.lastRight))) << " dBFS\n";
     return 0;
 }
 } // namespace

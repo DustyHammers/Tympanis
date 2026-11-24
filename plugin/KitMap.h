@@ -5,7 +5,8 @@
 // octobans: head). Notes and the MIDI channel are session state, not host parameters.
 //
 // The default notes are a PLACEHOLDER (GM-like where GM has a matching sound, the rest on free
-// notes away from GM's cymbal notes). The layout is still to be decided by Kris.
+// notes away from GM's cymbal notes). The layout is still to be decided by Kris. A note belongs
+// to at most one row (Kris, 2026-11-24): giving a row a note another row has clears that row.
 #pragma once
 
 #include "dsp/KitData.h"
@@ -19,16 +20,18 @@ struct DrumInfo
 {
     const char* key;     // bake key (resources/bake/<key>.bake.json) and parameter ID prefix
     const char* name;    // display name
+    double sizeIn;       // catalog head diameter (inches): the Size parameter's default; range 0.5x .. 2x
+    bool strikePos;      // has a Strike Position parameter (not the bass drums: fixed beater, as sampled)
 };
 
-// Same order as tools/bake_kit.py KIT (the engine's drum index).
+// Same order as tools/bake_kit.py KIT (the engine's drum index). Sizes as prototype/engine.py NATIVE_IN.
 constexpr std::array<DrumInfo, 17> kDrums { {
-    { "kick1", "Kick 1" },   { "kick2", "Kick 2" },
-    { "snare1", "Snare 1" }, { "snare2", "Snare 2" }, { "snare3", "Snare 3" }, { "snare4", "Snare 4" },
-    { "tom1", "Tom 1" },     { "tom2", "Tom 2" },     { "tom3", "Tom 3" },     { "tom4", "Tom 4" },
-    { "tom5", "Tom 5" },     { "tom6", "Tom 6" },
-    { "gong", "Gong Drum" },
-    { "octo1", "Octoban 1" }, { "octo2", "Octoban 2" }, { "octo3", "Octoban 3" }, { "octo4", "Octoban 4" },
+    { "kick1", "Kick 1", 22, false },   { "kick2", "Kick 2", 22, false },
+    { "snare1", "Snare 1", 14, true }, { "snare2", "Snare 2", 14, true }, { "snare3", "Snare 3", 14, true }, { "snare4", "Snare 4", 14, true },
+    { "tom1", "Tom 1", 10, true },     { "tom2", "Tom 2", 12, true },     { "tom3", "Tom 3", 13, true },     { "tom4", "Tom 4", 14, true },
+    { "tom5", "Tom 5", 16, true },     { "tom6", "Tom 6", 18, true },
+    { "gong", "Gong Drum", 22, true },
+    { "octo1", "Octoban 1", 6, true }, { "octo2", "Octoban 2", 6, true }, { "octo3", "Octoban 3", 6, true }, { "octo4", "Octoban 4", 6, true },
 } };
 
 struct NoteRow
@@ -74,7 +77,7 @@ constexpr std::array<NoteRow, 31> kRows { {
     { "octo4",       "Octoban 4",          16, Art::Head, 63 },
 } };
 
-constexpr int kDefaultMidiChannel = 10;   // placeholder (Cymbalis defaults to 16); to be decided
+constexpr int kDefaultMidiChannel = 10;   // Kris, 2026-11-24
 constexpr int kNoteNone = -1;
 
 } // namespace tympanis

@@ -14,6 +14,7 @@ constexpr int kBlock = 32;             // bank coefficient update block (as the 
 constexpr int kMaxTransients = 24;
 constexpr int kMaxPulses = 256;
 constexpr int kMaxBursts = 8;
+constexpr int kBurstBlock = 1024;     // bursts render in pieces of at most this (scratch size)
 // A slot (or the whole bank) whose |z|^2 falls below this is cleared and skipped: -140 dB
 // below a full hit's level (engine output peaks near 1).
 constexpr double kSilent = 1e-14;
@@ -79,7 +80,7 @@ void Drum::init(const DrumData* data, const KitData* kit, bool restrikeDamp, boo
     bbnorm_.assign(nbb, 0);
     burstNoise_.resize((int) nbb, 11 + crc32(d_->model));
     maxBlock_ = maxBlock;
-    benv_.assign(nbb * (size_t) maxBlock, 0);
+    benv_.assign(nbb * (size_t) kBurstBlock, 0);
     vrng_.reseed(crc32(d_->model + ".json"));
     useArt(Art::Head);
     // the prototype starts from the hardest head layer's frequencies
@@ -213,14 +214,15 @@ void Drum::gridRow(const std::vector<std::vector<double>>& grid, double r, std::
     for (int k = 0; k < K_; ++k) out[(size_t) k] = (1 - fr) * a[(size_t) k] + fr * b[(size_t) k];
 }
 
-void Drum::strikeGain(double r, std::vector<double>& g) const
+void Drum::strikeGain(double r, Art art, std::vector<double>& g) const
 {
-    if (isKick_ || r == d_->r0 || d_->strikeGainGrid.empty())
+    const auto& grid = d_->strikeGainGrid[(size_t) art];
+    if (isKick_ || r == d_->r0 || grid.empty())
     {
         std::fill(g.begin(), g.end(), 1.0);
         return;
     }
-    gridRow(d_->strikeGainGrid, r, g);
+    gridRow(grid, r, g);
 }
 
 void Drum::contactDamp(double vel, Art art, std::vector<double>& fac, double& tc)
@@ -330,7 +332,7 @@ void Drum::strike(double vel, Art art)
     const double gain = std::pow(10.0, -velRange_ * std::pow(1 - vel, 1.3) / 20.0);
 
     std::vector<double>& sg = scratchB_;
-    if (art != Art::Side) strikeGain(pos, sg);
+    if (art != Art::Side) strikeGain(pos, art, sg);
     else std::fill(sg.begin(), sg.end(), 1.0);
     std::vector<double>& amp = scratchC_;
     const std::vector<double>& ph = fr < 0.5 ? A.phase : B.phase;
@@ -713,6 +715,11 @@ void Drum::renderPulses(double* out, int n)
 
 void Drum::renderBursts(double* out, int n)
 {
+    for (int k = 0; k < n && nBurst_ > 0; k += kBurstBlock) renderBurstsPart(out + k, std::min(kBurstBlock, n - k));
+}
+
+void Drum::renderBurstsPart(double* out, int n)
+{
     if (nBurst_ == 0) return;
     const size_t nb = bbp_.size();
     std::fill(benv_.begin(), benv_.begin() + (ptrdiff_t) (nb * (size_t) n), 0.0);   // [sample][band]
@@ -783,7 +790,8 @@ void Kit::init(const KitData* data, bool restrikeDamp, bool variation, int chunk
         sym_.push_back(std::move(s));
     }
     outs_.assign(drums_.size(), std::vector<double>((size_t) chunk_, 0.0));
-    mix_.assign((size_t) chunk_, 0); head_.assign((size_t) chunk_, 0); drive_.assign((size_t) chunk_, 0);
+    mix_.assign((size_t) chunk_, 0); head_.assign((size_t) chunk_, 0); drive_.assign((size_t) chunk_, 0); wire_.assign((size_t) chunk_, 0);
+    gainL_.assign(drums_.size(), 1.0); gainR_ = gainL_; targetL_ = gainL_; targetR_ = gainL_;
 }
 
 void Kit::prepare(double sampleRate)
@@ -824,10 +832,21 @@ void Kit::setNoiseless(bool b)
 
 void Kit::render(double* out, int n)
 {
-    for (int k = 0; k < n; k += chunk_) renderChunk(out + k, std::min(chunk_, n - k));
+    for (int k = 0; k < n; k += chunk_) renderChunk(out + k, nullptr, nullptr, std::min(chunk_, n - k));
 }
 
-void Kit::renderChunk(double* out, int n)
+void Kit::setDrumGains(int drum, double left, double right)
+{
+    targetL_[(size_t) drum] = left;
+    targetR_[(size_t) drum] = right;
+}
+
+void Kit::renderStereo(double* L, double* R, int n)
+{
+    for (int k = 0; k < n; k += chunk_) renderChunk(nullptr, L + k, R + k, std::min(chunk_, n - k));
+}
+
+void Kit::renderChunk(double* out, double* L, double* R, int n)
 {
     std::fill(mix_.begin(), mix_.begin() + n, 0.0);
     for (size_t d = 0; d < drums_.size(); ++d)
@@ -883,9 +902,11 @@ void Kit::renderChunk(double* out, int n)
             }
             for (size_t j = 0; j < M; ++j) s.y[j] = { yr[j], yi[j] };
             double e = s.env, mx = 0;
+            double* ownOut = outs_[(size_t) s.drum].data();
             for (int i = 0; i < n; ++i)
             {
                 mix_[(size_t) i] += head_[(size_t) i];
+                ownOut[i] += head_[(size_t) i];           // the snare's own sympathetic ring (after its drive was taken)
                 const double a = std::fabs(head_[(size_t) i]) / s.href;
                 e = a > e ? ka * e + (1 - ka) * a : kr * e + (1 - kr) * a;
                 const double dv = std::pow(clampd((e - thr) / (0.25 - thr), 0, 1), 0.7);
@@ -894,10 +915,35 @@ void Kit::renderChunk(double* out, int n)
             }
             s.env = e;
             if (mx < 1e-6 || noiseless_) continue;
-            s.wires.processCommon(mix_.data(), n, drive_.data());
+            std::fill(wire_.begin(), wire_.begin() + n, 0.0);
+            s.wires.processCommon(wire_.data(), n, drive_.data());
+            for (int i = 0; i < n; ++i)
+            {
+                mix_[(size_t) i] += wire_[(size_t) i];
+                ownOut[i] += wire_[(size_t) i];
+            }
         }
     }
-    std::copy(mix_.begin(), mix_.begin() + n, out);
+    if (out) std::copy(mix_.begin(), mix_.begin() + n, out);
+    if (L && R)
+    {
+        std::fill(L, L + n, 0.0);
+        std::fill(R, R + n, 0.0);
+        const double inv = 1.0 / n;
+        for (size_t d = 0; d < drums_.size(); ++d)
+        {
+            const double l0 = gainL_[d], r0 = gainR_[d], dl = (targetL_[d] - l0) * inv, dr = (targetR_[d] - r0) * inv;
+            gainL_[d] = targetL_[d];
+            gainR_[d] = targetR_[d];
+            if (l0 == 0 && r0 == 0 && dl == 0 && dr == 0) continue;
+            const double* o = outs_[d].data();
+            for (int i = 0; i < n; ++i)
+            {
+                L[i] += (l0 + dl * (i + 1)) * o[i];
+                R[i] += (r0 + dr * (i + 1)) * o[i];
+            }
+        }
+    }
 }
 
 } // namespace tympanis

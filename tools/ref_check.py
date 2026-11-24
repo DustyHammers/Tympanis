@@ -49,6 +49,8 @@ def sequence():
 DRUM_PARAMS = {
     'tom2': {'lug_detune': 1.0}, 'snare3': {'lug_detune': 0.6, 'tune_semi': -1.0}, 'kick2': {'tune_semi': 1.5},
     'octo3': {'lug_detune': 0.8}, 'gong': {'lug_detune': 0.5, 'tune_semi': 0.7},
+    'tom4': {'decay': 1.8}, 'tom5': {'strike_pos': 0.7}, 'snare4': {'decay': 0.6, 'strike_pos': 0.15},
+    'octo1': {'size_in': 8.0}, 'tom1': {'size_in': 9.0, 'decay': 2.5},
 }
 
 

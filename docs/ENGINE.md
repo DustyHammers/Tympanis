@@ -19,13 +19,13 @@ On each hit (`Drum::strike`):
 
 ## Kit
 
-`Kit` renders the 17 drums and the **snare buzz** (kit parameter, 0..1): the rest of the kit drives each snare's head modes below 1.5 kHz; when the head motion passes the wires' seating level, the snare's own wire noise rattles.
+`Kit` renders the 17 drums (mono at unity, or stereo with per-drum gains for the plugin's level and pan) and the **snare buzz** (kit parameter, 0..1): the rest of the kit drives each snare's head modes below 1.5 kHz; when the head motion passes the wires' seating level, the snare's own wire noise rattles.
 
 ## Bake
 
 `tools/bake_kit.py` turns the locked models into `resources/bake/*.bake.json`. It copies the model data and adds what the C++ engine cannot compute itself (no Bessel functions, no numpy random generator):
 
-- strike-position gain per slot on a radius grid (0 .. 0.95, step 0.01), head articulation
+- strike-position gain per slot on a radius grid (0 .. 0.95, step 0.01), per articulation (head and rim; each uses its own amplitudes, as the prototype)
 - squared mode shape per slot on the same grid (re-strike damping)
 - the lug tables (twin slots, split size, eigen-angles, strike angle)
 - per-band level corrections: the prototype measures each band filter's noise gain on a fixed random sequence; the ratio to the exact gain is kept so the levels match at any sample rate
@@ -38,6 +38,7 @@ The CMake build gzips the bake into the plugin. `python3 tools/bake_kit.py --che
 - Noise uses different random sequences (same spectra and levels).
 - Hit-to-hit variation uses its own generator, seeded per drum.
 - Strike-position gain and mode shapes come from the baked grids, interpolated between grid points (exact at them; the native radius 0.35 and the contact radii are grid points).
+- A size change keeps the noise bands' baked level corrections (the prototype re-measures the moved bands on its random sequence). The band filters are re-designed live, with the exact noise gain from the filters' state-space Gramian (cheap, allocation-free).
 - A slot that has decayed 140 dB below a full hit is cleared and skipped; glide below 1e-12 counts as ended and the poles stop being recomputed (CPU).
 - With `lug_detune` turned to 0 while twins still ring, the twins ring on at even tension (the prototype froze them and resumed them later).
 - Transients, pulses and bursts live in fixed pools (24 / 256 / 8 per drum); when full, the oldest is replaced.
@@ -45,13 +46,13 @@ The CMake build gzips the bake into the plugin. `python3 tools/bake_kit.py --che
 
 ## Checks
 
-- `python3 tools/ref_check.py --render build/tools/tympanis_render/tympanis_render`: 264 hits over every drum and articulation, rolls, an overlapping groove, lug detune and tune on several drums, snare buzz on; variation off and noise silenced on both sides. Result at the first port: max |C++ - Python| = 4e-7 of the peak (-128 dB; the silence gate above), -203 dB without it.
-- `--noise`: noise on, third-octave band energies over the whole sequence: within 0.21 dB.
+- `python3 tools/ref_check.py --render build/tools/tympanis_render/tympanis_render`: 264 hits over every drum and articulation, rolls, an overlapping groove; lug detune, tune, decay, strike position (head and rim) and size set on several drums; snare buzz on; variation off and noise silenced on both sides. Max |C++ - Python| = 4e-7 of the peak (-128 dB; the silence gate above; -203 dB without it).
+- `--noise`: noise on, third-octave band energies over the whole sequence: within 0.4 dB.
 - `tympanis_hosttest checks`: the processor (see `docs/PLUGIN.md`).
 
 ## CPU
 
-`tympanis_hosttest bench`: every drum and articulation struck every 250 ms (about 60 hits per second, all 17 drums ringing), snare buzz on. On a 2.1 GHz Xeon (Linux, one core): 4.4x real time at 44.1 kHz, 4.1x at 48 kHz, 2.1x at 96 kHz. The CI job prints the figure for the macOS runner. The bank, noise bands, bursts and transients run SIMD across modes/bands (`#pragma omp simd`, SSE4.1 on x86_64).
+`tympanis_hosttest bench`: every drum and articulation struck every 250 ms (about 60 hits per second, all 17 drums ringing), snare buzz on. On a 2.1 GHz Xeon (Linux, one core): about 4x real time at 44.1 and 48 kHz, 1.9x at 96 kHz. The CI job prints the figure for the macOS runner. The bank, noise bands, bursts and transients run SIMD across modes/bands (`#pragma omp simd`, SSE4.1 on x86_64).
 
 ## Model note
 
