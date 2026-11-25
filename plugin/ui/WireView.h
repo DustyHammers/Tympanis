@@ -71,6 +71,14 @@ private:
         juce::Rectangle<int> box;  // physical pixels in the view: where its moving head can be drawn
         bool keepReady = false;
         std::vector<float> keep;   // kit: what the drums in front leave of it, over `box`
+        // kit, the kicks: the pedal's moving parts (the still drawing has its fixed parts), drawn
+        // over the frame in their own box, at rest or swinging after a hit
+        bool pedal = false;
+        wire::DrumSpec pedalKick {};
+        juce::Rectangle<int> pedalBox;
+        bool pedalKeepReady = false;
+        std::vector<float> pedalKeep;
+        double pedalDrawn = 0.0;   // the swing last drawn
     };
     struct ActiveHit
     {
@@ -92,6 +100,11 @@ private:
     // returns the box it drew in.
     juce::Rectangle<int> overlay (size_t itemIndex, const ActiveHit* hits, int count, double nowMs, bool fromStill);
     int itemAt (juce::Point<float> designPoint) const;
+    // kit: the pedals' moving parts over the frame: those swinging, and the others where a box
+    // was just restored from the still drawing (drawing one again at the same swing changes nothing)
+    double pedalSwingOf (size_t itemIndex, double nowMs) const;
+    void drawPedal (size_t itemIndex, double swing);
+    void drawPedals (const std::vector<juce::Rectangle<int>>& restored, double nowMs);
 
     const Assets& assets;
     const Mode mode;

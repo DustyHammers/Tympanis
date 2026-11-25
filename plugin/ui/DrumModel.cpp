@@ -681,6 +681,235 @@ DrumDrawing drawDrum (const DrumSpec& spec, const Camera& cam, double sel)
 }
 
 // =====================================================================================
+// The bass drum pedal. Its frame: O on the floor just in front of the batter hoop, F toward the
+// drum (the kick's axis, reversed), X to the drummer's right, Z up; inches.
+double pedalSwing (double t)
+{
+    if (t < 0 || t >= 0.2)
+        return 0;
+    const double k = 1 - t / 0.2;
+    return k * k;
+}
+
+void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, double sel, double swing, PedalParts parts)
+{
+    V3 a, u, v;
+    basis (kick.axis, a, u, v);
+    const V3 Z { 0, 0, 1 };
+    const V3 back = normalised (V3 { a.x, a.y, 0 });
+    const V3 F = back * -1.0;
+    const V3 X = cross (F, Z);
+    const V3 O = V3 { kick.C.x, kick.C.y, kick.C.z - kick.r } + 0.35 * back;
+    const double bright = 1.0 + 0.35 * sel;
+    const bool fixedParts = parts != PedalParts::moving, movingParts = parts != PedalParts::fixed;
+    auto P = [&] (double x, double f, double z) { return O + x * X + f * F + z * Z; };
+    auto seg = [&] (V3 p, V3 q, Rgb c, float w = 1) { out.segments.push_back ({ cam.project (p), cam.project (q), c * bright, w, false }); };
+    auto path = [&] (const std::vector<V3>& pts, Rgb c, float w = 1, bool closed = false) {
+        for (size_t i = 0; i + 1 < pts.size(); ++i)
+            seg (pts[i], pts[i + 1], c, w);
+        if (closed && pts.size() > 2)
+            seg (pts.back(), pts.front(), c, w);
+    };
+    // a circle of radius rr around c, in the plane of e1 and e2 (an arc from t0 to t1)
+    auto arc = [&] (V3 c, V3 e1, V3 e2, double rr, Rgb col, double t0, double t1, int n = 24, float w = 1) {
+        std::vector<V3> pts;
+        for (int i = 0; i <= n; ++i)
+        {
+            const double t = t0 + (t1 - t0) * i / n;
+            pts.push_back (c + rr * std::cos (t) * e1 + rr * std::sin (t) * e2);
+        }
+        path (pts, col, w);
+    };
+    auto circle = [&] (V3 c, V3 e1, V3 e2, double rr, Rgb col, int n = 24, float w = 1) { arc (c, e1, e2, rr, col, 0, 2 * kPi, n, w); };
+    // a cylinder along `ax` from c0 (length len, radius rr): its two ends and four sides
+    auto cylinder = [&] (V3 c0, V3 ax, V3 e1, V3 e2, double len, double rr, Rgb col, int n = 20) {
+        circle (c0, e1, e2, rr, col, n);
+        circle (c0 + len * ax, e1, e2, rr, col, n);
+        for (int k = 0; k < 4; ++k)
+        {
+            const double t = 2 * kPi * (k + 0.5) / 4;
+            const V3 e = rr * (std::cos (t) * e1 + std::sin (t) * e2);
+            seg (c0 + e, c0 + len * ax + e, col * 0.8);
+        }
+    };
+    // a flat plate: its outline (x, f pairs) at height z, `th` thick
+    auto slab = [&] (const std::vector<std::pair<double, double>>& pts, double z, double th, Rgb top, Rgb side) {
+        std::vector<V3> t, b;
+        for (const auto& [x, f] : pts)
+        {
+            t.push_back (P (x, f, z));
+            b.push_back (P (x, f, z - th));
+        }
+        path (t, top, 1, true);
+        path (b, side, 1, true);
+        for (size_t i = 0; i < t.size(); ++i)
+            seg (t[i], b[i], side);
+    };
+    const Rgb alu = kChrome, dim = kChromeD * 0.8, dark = kChromeD * 0.45;
+    // the single post on the drummer's left; the axle's housing on top; the hub and cam on the axle
+    const double postX = -1.95, axleF = -1.9, axleZ = 7.3, camX = 0.95, camR = 1.25;
+    // the footboard 13" long (Trick's long board), 2.75" wide (measured from Kris's photos)
+    const double heelF = -15.55, toeF = -2.55, heelZ = 0.85, toeZ = 2.7 - 1.4 * swing, bw = 1.375;
+    const auto out0 = out.segments.size();
+
+    if (fixedParts)
+    {
+        // the base plate: wide at the hoop, tapering to the heel, rounded corners, 0.35" thick
+        slab ({ { -2.5, -0.1 }, { 2.0, -0.1 }, { 2.2, -0.4 }, { 2.2, -4.2 }, { 1.75, heelF - 0.6 }, { 1.55, heelF - 0.9 }, { -1.55, heelF - 0.9 },
+                { -1.75, heelF - 0.6 }, { -2.5, -4.2 }, { -2.7, -0.4 } },
+              0.35, 0.35, alu * 0.75, dim * 0.7);
+        // the hoop clamp and its two rubber bumpers
+        path ({ P (-0.9, -0.15, 0.35), P (-0.9, 0.1, 1.3), P (0.9, 0.1, 1.3), P (0.9, -0.15, 0.35) }, dim);
+        for (double x : { -1.9, 1.9 })
+            circle (P (x, -0.45, 0.6), F, Z, 0.25, dark, 12);
+        // the post: a machined column (0.8" x 1.3") with its long slot, its foot on the plate
+        const double px0 = postX - 0.4, px1 = postX + 0.4, pf0 = axleF + 0.75, pf1 = axleF - 0.55;
+        for (double x : { px0, px1 })
+        {
+            path ({ P (x, pf0 + 0.3, 0.35), P (x, pf0, 1.0), P (x, pf0, axleZ - 0.5), P (x, pf1, axleZ - 0.9), P (x, pf1, 1.0), P (x, pf1 - 0.5, 0.35) }, alu);
+            path ({ P (x, pf0 - 0.35, 2.2), P (x, pf0 - 0.35, axleZ - 1.6), P (x, pf1 + 0.3, axleZ - 1.7), P (x, pf1 + 0.3, 2.2) }, dim * 0.8, 1, true);
+        }
+        for (double f : { pf0, pf1 })
+            seg (P (px0, f, axleZ - (f == pf0 ? 0.5 : 0.9)), P (px1, f, axleZ - (f == pf0 ? 0.5 : 0.9)), dim);
+        // the axle's housing (a drum across the post's top), its knurled knob outside, the axle
+        cylinder (P (postX - 0.55, axleF, axleZ), X, F, Z, 1.1, 0.85, alu, 24);
+        cylinder (P (postX - 0.95, axleF, axleZ), X, F, Z, 0.4, 0.45, dim, 16);
+        for (int k = 0; k < 12; ++k)
+        {
+            const double t = 2 * kPi * k / 12;
+            const V3 e = 0.45 * (std::cos (t) * F + std::sin (t) * Z);
+            seg (P (postX - 0.95, axleF, axleZ) + e, P (postX - 0.55, axleF, axleZ) + e, dim * 0.7);
+        }
+        seg (P (postX + 0.55, axleF, axleZ), P (camX + 0.3, axleF, axleZ), alu);
+        // the hub's dial ring (black, with its scale)
+        cylinder (P (-0.85, axleF, axleZ), X, F, Z, 0.55, 0.8, dark, 24);
+        for (int k = 0; k < 18; ++k)
+        {
+            const double t = kPi * 0.2 + kPi * 0.9 * k / 17;
+            const V3 e = std::cos (t) * F + std::sin (t) * Z;
+            seg (P (-0.3, axleF, axleZ) + 0.8 * e, P (-0.3, axleF, axleZ) + 0.62 * e, dim * 0.6);
+        }
+        // the heel: the hinge rod across, its two end caps, the base's heel block
+        seg (P (-bw - 0.2, heelF, heelZ - 0.1), P (bw + 0.2, heelF, heelZ - 0.1), dim);
+        for (double x : { -bw - 0.2, bw + 0.2 })
+            cylinder (P (x < 0 ? x - 0.3 : x, heelF, heelZ - 0.1), X, F, Z, 0.3, 0.28, alu, 12);
+        slab ({ { -bw - 0.15, heelF + 0.4 }, { bw + 0.15, heelF + 0.4 }, { bw + 0.15, heelF - 0.5 }, { -bw - 0.15, heelF - 0.5 } }, 0.7, 0.35, dim, dark);
+    }
+
+    if (movingParts)
+    {
+        // the footboard: one flat plate, hinged at the heel; full width (2.75") to near the toe, then
+        // a tongue on the right half, clear of the post, out to the toe link; 0.3" thick
+        auto board = [&] (double x, double f) {
+            const double t = (f - heelF) / (toeF - heelF);
+            return P (x, f, heelZ + t * (toeZ - heelZ));
+        };
+        const double notchF = toeF - 1.6;
+        const std::vector<std::pair<double, double>> outline { { -bw, heelF }, { -bw, notchF }, { 0.0, notchF }, { 0.0, toeF }, { bw, toeF }, { bw, heelF } };
+        std::vector<V3> top, bottom;
+        const V3 down { 0, 0, -0.3 };
+        for (const auto& [x, f] : outline)
+        {
+            top.push_back (board (x, f));
+            bottom.push_back (board (x, f) + down);
+        }
+        path (top, alu, 1, true);
+        path (bottom, dim * 0.75, 1, true);
+        for (size_t i = 0; i < top.size(); ++i)
+            seg (top[i], bottom[i], dim * 0.75);
+        // the two screws at the heel end, and a faint brushed line down the middle
+        for (double x : { -0.45, 0.45 })
+            circle (board (x, heelF + 0.75), X, normalised (board (0, toeF) - board (0, heelF)), 0.14, dim, 10);
+        seg (board (0.0, heelF + 1.4), board (0.0, notchF - 0.6), dim * 0.45);
+        // the toe link: a short bar from the tongue's end up to the chain
+        const V3 toe = board (0.7, toeF + 0.15);
+        const V3 link = toe + V3 { 0, 0, 0.9 } + 0.25 * F;
+        for (double o : { -0.22, 0.22 })
+            seg (toe + o * X, link + o * X, alu);
+        circle (link, F, Z, 0.16, dim, 10);
+
+        // the cam: an arc sprocket on the axle, the drummer's side, turning with the beater
+        const double turn = swing * 0.55;
+        const V3 cc = P (camX, axleF, axleZ);
+        const double c0 = kPi * 0.55 + turn, c1 = kPi * 1.35 + turn;
+        for (double o : { -0.18, 0.18 })
+            arc (cc + o * X, F, Z, camR, alu, c0 - kPi, c1 - kPi, 20);
+        for (double t : { c0 - kPi, c1 - kPi })
+        {
+            const V3 e = std::cos (t) * F + std::sin (t) * Z;
+            seg (cc + 0.2 * e, cc + camR * e, alu * 0.85);
+        }
+        // the chain: over the cam's drummer side, down to the toe link
+        const V3 chain0 = cc - camR * F;
+        for (double o : { -0.14, 0.14 })
+            seg (chain0 + o * X, link + o * X, alu);
+        for (int k = 1; k < 16; ++k)
+        {
+            const V3 q = chain0 + (k / 16.0) * (link - chain0);
+            seg (q - 0.14 * X, q + 0.14 * X, dim);
+        }
+        // the spring: a coil low on the plate at the front right, its lever up to the cam
+        const V3 s0 = P (0.4, -0.95, 0.95), s1 = P (2.0, -0.95, 0.95) - (0.25 * swing) * X;
+        {
+            std::vector<V3> coil;
+            const int turns = 9, n = turns * 10;
+            for (int i = 0; i <= n; ++i)
+            {
+                const double t = (double) i / n, ang = 2 * kPi * turns * t;
+                coil.push_back (s0 + t * (s1 - s0) + 0.3 * std::cos (ang) * F + 0.3 * std::sin (ang) * Z);
+            }
+            path (coil, alu * 0.85);
+        }
+        const V3 lev = P (camX + 0.35, axleF + 0.55 + 0.35 * swing, axleZ - 1.15 + 0.25 * swing);
+        for (double o : { -0.15, 0.15 })
+            seg (s1 + V3 { 0, 0, o }, lev + V3 { 0, 0, o }, alu * 0.9);
+        circle (s1, F, Z, 0.2, dim, 10);
+
+        // the beater: its clamp on the hub, the shaft (back toward the drummer at rest), the
+        // disc beater with its holder
+        const double rest = 40.0 * kPi / 180, hit = -9.0 * kPi / 180;
+        const double th = rest + swing * (hit - rest);
+        const V3 hub = P (0.25, axleF, axleZ);
+        const V3 dir = -std::sin (th) * F + std::cos (th) * Z; // along the shaft, up
+        const V3 face = std::cos (th) * F + std::sin (th) * Z; // the disc's face, toward the drum
+        path ({ hub + 0.55 * dir - 0.35 * X - 0.45 * face, hub + 0.55 * dir + 0.35 * X - 0.45 * face, hub + 1.35 * dir + 0.35 * X - 0.45 * face,
+                hub + 1.35 * dir - 0.35 * X - 0.45 * face },
+              dark, 1, true);
+        path ({ hub + 0.55 * dir - 0.35 * X + 0.35 * face, hub + 0.55 * dir + 0.35 * X + 0.35 * face, hub + 1.35 * dir + 0.35 * X + 0.35 * face,
+                hub + 1.35 * dir - 0.35 * X + 0.35 * face },
+              dark, 1, true);
+        const V3 tip = hub + 8.4 * dir;
+        for (double o : { -0.08, 0.08 })
+            seg (hub + 1.0 * dir + o * X, tip + o * X, alu);
+        // the felt beater (as before): a cylinder, its face toward the drum, its back a chrome cup;
+        // the memory lock on the shaft
+        circle (hub + 2.2 * dir, X, face, 0.22, dim, 10);
+        const double fr = 0.9, fl = 0.75;
+        const V3 front = tip + fl * face, cup = tip - 0.45 * face;
+        circle (front, X, dir, fr, kHead * 0.95, 26);
+        circle (tip, X, dir, fr, kHead * 0.76, 26);
+        circle (cup, X, dir, fr * 0.7, alu * 0.8, 20);
+        for (int k = 0; k < 4; ++k)
+        {
+            const double t = 2 * kPi * (k + 0.5) / 4;
+            const V3 e = std::cos (t) * X + std::sin (t) * dir;
+            seg (tip + fr * e, front + fr * e, kHead * 0.85);
+            seg (cup + 0.7 * fr * e, tip + fr * e, alu * 0.7);
+        }
+    }
+
+    // its screen bounds join the drawing's
+    for (size_t i = out0; i < out.segments.size(); ++i)
+    {
+        const auto& sg = out.segments[i];
+        out.x0 = std::min ({ out.x0, sg.a.x, sg.b.x });
+        out.x1 = std::max ({ out.x1, sg.a.x, sg.b.x });
+        out.y0 = std::min ({ out.y0, sg.a.y, sg.b.y });
+        out.y1 = std::max ({ out.y1, sg.a.y, sg.b.y });
+    }
+}
+
+// =====================================================================================
 void HeadMesh::draw (const Hit* hits, int numHits, std::vector<Segment>& out, std::vector<Flash>& flashes) const
 {
     constexpr int NR = kRings, NT = kPoints;

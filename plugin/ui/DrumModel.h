@@ -152,6 +152,21 @@ struct DrumDrawing
 // sel: 1 for the selected drum on the KIT page (35 % brighter), else 0.
 DrumDrawing drawDrum (const DrumSpec& spec, const Camera& cam, double sel = 0.0);
 
+// A bass drum pedal (the KIT page; the shape of Kris's photos of Trick Big Foot / Black Widow
+// pedals, 2026-11-25), added to a drawing: clamped to a kick's batter hoop on the floor, the
+// footboard toward the drummer. Fixed parts: the base plate (wide at the hoop, tapering to the
+// heel), the hoop clamp and bumpers, the single post on the drummer's left with the axle's
+// housing and knurled knob, the hub's dial ring, the heel hinge and its end caps. Moving parts:
+// the flat footboard (13" x 2.75": full width, then a tongue on the right clear of the post; no
+// logo), the toe link, the arc cam, the chain, the low spring and its lever, the beater (clamp,
+// shaft, memory lock, the felt beater of the first mockup). swing: 0 at rest (beater back, toe
+// up), 1 against the head (toe down).
+enum class PedalParts { fixed, moving, all };
+void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, double sel = 0.0, double swing = 0.0,
+                   PedalParts parts = PedalParts::all);
+// The beater's swing a time after a kick's hit: against the head at the hit, back at rest by 0.2 s.
+double pedalSwing (double secondsSinceHit);
+
 // ---- The drums of the plugin (KitMap.h order) as drawn on the DRUM and TUNING pages, and the kit.
 
 struct DrumLook

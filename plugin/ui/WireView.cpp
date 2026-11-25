@@ -222,6 +222,13 @@ void WireView::build (float scale)
             it.drum = layout[k].drum;
             it.kitIndex = (int) k;
             it.drawing = wire::drawDrum (wire::kitSpec (layout[k], depthOff[(size_t) layout[k].drum]), cam);
+            if (layout[k].spec.kind == wire::Kind::kick)
+            {
+                // its pedal: the fixed parts with the drum; the moving parts over the frame
+                wire::addKickPedal (it.drawing, layout[k].spec, cam, 0.0, 0.0, wire::PedalParts::fixed);
+                it.pedal = true;
+                it.pedalKick = layout[k].spec;
+            }
             it.drawing.depth += layout[k].depthBias;
             items.push_back (std::move (it));
         }
@@ -249,6 +256,18 @@ void WireView::build (float scale)
         const auto& h = it.drawing.head;
         it.box = it.drawing.headVisible ? pixelBox (h.x0, h.y0, h.x1, h.y1, 2.0f * h.flexReach + 60.0f) : juce::Rectangle<int>();
         it.keepReady = false;
+        if (it.pedal)
+        {
+            // the box the moving parts can reach, from rest to against the head
+            wire::DrumDrawing reach;
+            reach.x0 = reach.y0 = 1e9f;
+            reach.x1 = reach.y1 = -1e9f;
+            for (double s : { 0.0, 0.5, 1.0 })
+                wire::addKickPedal (reach, it.pedalKick, wire::kitCamera(), 1.0, s, wire::PedalParts::moving);
+            it.pedalBox = pixelBox (reach.x0, reach.y0, reach.x1, reach.y1, 10.0f);
+            it.pedalKeepReady = false;
+            it.pedalDrawn = 0.0;
+        }
     }
     canvas.bloom();
 
@@ -283,7 +302,10 @@ void WireView::build (float scale)
     selBox = {};
     restore ({ 0, 0, pw, ph });
     if (mode == Mode::kit)
+    {
         applySelection();
+        drawPedals ({ juce::Rectangle<int> (0, 0, pw, ph) }, juce::Time::getMillisecondCounterHiRes());
+    }
 
     // hits that came before the kit was built: find their drums now
     for (int i = 0; i < numHits; ++i)
@@ -323,6 +345,8 @@ void WireView::applySelection()
     {
         const auto& kit = wire::kitLayout()[(size_t) k];
         selDrawing = wire::drawDrum (wire::kitSpec (kit, depthOff[(size_t) kit.drum]), wire::kitCamera(), 1.0);
+        if (kit.spec.kind == wire::Kind::kick)
+            wire::addKickPedal (selDrawing, kit.spec, wire::kitCamera(), 1.0, 0.0, wire::PedalParts::fixed);
         selBox = pixelBox (selDrawing.x0, selDrawing.y0, selDrawing.x1, selDrawing.y1, 14.0f);
         if (! selBox.isEmpty())
         {
@@ -346,6 +370,11 @@ void WireView::applySelection()
     restore (dirty);
     for (const auto& b : drawnBoxes) // the moving heads there are drawn again with the next frame
         restore (b);
+    {
+        std::vector<juce::Rectangle<int>> restored (drawnBoxes);
+        restored.push_back (dirty);
+        drawPedals (restored, juce::Time::getMillisecondCounterHiRes());
+    }
     drawnBoxes.clear();
     if (numHits > 0)
         drawFrame (juce::Time::getMillisecondCounterHiRes());
@@ -468,8 +497,18 @@ void WireView::drawFrame (double nowMs)
         frameMs = juce::Time::getMillisecondCounterHiRes() - t0;
         return;
     }
-    for (const auto& b : drawnBoxes)
+    // the pedals: a swinging one's box (or one that swung last frame) back to the still drawing,
+    // then every pedal over what was restored, then the heads
+    std::vector<juce::Rectangle<int>> restored (drawnBoxes);
+    for (size_t i = 0; i < items.size(); ++i)
+        if (items[i].pedal && (pedalSwingOf (i, nowMs) > 0.0 || items[i].pedalDrawn > 0.0))
+            restored.push_back (items[i].pedalBox);
+    for (const auto& b : restored)
         restore (b);
+    drawPedals (restored, nowMs);
+    for (size_t i = 0; i < items.size(); ++i)
+        if (items[i].pedal && items[i].pedalDrawn > 0.0)
+            boxes.push_back (items[i].pedalBox);
     for (size_t i = 0; i < items.size(); ++i)
     {
         int count = 0;
@@ -482,7 +521,7 @@ void WireView::drawFrame (double nowMs)
             boxes.push_back (b);
     }
     juce::Rectangle<int> dirty;
-    for (const auto& b : drawnBoxes)
+    for (const auto& b : restored)
         dirty = dirty.getUnion (b);
     for (const auto& b : boxes)
         dirty = dirty.getUnion (b);
@@ -490,6 +529,68 @@ void WireView::drawFrame (double nowMs)
     if (! dirty.isEmpty())
         repaint ((dirty.toFloat() / builtScale).getSmallestIntegerContainer().expanded (1));
     frameMs = juce::Time::getMillisecondCounterHiRes() - t0;
+}
+
+// ---------------------------------------------------------------------------------------------
+double WireView::pedalSwingOf (size_t i, double nowMs) const
+{
+    double s = 0.0;
+    for (int k = 0; k < numHits; ++k)
+        if (hits[(size_t) k].item == (int) i)
+            s = std::max (s, wire::pedalSwing ((nowMs - hits[(size_t) k].startMs) * 0.001));
+    return s;
+}
+
+void WireView::drawPedal (size_t i, double swing)
+{
+    Item& it = items[i];
+    const auto b = it.pedalBox;
+    if (b.isEmpty())
+        return;
+    if (! it.pedalKeepReady)
+    {
+        it.pedalKeep = keepFor (i, b);
+        it.pedalKeepReady = true;
+    }
+    wire::DrumDrawing parts;
+    wire::addKickPedal (parts, it.pedalKick, wire::kitCamera(), (int) i == selItem ? 1.0 : 0.0, swing, wire::PedalParts::moving);
+    boxCanvas (b);
+    canvas.draw (parts.segments, false);
+    canvas.bloom();
+    juce::Image::BitmapData dst (frame, b.getX(), b.getY(), b.getWidth(), b.getHeight(), juce::Image::BitmapData::readWrite);
+    for (int y = 0; y < b.getHeight(); ++y)
+    {
+        auto* p = dst.getLinePointer (y);
+        const float* keepRow = it.pedalKeep.data() + (size_t) y * (size_t) b.getWidth();
+        const float* c = canvas.pixel (0, y);
+        for (int x = 0; x < b.getWidth(); ++x, p += dst.pixelStride, c += 3)
+        {
+            if (c[0] < 0.5f && c[1] < 0.5f && c[2] < 0.5f)
+                continue;
+            auto* q = reinterpret_cast<juce::PixelARGB*> (p);
+            const float k = keepRow[x];
+            q->setARGB (255, std::max (q->getRed(), clip8 (c[0] * k)), std::max (q->getGreen(), clip8 (c[1] * k)),
+                        std::max (q->getBlue(), clip8 (c[2] * k)));
+        }
+    }
+    it.pedalDrawn = swing;
+}
+
+void WireView::drawPedals (const std::vector<juce::Rectangle<int>>& restored, double nowMs)
+{
+    if (mode != Mode::kit || ! frame.isValid())
+        return;
+    for (size_t i = 0; i < items.size(); ++i)
+    {
+        if (! items[i].pedal)
+            continue;
+        const double s = pedalSwingOf (i, nowMs);
+        bool touched = s > 0.0 || items[i].pedalDrawn > 0.0;
+        for (const auto& b : restored)
+            touched = touched || b.intersects (items[i].pedalBox);
+        if (touched)
+            drawPedal (i, s);
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
