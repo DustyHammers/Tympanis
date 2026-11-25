@@ -157,9 +157,10 @@ DrumDrawing drawDrum (const DrumSpec& spec, const Camera& cam, double sel = 0.0)
 // footboard toward the drummer. Fixed parts: the base plate (wide at the hoop, tapering to the
 // heel), the hoop clamp and bumpers, the single post on the drummer's left with the axle's
 // housing and knurled knob, the hub's dial ring, the heel hinge and its end caps. Moving parts:
-// the flat footboard (full width, then a tongue on the right clear of the post; no logo), the
-// toe link, the arc cam, the chain, the low spring and its lever, the beater (clamp, shaft, disc
-// beater on its holder). swing: 0 at rest (beater back, toe up), 1 against the head (toe down).
+// the flat footboard (13" x 2.75": full width, then a tongue on the right clear of the post; no
+// logo), the toe link, the arc cam, the chain, the low spring and its lever, the beater (clamp,
+// shaft, memory lock, the felt beater of the first mockup). swing: 0 at rest (beater back, toe
+// up), 1 against the head (toe down).
 enum class PedalParts { fixed, moving, all };
 void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, double sel = 0.0, double swing = 0.0,
                    PedalParts parts = PedalParts::all);

@@ -745,17 +745,18 @@ void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, do
         for (size_t i = 0; i < t.size(); ++i)
             seg (t[i], b[i], side);
     };
-    const Rgb alu = kChrome, dim = kChromeD * 0.8, dark = kChromeD * 0.45, felt = kChromeD * 0.6;
+    const Rgb alu = kChrome, dim = kChromeD * 0.8, dark = kChromeD * 0.45;
     // the single post on the drummer's left; the axle's housing on top; the hub and cam on the axle
     const double postX = -1.95, axleF = -1.9, axleZ = 7.3, camX = 0.95, camR = 1.25;
-    const double heelF = -12.6, toeF = -2.55, heelZ = 0.85, toeZ = 2.7 - 1.4 * swing;
+    // the footboard 13" long (Trick's long board), 2.75" wide (measured from Kris's photos)
+    const double heelF = -15.55, toeF = -2.55, heelZ = 0.85, toeZ = 2.7 - 1.4 * swing, bw = 1.375;
     const auto out0 = out.segments.size();
 
     if (fixedParts)
     {
         // the base plate: wide at the hoop, tapering to the heel, rounded corners, 0.35" thick
-        slab ({ { -2.8, -0.1 }, { 2.4, -0.1 }, { 2.6, -0.4 }, { 2.6, -4.2 }, { 2.0, heelF - 0.6 }, { 1.8, heelF - 0.9 }, { -1.8, heelF - 0.9 },
-                { -2.0, heelF - 0.6 }, { -2.8, -4.2 }, { -3.0, -0.4 } },
+        slab ({ { -2.5, -0.1 }, { 2.0, -0.1 }, { 2.2, -0.4 }, { 2.2, -4.2 }, { 1.75, heelF - 0.6 }, { 1.55, heelF - 0.9 }, { -1.55, heelF - 0.9 },
+                { -1.75, heelF - 0.6 }, { -2.5, -4.2 }, { -2.7, -0.4 } },
               0.35, 0.35, alu * 0.75, dim * 0.7);
         // the hoop clamp and its two rubber bumpers
         path ({ P (-0.9, -0.15, 0.35), P (-0.9, 0.1, 1.3), P (0.9, 0.1, 1.3), P (0.9, -0.15, 0.35) }, dim);
@@ -789,22 +790,22 @@ void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, do
             seg (P (-0.3, axleF, axleZ) + 0.8 * e, P (-0.3, axleF, axleZ) + 0.62 * e, dim * 0.6);
         }
         // the heel: the hinge rod across, its two end caps, the base's heel block
-        seg (P (-1.95, heelF, heelZ - 0.1), P (1.95, heelF, heelZ - 0.1), dim);
-        for (double x : { -1.95, 1.95 })
+        seg (P (-bw - 0.2, heelF, heelZ - 0.1), P (bw + 0.2, heelF, heelZ - 0.1), dim);
+        for (double x : { -bw - 0.2, bw + 0.2 })
             cylinder (P (x < 0 ? x - 0.3 : x, heelF, heelZ - 0.1), X, F, Z, 0.3, 0.28, alu, 12);
-        slab ({ { -1.9, heelF + 0.4 }, { 1.9, heelF + 0.4 }, { 1.9, heelF - 0.5 }, { -1.9, heelF - 0.5 } }, 0.7, 0.35, dim, dark);
+        slab ({ { -bw - 0.15, heelF + 0.4 }, { bw + 0.15, heelF + 0.4 }, { bw + 0.15, heelF - 0.5 }, { -bw - 0.15, heelF - 0.5 } }, 0.7, 0.35, dim, dark);
     }
 
     if (movingParts)
     {
-        // the footboard: one flat plate, hinged at the heel; full width (3.4") to near the toe, then
-        // a tongue on the right, clear of the post, out to the toe link; 0.3" thick
+        // the footboard: one flat plate, hinged at the heel; full width (2.75") to near the toe, then
+        // a tongue on the right half, clear of the post, out to the toe link; 0.3" thick
         auto board = [&] (double x, double f) {
             const double t = (f - heelF) / (toeF - heelF);
             return P (x, f, heelZ + t * (toeZ - heelZ));
         };
         const double notchF = toeF - 1.6;
-        const std::vector<std::pair<double, double>> outline { { -1.7, heelF }, { -1.7, notchF }, { -0.15, notchF }, { -0.15, toeF }, { 1.7, toeF }, { 1.7, heelF } };
+        const std::vector<std::pair<double, double>> outline { { -bw, heelF }, { -bw, notchF }, { 0.0, notchF }, { 0.0, toeF }, { bw, toeF }, { bw, heelF } };
         std::vector<V3> top, bottom;
         const V3 down { 0, 0, -0.3 };
         for (const auto& [x, f] : outline)
@@ -817,11 +818,11 @@ void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, do
         for (size_t i = 0; i < top.size(); ++i)
             seg (top[i], bottom[i], dim * 0.75);
         // the two screws at the heel end, and a faint brushed line down the middle
-        for (double x : { -0.55, 0.55 })
+        for (double x : { -0.45, 0.45 })
             circle (board (x, heelF + 0.75), X, normalised (board (0, toeF) - board (0, heelF)), 0.14, dim, 10);
         seg (board (0.0, heelF + 1.4), board (0.0, notchF - 0.6), dim * 0.45);
         // the toe link: a short bar from the tongue's end up to the chain
-        const V3 toe = board (0.95, toeF + 0.15);
+        const V3 toe = board (0.7, toeF + 0.15);
         const V3 link = toe + V3 { 0, 0, 0.9 } + 0.25 * F;
         for (double o : { -0.22, 0.22 })
             seg (toe + o * X, link + o * X, alu);
@@ -877,14 +878,24 @@ void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, do
         path ({ hub + 0.55 * dir - 0.35 * X + 0.35 * face, hub + 0.55 * dir + 0.35 * X + 0.35 * face, hub + 1.35 * dir + 0.35 * X + 0.35 * face,
                 hub + 1.35 * dir - 0.35 * X + 0.35 * face },
               dark, 1, true);
-        const V3 tip = hub + 8.6 * dir;
+        const V3 tip = hub + 8.4 * dir;
         for (double o : { -0.08, 0.08 })
             seg (hub + 1.0 * dir + o * X, tip + o * X, alu);
-        // the holder: a short cylinder on the shaft's end, a cross pin, then the disc
-        cylinder (tip - 0.4 * face, face, X, dir, 0.55, 0.32, alu, 14);
-        seg (tip - 0.5 * face - 0.55 * X, tip - 0.5 * face + 0.55 * X, dim);
-        const double dr = 1.25;
-        cylinder (tip + 0.15 * face, face, X, dir, 0.4, dr, felt, 28);
+        // the felt beater (as before): a cylinder, its face toward the drum, its back a chrome cup;
+        // the memory lock on the shaft
+        circle (hub + 2.2 * dir, X, face, 0.22, dim, 10);
+        const double fr = 0.9, fl = 0.75;
+        const V3 front = tip + fl * face, cup = tip - 0.45 * face;
+        circle (front, X, dir, fr, kHead * 0.95, 26);
+        circle (tip, X, dir, fr, kHead * 0.76, 26);
+        circle (cup, X, dir, fr * 0.7, alu * 0.8, 20);
+        for (int k = 0; k < 4; ++k)
+        {
+            const double t = 2 * kPi * (k + 0.5) / 4;
+            const V3 e = std::cos (t) * X + std::sin (t) * dir;
+            seg (tip + fr * e, front + fr * e, kHead * 0.85);
+            seg (cup + 0.7 * fr * e, tip + fr * e, alu * 0.7);
+        }
     }
 
     // its screen bounds join the drawing's
