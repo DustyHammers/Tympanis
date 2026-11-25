@@ -5,7 +5,10 @@
 //   tympanis_hosttest render SEQ OUT   play SEQ (JSON: sample_rate, duration, block,
 //                                      events [[time_s, row_id, velocity 1..127], ...])
 //                                      through processBlock and write a 24-bit stereo WAV
-//                                      (optional "params": { parameter_id: value, ... })
+//                                      (optional "params": { parameter_id: value, ... };
+//                                      "automation": [[time_s, parameter_id, value], ...],
+//                                      each set before the block it falls in)
+//                         [--raw OUT.f32]  also the float samples, L then R (md5sum)
 #include "PluginProcessor.h"
 #include "ui/EditorSize.h"
 #include "dsp/Json.h"
@@ -15,6 +18,8 @@
 #include <chrono>
 #include <cmath>
 #include <iostream>
+#include <fstream>
+#include <functional>
 #include <map>
 
 using namespace tympanis;
@@ -48,7 +53,9 @@ struct Host
     }
     // Plays (sample, note, velocity) events for n samples in blocks of `blk`; returns the left
     // channel (the right one is in lastRight).
-    std::vector<float> play(const std::vector<std::tuple<int64_t, int, int>>& ev, int64_t n, int blk, int channel = 10)
+    // onBlock(s), if set, is called before each block, with its first sample (parameter moves).
+    std::vector<float> play(const std::vector<std::tuple<int64_t, int, int>>& ev, int64_t n, int blk, int channel = 10,
+                            const std::function<void(int64_t)>& onBlock = {})
     {
         std::vector<float> out((size_t) n);
         lastRight.assign((size_t) n, 0.0f);
@@ -59,6 +66,7 @@ struct Host
             const int len = (int) std::min<int64_t>(blk, n - s);
             buf.setSize(2, len, false, false, true);
             juce::MidiBuffer midi;
+            if (onBlock) onBlock(s);
             while (ei < ev.size() && std::get<0>(ev[ei]) < s + len)
             {
                 midi.addEvent(juce::MidiMessage::noteOn(channel, std::get<1>(ev[ei]), (juce::uint8) std::get<2>(ev[ei])),
@@ -401,7 +409,7 @@ int runBench()
     return 0;
 }
 
-int runRender(const std::string& seqPath, const std::string& outPath)
+int runRender(const std::string& seqPath, const std::string& outPath, const std::string& rawPath)
 {
     const auto seq = json::parseFile(seqPath);
     const double sr = seq.at("sample_rate").number();
@@ -420,7 +428,23 @@ int runRender(const std::string& seqPath, const std::string& outPath)
         ev.emplace_back((int64_t) (a[0].number() * sr), note.at(a[1].string()), (int) a[2].number());
     }
     std::stable_sort(ev.begin(), ev.end(), [](auto& x, auto& y) { return std::get<0>(x) < std::get<0>(y); });
-    const auto y = h.play(ev, n, blk);
+    // "automation": [[time_s, parameter id, value], ...], each set before the block it falls in
+    std::vector<std::tuple<int64_t, std::string, double>> au;
+    if (const auto* a = seq.find("automation"))
+        for (const auto& e : a->array())
+            au.emplace_back((int64_t) (e.array()[0].number() * sr), e.array()[1].string(), e.array()[2].number());
+    std::stable_sort(au.begin(), au.end(), [](auto& x, auto& y) { return std::get<0>(x) < std::get<0>(y); });
+    size_t ai = 0;
+    const auto y = h.play(ev, n, blk, 10, [&](int64_t s) {
+        while (ai < au.size() && std::get<0>(au[ai]) < s + blk)
+        {
+            if (auto* prm = h.p->params.getParameter(std::get<1>(au[ai])))
+                prm->setValueNotifyingHost(prm->convertTo0to1((float) std::get<2>(au[ai])));
+            else
+                std::cerr << "unknown parameter " << std::get<1>(au[ai]) << "\n";
+            ++ai;
+        }
+    });
     juce::AudioBuffer<float> buf(2, (int) n);
     std::copy(y.begin(), y.end(), buf.getWritePointer(0));
     std::copy(h.lastRight.begin(), h.lastRight.end(), buf.getWritePointer(1));
@@ -431,6 +455,13 @@ int runRender(const std::string& seqPath, const std::string& outPath)
     if (! w) { std::cerr << "cannot write " << outPath << "\n"; return 1; }
     w->writeFromAudioSampleBuffer(buf, 0, buf.getNumSamples());
     std::cout << "peak " << juce::Decibels::gainToDecibels(std::max(peak(y), peak(h.lastRight))) << " dBFS\n";
+    // the float output (L then R) as raw samples, for bit-for-bit comparisons (md5sum)
+    if (! rawPath.empty())
+    {
+        std::ofstream f(rawPath, std::ios::binary);
+        f.write((const char*) y.data(), (std::streamsize) (y.size() * sizeof(float)));
+        f.write((const char*) h.lastRight.data(), (std::streamsize) (h.lastRight.size() * sizeof(float)));
+    }
     return 0;
 }
 } // namespace
@@ -441,7 +472,13 @@ int main(int argc, char** argv)
     const std::string mode = argc > 1 ? argv[1] : "checks";
     if (mode == "checks") return runChecks();
     if (mode == "bench") return runBench();
-    if (mode == "render" && argc > 3) return runRender(argv[2], argv[3]);
-    std::cerr << "usage: tympanis_hosttest checks | bench | render SEQ.json OUT.wav\n";
+    if (mode == "render" && argc > 3)
+    {
+        std::string raw;
+        for (int i = 4; i + 1 < argc; i += 2)
+            if (std::string(argv[i]) == "--raw") raw = argv[i + 1];
+        return runRender(argv[2], argv[3], raw);
+    }
+    std::cerr << "usage: tympanis_hosttest checks | bench | render SEQ.json OUT.wav [--raw OUT.f32]\n";
     return 2;
 }
