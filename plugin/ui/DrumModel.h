@@ -152,13 +152,14 @@ struct DrumDrawing
 // sel: 1 for the selected drum on the KIT page (35 % brighter), else 0.
 DrumDrawing drawDrum (const DrumSpec& spec, const Camera& cam, double sel = 0.0);
 
-// A bass drum pedal (the KIT page; Kris's photos of TAMA single-chain pedals, 2026-11-25), added
-// to a drawing: clamped to a kick's batter hoop on the floor, the footboard toward the drummer.
-// Fixed parts: the black base plate, the hoop clamp, the two posts with their bearings, the axle,
-// the sprocket's rim, the heel plate and its hinge. Moving parts: the footboard (chamfered toe,
-// ribbed sides, the plate in the middle; the maker's name not drawn), the chain, the sprocket's
-// teeth, the return spring and its crank, the beater (shaft, memory lock, felt). swing: 0 at
-// rest (beater back, toe up), 1 with the beater against the head (toe down).
+// A bass drum pedal (the KIT page; the shape of Kris's photos of Trick Big Foot / Black Widow
+// pedals, 2026-11-25), added to a drawing: clamped to a kick's batter hoop on the floor, the
+// footboard toward the drummer. Fixed parts: the base plate (wide at the hoop, tapering to the
+// heel), the hoop clamp and bumpers, the single post on the drummer's left with the axle's
+// housing and knurled knob, the hub's dial ring, the heel hinge and its end caps. Moving parts:
+// the flat footboard (full width, then a tongue on the right clear of the post; no logo), the
+// toe link, the arc cam, the chain, the low spring and its lever, the beater (clamp, shaft, disc
+// beater on its holder). swing: 0 at rest (beater back, toe up), 1 against the head (toe down).
 enum class PedalParts { fixed, moving, all };
 void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, double sel = 0.0, double swing = 0.0,
                    PedalParts parts = PedalParts::all);
