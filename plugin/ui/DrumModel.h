@@ -152,6 +152,13 @@ struct DrumDrawing
 // sel: 1 for the selected drum on the KIT page (35 % brighter), else 0.
 DrumDrawing drawDrum (const DrumSpec& spec, const Camera& cam, double sel = 0.0);
 
+// A bass drum pedal (the KIT page; Kris's photos of a TAMA single-chain pedal, 2026-11-25), added
+// to a kick's drawing: clamped to its batter hoop on the floor, the footboard toward the drummer.
+// Base plate, hoop clamp, two posts with bearings, axle, chain sprocket, chain to the footboard's
+// toe, return spring, beater shaft and felt beater, the ribbed footboard and heel plate. swing:
+// 0 at rest (beater back), 1 against the head. Chrome lines, the felt in the heads' cream.
+void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, double sel = 0.0, double swing = 0.0);
+
 // ---- The drums of the plugin (KitMap.h order) as drawn on the DRUM and TUNING pages, and the kit.
 
 struct DrumLook

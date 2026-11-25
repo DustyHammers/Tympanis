@@ -222,6 +222,8 @@ void WireView::build (float scale)
             it.drum = layout[k].drum;
             it.kitIndex = (int) k;
             it.drawing = wire::drawDrum (wire::kitSpec (layout[k], depthOff[(size_t) layout[k].drum]), cam);
+            if (layout[k].spec.kind == wire::Kind::kick)
+                wire::addKickPedal (it.drawing, layout[k].spec, cam); // its pedal, drawn with it
             it.drawing.depth += layout[k].depthBias;
             items.push_back (std::move (it));
         }
@@ -323,6 +325,8 @@ void WireView::applySelection()
     {
         const auto& kit = wire::kitLayout()[(size_t) k];
         selDrawing = wire::drawDrum (wire::kitSpec (kit, depthOff[(size_t) kit.drum]), wire::kitCamera(), 1.0);
+        if (kit.spec.kind == wire::Kind::kick)
+            wire::addKickPedal (selDrawing, kit.spec, wire::kitCamera(), 1.0);
         selBox = pixelBox (selDrawing.x0, selDrawing.y0, selDrawing.x1, selDrawing.y1, 14.0f);
         if (! selBox.isEmpty())
         {
