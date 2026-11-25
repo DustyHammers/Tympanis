@@ -7,6 +7,8 @@ add_library(tympanis_engine STATIC
 )
 
 target_include_directories(tympanis_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+# The kit renders its drums through a borrowed dhpool pool (Kit::setPool; none: one thread).
+target_link_libraries(tympanis_engine PUBLIC dhpool)
 target_compile_features(tympanis_engine PUBLIC cxx_std_17)
 set_target_properties(tympanis_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 

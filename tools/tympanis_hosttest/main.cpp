@@ -9,6 +9,7 @@
 //                                      "automation": [[time_s, parameter_id, value], ...],
 //                                      each set before the block it falls in)
 //                         [--raw OUT.f32]  also the float samples, L then R (md5sum)
+//                         [--threads N]    the drums through a pool of N threads (test only)
 #include "PluginProcessor.h"
 #include "ui/EditorSize.h"
 #include "dsp/Json.h"
@@ -38,9 +39,11 @@ struct Host
     std::unique_ptr<TympanisProcessor> p;
     double sr;
     int block;
-    Host(double sampleRate, int blockSize) : sr(sampleRate), block(blockSize)
+    // threads > 1: the drums through a pool (the processor's test-only setting, before prepare)
+    Host(double sampleRate, int blockSize, int threads = 1, int timingSamples = 0) : sr(sampleRate), block(blockSize)
     {
         p.reset(static_cast<TympanisProcessor*>(createPluginFilter()));
+        p->setRenderThreadsForTesting(threads, timingSamples);
         p->setPlayConfigDetails(0, 2, sr, block);
         p->prepareToPlay(sr, block);
     }
@@ -409,7 +412,7 @@ int runBench()
     return 0;
 }
 
-int runRender(const std::string& seqPath, const std::string& outPath, const std::string& rawPath)
+int runRender(const std::string& seqPath, const std::string& outPath, const std::string& rawPath, int threads)
 {
     const auto seq = json::parseFile(seqPath);
     const double sr = seq.at("sample_rate").number();
@@ -417,7 +420,7 @@ int runRender(const std::string& seqPath, const std::string& outPath, const std:
     const int64_t n = (int64_t) (seq.at("duration").number() * sr);
     std::map<std::string, int> note;
     for (const auto& r : kRows) note[r.id] = r.defaultNote;
-    Host h(sr, blk);
+    Host h(sr, blk, threads);
     if (const auto* ps = seq.find("params"))
         for (const auto& [id, v] : ps->object())
             if (auto* prm = h.p->params.getParameter(id)) prm->setValueNotifyingHost(prm->convertTo0to1((float) v.number()));
@@ -475,10 +478,14 @@ int main(int argc, char** argv)
     if (mode == "render" && argc > 3)
     {
         std::string raw;
+        int threads = 1;
         for (int i = 4; i + 1 < argc; i += 2)
+        {
             if (std::string(argv[i]) == "--raw") raw = argv[i + 1];
-        return runRender(argv[2], argv[3], raw);
+            if (std::string(argv[i]) == "--threads") threads = std::max(1, std::atoi(argv[i + 1]));
+        }
+        return runRender(argv[2], argv[3], raw, threads);
     }
-    std::cerr << "usage: tympanis_hosttest checks | bench | render SEQ.json OUT.wav [--raw OUT.f32]\n";
+    std::cerr << "usage: tympanis_hosttest checks | bench | render SEQ.json OUT.wav [--raw OUT.f32] [--threads N]\n";
     return 2;
 }
