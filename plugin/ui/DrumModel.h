@@ -166,13 +166,18 @@ const DrumLook& drumLook (int drum);
 // The DRUM page's (and the TUNING page's) single drum: the drum at the origin, seen by the
 // mockup's camera (34 degrees up, 70" away, turned 8 degrees), scaled to fit `maxW` x `maxH`
 // design units and centred on `centre`. The gong drum is tilted toward the camera, as on its
-// stand; the four octobans share Octoban 4's scale, so their lengths read from page to page.
+// stand. depthOffIn: the shell this much deeper (or shallower) than drawn by default (Size on
+// Toms 1-4; the camera stays on the default drum's middle). Scale: kit — one scale for every drum
+// (the DRUM page, Kris 2026-11-25: the drums proportional to each other), the one that fits the
+// largest with the toms at their deepest; own — this drum's, at its deepest (the TUNING page's
+// small drum), so a change of depth shows as a longer or shorter shell.
 struct Framed
 {
     DrumSpec spec;
     Camera cam;
 };
-Framed frameDrum (int drum, Pt centre, double maxW, double maxH);
+enum class Scale { kit, own };
+Framed frameDrum (int drum, Pt centre, double maxW, double maxH, double depthOffIn = 0, Scale scale = Scale::own);
 
 // The KIT page: the drums drawn (Snare 1 stands for Snare 1 and 2; Snare 3, the gong drum and
 // the octobans are not drawn for now), in the approved layout.
@@ -183,6 +188,9 @@ struct KitItem
     double depthBias; // the rack toms sit in front of the kicks they rest on
 };
 const std::vector<KitItem>& kitLayout();
+// A kit item with its shell depthOffIn deeper (a rack tom: its bottom stays where it rests on the
+// kick; the head moves along the axis, down when shallower; Kris, 2026-11-25).
+DrumSpec kitSpec (const KitItem& item, double depthOffIn);
 Camera kitCamera();
 // The kit item a drum is drawn as (Snare 2 as Snare 1), or -1.
 int kitItemForDrum (int drum);

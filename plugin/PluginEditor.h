@@ -119,6 +119,7 @@ private:
     std::array<double, kRows.size()> litUntilMs {};
     std::array<bool, kRows.size()> lit {};
     int shownChannel = -1;
+    std::array<double, 17> shownDepthOff {}; // Size on Toms 1-4, inches off the drawn depth
     int shownLearn = -1;
     double learnStartMs = 0.0;
 };

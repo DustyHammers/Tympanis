@@ -67,11 +67,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout TympanisProcessor::createLay
         if (kDrums[d].strikePos)
             group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "strike_pos"), 1 }, name + " Strike Position",
                 juce::NormalisableRange<float>(0.0f, 0.95f, 0.005f), 0.35f));
-        const float sz = (float) kDrums[d].sizeIn;
-        juce::NormalisableRange<float> size(0.5f * sz, 2.0f * sz, 0.1f);
-        size.setSkewForCentre(sz);
+        // Size: the shell's depth (Kris, 2026-11-25), -4 .. +2" in 1" steps; it plays on Toms 1-4
+        // only (on the other drums it stays, greyed out in the editor, and changes nothing)
+        const float dp = (float) kDrums[d].depthIn;
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "size"), 1 }, name + " Size",
-            size, sz, A().withLabel("in")));
+            juce::NormalisableRange<float>(dp - (float) kDepthDownIn, dp + (float) kDepthUpIn, 1.0f), dp, A().withLabel("in")));
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "level"), 1 }, name + " Level",
             levelRange(), 0.0f, A().withLabel("dB").withStringFromValueFunction(dbText)));
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "pan"), 1 }, name + " Pan",
@@ -175,7 +175,8 @@ void TympanisProcessor::applyParameters()
         if (const float v = p.decay->load(); changed(2, v)) dr.setDecay(v);
         if (p.strike != nullptr)
             if (const float v = p.strike->load(); changed(3, v)) dr.setStrikePos(v);
-        if (const float v = p.size->load(); changed(4, v)) dr.setSize(v);
+        // the head's size is the recorded one (Size no longer scales it); Size is the shell's depth
+        if (const float v = p.size->load(); changed(4, v) && kDrums[d].depth) dr.setDepth(kDrums[d].depthIn, v);
         // level, and pan with the -3 dB compensated constant-power law (0 dB in the centre)
         const double g = dbGain(p.level->load()) * main;
         const double th = juce::MathConstants<double>::pi * 0.25 * (juce::jlimit(-1.0f, 1.0f, p.pan->load()) + 1.0);

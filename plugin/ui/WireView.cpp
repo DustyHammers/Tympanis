@@ -78,6 +78,19 @@ void WireView::setDrum (int d)
     repaint();
 }
 
+void WireView::setDepths (const std::array<double, 17>& offsetsIn)
+{
+    if (offsetsIn == depthOff)
+        return;
+    const bool shownChanged = offsetsIn[(size_t) juce::jlimit (0, 16, shownDrum)] != depthOff[(size_t) juce::jlimit (0, 16, shownDrum)];
+    depthOff = offsetsIn;
+    if (mode != Mode::kit && ! shownChanged)
+        return;
+    numHits = 0;
+    needsBuild = true;
+    repaint();
+}
+
 void WireView::strike (int d, float velocity, double rpos, double ageSeconds)
 {
     if (mode == Mode::small)
@@ -208,7 +221,7 @@ void WireView::build (float scale)
             Item it;
             it.drum = layout[k].drum;
             it.kitIndex = (int) k;
-            it.drawing = wire::drawDrum (layout[k].spec, cam);
+            it.drawing = wire::drawDrum (wire::kitSpec (layout[k], depthOff[(size_t) layout[k].drum]), cam);
             it.drawing.depth += layout[k].depthBias;
             items.push_back (std::move (it));
         }
@@ -217,7 +230,9 @@ void WireView::build (float scale)
     else
     {
         const bool big = mode == Mode::drum;
-        const auto fr = wire::frameDrum (shownDrum, big ? kDrumCentre : kSmallCentre, big ? kDrumMaxW : kSmallMaxW, big ? kDrumMaxH : kSmallMaxH);
+        // the DRUM page: every drum at one scale (proportional to each other); the small one: its own
+        const auto fr = wire::frameDrum (shownDrum, big ? kDrumCentre : kSmallCentre, big ? kDrumMaxW : kSmallMaxW, big ? kDrumMaxH : kSmallMaxH,
+                                         depthOff[(size_t) juce::jlimit (0, 16, shownDrum)], big ? wire::Scale::kit : wire::Scale::own);
         Item it;
         it.drum = shownDrum;
         it.drawing = wire::drawDrum (fr.spec, fr.cam);
@@ -306,7 +321,8 @@ void WireView::applySelection()
             selItem = (int) i;
     if (selItem >= 0)
     {
-        selDrawing = wire::drawDrum (wire::kitLayout()[(size_t) k].spec, wire::kitCamera(), 1.0);
+        const auto& kit = wire::kitLayout()[(size_t) k];
+        selDrawing = wire::drawDrum (wire::kitSpec (kit, depthOff[(size_t) kit.drum]), wire::kitCamera(), 1.0);
         selBox = pixelBox (selDrawing.x0, selDrawing.y0, selDrawing.x1, selDrawing.y1, 14.0f);
         if (! selBox.isEmpty())
         {
