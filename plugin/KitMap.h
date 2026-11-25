@@ -90,6 +90,22 @@ constexpr std::array<NoteRow, 31> kRows { {
     { "octo4",       "Octoban 4",          16, Art::Head, 63 },
 } };
 
+// Level trims (dB) for the rows whose full-velocity hits peak far above the rest (Kris,
+// 2026-11-24): with the output gain raised 6 dB to Cymbalis's loudness, each is turned down so
+// its loudest hit at velocity 127 (worst of 32) peaks at or below -3 dBFS at the default
+// settings, rounded down to 0.5 dB. Every other row: 0 dB.
+struct RowTrim
+{
+    const char* row;   // a kRows id
+    double db;
+};
+constexpr std::array<RowTrim, 4> kRowTrims { {
+    { "tom2_rim", -5.5 },   // -3.7 dBFS before, +2.3 with the 6 dB
+    { "tom3_rim", -8.0 },   // -1.4 dBFS before, +4.6 with the 6 dB
+    { "tom5_rim", -2.5 },   // -6.8 dBFS before, -0.7 with the 6 dB
+    { "tom6_rim", -3.5 },   // -5.6 dBFS before, +0.4 with the 6 dB
+} };
+
 constexpr int kDefaultMidiChannel = 10;   // Kris, 2026-11-24
 constexpr int kNoteNone = -1;
 

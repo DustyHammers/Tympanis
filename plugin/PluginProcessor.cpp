@@ -122,6 +122,10 @@ TympanisProcessor::TympanisProcessor()
         }
         kit.init(kitData.get());
         for (int d = 0; d < kit.numDrums(); ++d) kit.drum(d).setVelRangeDb(kVelRangeDb);
+        for (const auto& t : kRowTrims)
+            for (const auto& r : kRows)
+                if (juce::String(r.id) == t.row)
+                    kit.drum(r.drum).setArtTrim(r.art, std::pow(10.0, t.db / 20.0));
         kitLoaded = true;
     }
     catch (const std::exception& e)

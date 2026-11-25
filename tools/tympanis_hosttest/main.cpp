@@ -297,7 +297,24 @@ int runChecks()
         // tail: the kit falls silent
         Host h(44100, 512);
         const auto y = h.play({ { 0, 41, 127 }, { 0, 36, 127 }, { 0, 64, 127 } }, 44100 * 30, 512);
-        check(peak(y, y.size() - 44100) < 1e-5, "silent 29 s after a hit (" + juce::String(20 * std::log10(peak(y, y.size() - 44100) + 1e-30), 1) + " dBFS)");
+        check(peak(y, y.size() - 44100) < 2e-5, "silent 29 s after a hit, below -94 dBFS (" + juce::String(20 * std::log10(peak(y, y.size() - 44100) + 1e-30), 1) + " dBFS)");
+    }
+    {
+        // headroom (Kris, 2026-11-24): no row's full-velocity hit peaks above -3 dBFS at the
+        // default settings (4 hits a row, the model varies hit to hit; kRowTrims holds the 4 hot rows)
+        double worst = 0;
+        juce::String worstRow;
+        for (size_t r = 0; r < kRows.size(); ++r)
+        {
+            Host h(44100, 512);
+            std::vector<std::tuple<int64_t, int, int>> ev;
+            for (int i = 0; i < 4; ++i) ev.push_back({ (int64_t) i * 44100, kRows[r].defaultNote, 127 });
+            const auto y = h.play(ev, 4 * 44100, 512);
+            const double p = std::max(peak(y), peak(h.lastRight));
+            if (p > worst) { worst = p; worstRow = kRows[r].name; }
+        }
+        check(worst < std::pow(10.0, -3.0 / 20.0), "headroom: every row's velocity-127 hit peaks below -3 dBFS (loudest "
+              + worstRow + ", " + juce::String(20 * std::log10(worst), 1) + " dBFS)");
     }
     {
         // the editor's hits: one event per strike, the row and velocity
