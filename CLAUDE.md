@@ -26,7 +26,9 @@ Tympanis (working name) is a physically modelled drum instrument (macOS VST3 + A
 | `plugin/` | JUCE processor (`PluginProcessor.*`), editor (`PluginEditor.*`), drums and note rows (`KitMap.h`) |
 | `plugin/ui/` | Editor assets loader, wireframe drums (`DrumModel`), their rasteriser (`WireRaster`) and view (`WireView`) |
 | `resources/ui/` | Editor background, knob filmstrip, fonts (OFL) |
-| `tools/tympanis_render/` | Console renderer for the engine (port check, CPU) |
+| `third_party/dhpool/` | Cymbalis's shared job pool, copied unchanged (`SOURCE.md`); never edited here |
+| `tools/tympanis_render/` | Console renderer for the engine (port check, CPU; `--threads N`) |
+| `tools/seq/` | Busy kit sequences for the same-bits checks at any thread count |
 | `tools/tympanis_hosttest/` | Drives the processor like a host: checks, CPU bench, renders through processBlock |
 | `tools/tympanis_snapshot/` | Renders the editor's pages to PNG, prints the wireframe drawing times |
 | `tools/ui/make_background.py` | Makes `resources/ui/TYMPANIS_Background.png` |
