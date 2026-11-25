@@ -165,7 +165,8 @@ void Drum::setTune(double semi)
 }
 void Drum::setLugDetune(double x)
 {
-    const double l = clampd(x, 0, 1);
+    // 0 .. 2: 1 is the prototype's lug_detune 1 (5 % RMS); the plugin's range reaches 2 (10 %)
+    const double l = clampd(x, 0, 2);
     if (l != lug_) { lug_ = l; polesDirty_ = true; }
 }
 void Drum::setDecay(double x)

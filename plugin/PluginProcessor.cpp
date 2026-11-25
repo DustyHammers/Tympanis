@@ -12,6 +12,8 @@ constexpr int kStateVersion = 1;
 // note's velocity / 127, s the drum's Velocity Sensitivity. At 100 % the model's own response;
 // lower, the dynamics narrow toward velocity 100; at 0 % every hit plays at velocity 100.
 constexpr float kVelocityFloor = 100.0f / 127.0f;
+// Lug Detune at 1: 10 % RMS tension error between lugs, the engine's 2 (its 1 is the prototype's 5 %).
+constexpr double kLugDetuneScale = 2.0;
 juce::String percentText(float v, int) { return juce::String(juce::roundToInt(v * 100.0f)) + "%"; }
 
 juce::String pid(size_t d, const char* what) { return juce::String(kDrums[d].key) + "_" + what; }
@@ -167,7 +169,9 @@ void TympanisProcessor::applyParameters()
             return true;
         };
         if (const float v = p.tune->load(); changed(0, v)) dr.setTune(v);
-        if (const float v = p.lug->load(); changed(1, v)) dr.setLugDetune(v);
+        // Lug Detune 1 = 10 % RMS tension error between lugs (Kris, 2026-11-25: 5 % more than the
+        // prototype's 5 %), the engine's 2
+        if (const float v = p.lug->load(); changed(1, v)) dr.setLugDetune(kLugDetuneScale * v);
         if (const float v = p.decay->load(); changed(2, v)) dr.setDecay(v);
         if (p.strike != nullptr)
             if (const float v = p.strike->load(); changed(3, v)) dr.setStrikePos(v);
