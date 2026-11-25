@@ -18,8 +18,7 @@
 //   drum-snare2-hit-2x.png  the DRUM page's hit at twice the pixels (a Retina display)
 // and prints how long the wireframes took to draw: the still drawing, and one moving frame.
 //
-// JUCE shows its splash logo in editors opened in the two seconds after the first is painted;
-// the first editor here only starts that time (as Cymbalis's snapshot tool).
+// The plugin is built without JUCE's splash logo (JUCE_DISPLAY_SPLASH_SCREEN=0).
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 
@@ -79,11 +78,6 @@ int main (int argc, char** argv)
     TympanisProcessor processor;
     if (! processor.isKitLoaded())
         std::fprintf (stderr, "warning: kit failed to load: %s\n", processor.getLoadError().toRawUTF8());
-    {
-        std::unique_ptr<juce::AudioProcessorEditor> first (processor.createEditor());
-        first->createComponentSnapshot (first->getLocalBounds(), true, 1.0f);
-        juce::Thread::sleep (2500);
-    }
 
     using Content = tympanis::ui::Content;
     auto open = [&processor] (int page, int drum, int width = 1536) {

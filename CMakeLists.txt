@@ -91,6 +91,9 @@ target_compile_definitions(Tympanis PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
+    # No "Made with JUCE" splash on load (Kris, 2026-11-25; as Cymbalis). The JUCE licence that
+    # allows it is Kris's to settle (docs/BUILDS.md).
+    JUCE_DISPLAY_SPLASH_SCREEN=0
 )
 
 # Rosetta 2 cannot run AVX: keep the x86_64 slice at SSE4.1 (as Cymbalis).
