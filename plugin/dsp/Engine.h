@@ -29,7 +29,7 @@ namespace tympanis
 struct DrumParams
 {
     double tuneSemi = 0.0;      // -2 .. 2
-    double lugDetune = 0.0;     // 0 .. 1
+    double lugDetune = 0.0;     // 0 .. 2 (1: the prototype's lug_detune 1, 5 % RMS tension error)
     double decay = 1.0;         // 0.25 .. 4
     double glideAmt = 1.0;      // 0 .. 3
     double clickMix = 1.0;      // 0 .. 2

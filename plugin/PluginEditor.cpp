@@ -885,7 +885,7 @@ namespace
 // The TUNING page's rows: this drum's, then the whole kit's (Kris, 2026-11-24).
 const std::array<TuneRow::Spec, 7> kDrumTuneSpecs { {
     { "tune", true, "TUNE", TuneRow::Format::semitones, true, nullptr, nullptr },
-    { "lug_detune", true, "LUG DETUNE", TuneRow::Format::plain, false, "EVEN", "5 % RMS" },
+    { "lug_detune", true, "LUG DETUNE", TuneRow::Format::plain, false, "EVEN", "10 % RMS" },
     { "decay", true, "DECAY", TuneRow::Format::times, false, "SHORT", "LONG" },
     { "strike_pos", true, "STRIKE POSITION", TuneRow::Format::plain, false, "CENTRE", "RIM" },
     { "size", true, "SIZE", TuneRow::Format::inches, false, nullptr, nullptr },

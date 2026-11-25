@@ -9,7 +9,7 @@ Per drum (`<drum>` = `kick1 kick2 snare1..snare4 tom1..tom6 gong octo1..octo4`):
 | ID | Name | Range | Default |
 |---|---|---|---|
 | `<drum>_tune` | `<Drum> Tune` | -2 .. +2 semitones | 0 |
-| `<drum>_lug_detune` | `<Drum> Lug Detune` | 0 .. 1 (1 = 5 % RMS tension error between lugs) | 0 |
+| `<drum>_lug_detune` | `<Drum> Lug Detune` | 0 .. 1 (1 = 10 % RMS tension error between lugs; Kris, 2026-11-25, was 5 %) | 0 |
 | `<drum>_decay` | `<Drum> Decay` | 0.25 .. 4 x ring time (highs change less) | 1 |
 | `<drum>_strike_pos` | `<Drum> Strike Position` | 0 (centre) .. 0.95 (near the rim); not on the bass drums | 0.35 |
 | `<drum>_size` | `<Drum> Size` | 0.5 .. 2 x the catalog diameter, inches | catalog size |

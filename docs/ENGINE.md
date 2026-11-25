@@ -12,7 +12,7 @@ On each hit (`Drum::strike`):
 - **Hit-to-hit variation** (hardwired): velocity N(0, 0.02), spectral tilt N(0, 0.4) dB/oct above 2x the main mode, strike position N(0, 0.015) on heads (never kicks), lug strike angle N(0, 0.15).
 - **Velocity layers**: log-amplitude / linear frequency and decay interpolation between the two nearest layers; phase from the nearer layer. Level span 24 dB (the setting of every approved render).
 - **Strike position** gain per slot (heads; not kicks or side sticks), energy kept constant.
-- **Uneven lug tension** (`lug_detune`): split slots get a twin oscillator a little below; the strike angle shares the hit between the pair. 0 = evenly tuned.
+- **Uneven lug tension** (`lug_detune`, 0 .. 2): split slots get a twin oscillator a little below; the strike angle shares the hit between the pair. 0 = evenly tuned; 1 = the prototype's 1 (5 % RMS tension error); the plugin's Lug Detune reaches 2 (10 %), past the prototype's range (Kris, 2026-11-25), so the port check covers 0 .. 1.
 - **Tension-modulation glide**, two stages, accumulating in rolls (capped).
 - **Noise layer**: 19 third-octave bands with exponential decay.
 - **Modelled contact transient**: damped modes, Ricker pulses, a noise burst in 21 third-octave bands from 900 Hz up.
