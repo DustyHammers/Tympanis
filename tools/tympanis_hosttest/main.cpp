@@ -1,7 +1,8 @@
 // tympanis_hosttest — drives the plugin's processor the way a host does (no audio device).
 //
 //   tympanis_hosttest checks           run the processor checks (exit code 1 on failure)
-//   tympanis_hosttest bench            CPU use with every drum ringing (prints a table)
+//   tympanis_hosttest bench [--seconds S]  CPU use with every drum ringing: the one-thread table,
+//                                      then per block, paced, at 1-3 threads (S s per case, 4)
 //   tympanis_hosttest render SEQ OUT   play SEQ (JSON: sample_rate, duration, block,
 //                                      events [[time_s, row_id, velocity 1..127], ...])
 //                                      through processBlock and write a 24-bit stereo WAV
@@ -21,6 +22,8 @@
 #include <iostream>
 #include <fstream>
 #include <functional>
+#include <algorithm>
+#include <thread>
 #include <map>
 
 using namespace tympanis;
@@ -387,28 +390,169 @@ int runChecks()
         ed.reset();
         check(b.p->getParameters().size() == 136, "the editor adds no parameters (136)");
     }
+    {
+        // The drums through a pool (test-only thread count): the same bits as one thread, over a busy
+        // sequence (every row, groups on one sample, flams a few samples apart, rolls) with the
+        // snare buzz up, uneven lug tension and levels and pans moving (the gains ramping), at
+        // 64-sample blocks (several runs per block) and 256.
+        std::vector<std::tuple<int64_t, int, int>> ev;
+        juce::Random rnd(20261125);
+        for (int64_t t = 441; t < 44100 * 3; t += 441 + rnd.nextInt(6000))
+        {
+            const int kind = rnd.nextInt(4);
+            const int hits = kind == 0 ? 3 + rnd.nextInt(6) : kind == 1 ? 2 : 1;
+            for (int k = 0; k < hits; ++k)
+                ev.emplace_back(t + (kind == 1 ? k * (1 + rnd.nextInt(40)) : 0), kRows[(size_t) rnd.nextInt((int) kRows.size())].defaultNote,
+                                30 + rnd.nextInt(98));
+        }
+        std::stable_sort(ev.begin(), ev.end(), [](auto& x, auto& y) { return std::get<0>(x) < std::get<0>(y); });
+        for (int blk : { 64, 256 })
+        {
+            std::vector<float> ref, refR;
+            bool same = true;
+            juce::String detail;
+            for (int threads : { 1, 2, 3 })
+            {
+                Host h(44100, blk, threads);
+                h.set("snare_buzz", 0.9f);
+                h.set("tom3_lug_detune", 0.7f);
+                h.set("snare1_lug_detune", 0.5f);
+                int moves = 0;
+                const auto y = h.play(ev, 44100 * 3, blk, 10, [&](int64_t s) {
+                    if (s % 8192 < blk)
+                    {
+                        const char* d = (moves % 3 == 0) ? "snare1" : (moves % 3 == 1) ? "kick1" : "tom2";
+                        h.set((juce::String(d) + (moves % 2 ? "_pan" : "_level")).toRawUTF8(), moves % 2 ? (float) ((moves % 5) - 2) * 0.4f : -12.0f + (float) (moves % 7) * 2.0f);
+                        ++moves;
+                    }
+                });
+                if (threads == 1) { ref = y; refR = h.lastRight; continue; }
+                const bool eq = y == ref && h.lastRight == refR;
+                same = same && eq;
+                const auto st = h.p->renderPoolForTesting().stats();
+                detail += juce::String(threads) + " threads: " + (eq ? "same" : "DIFFERENT") + " (" + juce::String((juce::int64) st.sharedRuns) + " shared runs); ";
+            }
+            check(same, "drums through a pool: bit-identical to one thread at " + juce::String(blk) + "-sample blocks: " + detail.dropLastCharacters(2));
+        }
+    }
     std::cout << (failures ? "FAILED: " + std::to_string(failures) : std::string("all passed")) << "\n";
     return failures ? 1 : 0;
 }
 
-int runBench()
+// The bench's hits: every 250 ms, alternate halves of the rows (row r when r + k is even, k the
+// 250 ms step), velocities 64-127, so all 17 drums keep ringing.
+std::vector<std::tuple<int64_t, int, int>> benchHits(double sr, int64_t n)
 {
-    std::cout << "CPU with every drum and articulation struck every 250 ms (all 17 drums ringing, snare buzz 0.5)\n";
+    std::vector<std::tuple<int64_t, int, int>> ev;
+    for (int64_t t = 0, k = 0; t < n; t += (int64_t) (sr * 0.25), ++k)
+        for (size_t r = 0; r < kRows.size(); r += 1)
+            if ((r + (size_t) k) % 2 == 0) ev.emplace_back(t, kRows[r].defaultNote, 64 + (int) ((r * 17 + (size_t) k) % 64));
+    return ev;
+}
+
+double quantile(std::vector<float> v, double q)
+{
+    if (v.empty()) return 0;
+    std::sort(v.begin(), v.end());
+    return v[(size_t) std::min<double>((double) v.size() - 1, q * (double) (v.size() - 1) + 0.5)];
+}
+
+int runBench(double pacedSeconds)
+{
+    const auto benchStart = std::chrono::steady_clock::now();
+    std::cout << "CPU on one thread: every 250 ms alternate halves of the rows are struck (all 17 drums ringing), snare buzz 0.5,\n"
+                 "20 s rendered back to back\n";
     std::cout << "sample rate  block   x real time   % of one core\n";
     for (double sr : { 44100.0, 48000.0, 96000.0 })
         for (int blk : { 64, 256 })
         {
             Host h(sr, blk);
             const int64_t n = (int64_t) (sr * 20);
-            std::vector<std::tuple<int64_t, int, int>> ev;
-            for (int64_t t = 0, k = 0; t < n; t += (int64_t) (sr * 0.25), ++k)
-                for (size_t r = 0; r < kRows.size(); r += 1)
-                    if ((r + (size_t) k) % 2 == 0) ev.emplace_back(t, kRows[r].defaultNote, 64 + (int) ((r * 17 + (size_t) k) % 64));
+            const auto ev = benchHits(sr, n);
             const auto t0 = std::chrono::steady_clock::now();
             h.play(ev, n, blk);
             const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
             std::printf("%8.0f   %5d   %10.1f   %11.1f\n", sr, blk, 20.0 / secs, 100.0 * secs / 20.0);
         }
+
+    // Per block, paced: the same hits, each block started at its deadline (one block's duration
+    // after the last) on a real-time thread, as a host does, and timed. The drums through the
+    // pool at 2 and 3 threads (the processor's test-only setting; the plugin uses one).
+    std::printf("\nPer block, paced to each block's deadline on a real-time thread (%.0f s after a 1 s lead, same hits)\n", pacedSeconds);
+    std::printf("block time as %% of the block: mean, p99, worst, blocks over 100%%; runs: pool runs per block (2 or more drums sounding);\n"
+                "caller wait (median / p99 / max, us); wake-up (median / p99, us; %% from sleep); workers' CPU (%% of one core)\n");
+    std::printf("  rate block thr |  mean   p99  worst >100%% | runs/blk | caller wait           | wake-up            | workers\n");
+    for (double sr : { 44100.0, 48000.0, 96000.0 })
+        for (int blk : { 64, 256 })
+            for (int threads : { 1, 2, 3 })
+            {
+                Host h(sr, blk, threads, threads > 1 ? 400000 : 0);
+                auto& pool = h.p->renderPoolForTesting();
+                const int64_t lead = (int64_t) sr / blk * blk, n = lead + (int64_t) (sr * pacedSeconds) / blk * blk; // whole blocks
+                const auto ev = benchHits(sr, n);
+                const double periodMs = 1000.0 * blk / sr;
+                std::vector<float> pct;
+                double cpu0 = 0, cpu1 = 0;
+                uint64_t runs0 = 0, runs = 0;
+                std::thread t([&] {
+                    dhpool::JobPool::makeRealtime(periodMs);
+                    juce::AudioBuffer<float> buf(2, blk);
+                    size_t ei = 0;
+                    auto deadline = std::chrono::steady_clock::now();
+                    const auto period = std::chrono::nanoseconds((int64_t) (periodMs * 1.0e6));
+                    for (int64_t s = 0; s < n; s += blk)
+                    {
+                        if (s == lead)
+                        {
+                            // the lead rendered back to back; then the workers asleep, the counts reset
+                            pool.waitIdle(100.0);
+                            pool.resetStats();
+                            runs0 = pool.stats().runs;
+                            cpu0 = pool.workerCpuSeconds();
+                            deadline = std::chrono::steady_clock::now();
+                        }
+                        juce::MidiBuffer midi;
+                        while (ei < ev.size() && std::get<0>(ev[ei]) < s + blk)
+                        {
+                            midi.addEvent(juce::MidiMessage::noteOn(10, std::get<1>(ev[ei]), (juce::uint8) std::get<2>(ev[ei])), (int) (std::get<0>(ev[ei]) - s));
+                            ++ei;
+                        }
+                        if (s >= lead)
+                        {
+                            std::this_thread::sleep_until(deadline);
+                            deadline += period;
+                        }
+                        const auto a = std::chrono::steady_clock::now();
+                        h.p->processBlock(buf, midi);
+                        if (s >= lead)
+                            pct.push_back((float) (100.0 * std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - a).count() / periodMs));
+                    }
+                    cpu1 = pool.workerCpuSeconds();
+                    runs = pool.stats().runs - runs0;
+                });
+                t.join();
+                double mean = 0;
+                int over = 0;
+                for (float v : pct) { mean += v; over += v > 100.0f; }
+                mean /= std::max<size_t>(1, pct.size());
+                const double worst = pct.empty() ? 0.0 : *std::max_element(pct.begin(), pct.end());
+                std::printf("%6.1fk %5d %3d | %5.1f %5.1f %6.1f %5d |", sr / 1000, blk, threads, mean, quantile(pct, 0.99), worst, over);
+                if (threads == 1)
+                {
+                    std::printf("        - |                     - |                  - |       -\n");
+                    continue;
+                }
+                const auto st = pool.stats();
+                uint64_t wakes = 0, fromSleep = 0;
+                for (const auto& w : st.workers) { wakes += w.wakes; fromSleep += w.wakesFromSleep; }
+                const auto waits = pool.callerWaitsMicros();
+                const auto wakeUs = pool.wakeDelaysMicros();
+                const double maxWait = waits.empty() ? 0.0 : *std::max_element(waits.begin(), waits.end());
+                std::printf("   %6.2f | %5.1f / %6.1f / %6.0f | %5.1f / %6.1f %3.0f%% | %6.1f\n", (double) runs / std::max<size_t>(1, pct.size()),
+                            quantile(waits, 0.5), quantile(waits, 0.99), maxWait, quantile(wakeUs, 0.5), quantile(wakeUs, 0.99),
+                            wakes ? 100.0 * (double) fromSleep / (double) wakes : 0.0, 100.0 * (cpu1 - cpu0) / pacedSeconds);
+            }
+    std::printf("\nbench time: %.0f s\n", std::chrono::duration<double>(std::chrono::steady_clock::now() - benchStart).count());
     return 0;
 }
 
@@ -474,7 +618,7 @@ int main(int argc, char** argv)
     juce::ScopedJuceInitialiser_GUI init;
     const std::string mode = argc > 1 ? argv[1] : "checks";
     if (mode == "checks") return runChecks();
-    if (mode == "bench") return runBench();
+    if (mode == "bench") return runBench(argc > 3 && std::string(argv[2]) == "--seconds" ? std::atof(argv[3]) : 4.0);
     if (mode == "render" && argc > 3)
     {
         std::string raw;
