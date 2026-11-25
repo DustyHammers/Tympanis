@@ -4,6 +4,8 @@ The approved mockups (Kris, 2026-11-24) are drawn by `docs/ui/tympanis_mockup.py
 
 Everything is in design units of a 1536 x 1024 artwork, scaled with one transform; the editor resizes at 3:2 from 960 x 640 to 1536 x 1024 (as Cymbalis). Look, fonts, palette, knobs (drawn by the plugin, as Cymbalis since 2026-11-24: a body lit from the top left, a rim, the pointer and its shadow, at a = -150 + 300 p degrees; no filmstrip) with position arcs, boxes, popups and the DHammers logo are Cymbalis's (its `docs/UI_SPEC.md`), the code mostly ported from its `PluginEditor.cpp`.
 
+**Opening size:** A new editor with no saved size opens at 1104 x 736 (as Cymbalis; Kris, 2026-11-25), smaller where the primary display's user area leaves less than 40 px across or 200 px down for a host's window around it, never below 960 x 640 (`plugin/ui/EditorSize.h`); a session's saved size wins.
+
 ## Assets (`resources/ui/`)
 
 | File | |
