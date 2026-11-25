@@ -152,12 +152,18 @@ struct DrumDrawing
 // sel: 1 for the selected drum on the KIT page (35 % brighter), else 0.
 DrumDrawing drawDrum (const DrumSpec& spec, const Camera& cam, double sel = 0.0);
 
-// A bass drum pedal (the KIT page; Kris's photos of a TAMA single-chain pedal, 2026-11-25), added
-// to a kick's drawing: clamped to its batter hoop on the floor, the footboard toward the drummer.
-// Base plate, hoop clamp, two posts with bearings, axle, chain sprocket, chain to the footboard's
-// toe, return spring, beater shaft and felt beater, the ribbed footboard and heel plate. swing:
-// 0 at rest (beater back), 1 against the head. Chrome lines, the felt in the heads' cream.
-void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, double sel = 0.0, double swing = 0.0);
+// A bass drum pedal (the KIT page; Kris's photos of TAMA single-chain pedals, 2026-11-25), added
+// to a drawing: clamped to a kick's batter hoop on the floor, the footboard toward the drummer.
+// Fixed parts: the black base plate, the hoop clamp, the two posts with their bearings, the axle,
+// the sprocket's rim, the heel plate and its hinge. Moving parts: the footboard (chamfered toe,
+// ribbed sides, the plate in the middle; the maker's name not drawn), the chain, the sprocket's
+// teeth, the return spring and its crank, the beater (shaft, memory lock, felt). swing: 0 at
+// rest (beater back, toe up), 1 with the beater against the head (toe down).
+enum class PedalParts { fixed, moving, all };
+void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, double sel = 0.0, double swing = 0.0,
+                   PedalParts parts = PedalParts::all);
+// The beater's swing a time after a kick's hit: against the head at the hit, back at rest by 0.2 s.
+double pedalSwing (double secondsSinceHit);
 
 // ---- The drums of the plugin (KitMap.h order) as drawn on the DRUM and TUNING pages, and the kit.
 

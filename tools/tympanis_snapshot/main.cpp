@@ -9,6 +9,8 @@
 //   drum-<key>.png          DRUM page, every other drum at rest
 //   kit-tom3.png            KIT page, Tom 3 selected
 //   kit-snare1-hit.png      KIT page, Tom 3 selected, Snare 1 50 ms after a hit
+//   kit-pedals.png          KIT page at rest: the bass drum pedals
+//   kit-kick-hits.png       KIT page: Kick 1's pedal at its hit, Kick 2's 60 ms after its hit
 //   tuning-tom3.png         TUNING page, Tom 3
 //   tuning-kick1.png        TUNING page, Kick 1 (no Strike Position)
 //   tuning-snare1.png       TUNING page, Snare 1 (Size greyed out: its depth does not play)
@@ -121,6 +123,15 @@ int main (int argc, char** argv)
         e->content().showHit (rowOf ("snare1"), 0.9f, 0.05);
         save (*e, dir.getChildFile ("kit-snare1-hit.png"));
         timing ("KIT page, hit", e->content().wireView (Content::kitPage));
+    }
+    {
+        // a kick's pedal: against the head at the hit, on its way back 60 ms later
+        auto e = open (Content::kitPage, 8);
+        save (*e, dir.getChildFile ("kit-pedals.png"));
+        e->content().showHit (rowOf ("kick1"), 1.0f, 0.0);
+        e->content().showHit (rowOf ("kick2"), 1.0f, 0.06);
+        save (*e, dir.getChildFile ("kit-kick-hits.png"));
+        timing ("KIT page, kick hits", e->content().wireView (Content::kitPage));
     }
     {
         // a Retina display: twice the pixels (timings only)

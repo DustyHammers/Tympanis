@@ -683,15 +683,25 @@ DrumDrawing drawDrum (const DrumSpec& spec, const Camera& cam, double sel)
 // =====================================================================================
 // The bass drum pedal. Its frame: O on the floor just in front of the batter hoop, F toward the
 // drum (the kick's axis, reversed), X to the drummer's right, Z up; inches.
-void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, double sel, double swing)
+double pedalSwing (double t)
+{
+    if (t < 0 || t >= 0.2)
+        return 0;
+    const double k = 1 - t / 0.2;
+    return k * k;
+}
+
+void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, double sel, double swing, PedalParts parts)
 {
     V3 a, u, v;
     basis (kick.axis, a, u, v);
     const V3 Z { 0, 0, 1 };
-    const V3 F = normalised (V3 { -a.x, -a.y, 0 });
+    const V3 back = normalised (V3 { a.x, a.y, 0 });
+    const V3 F = back * -1.0;
     const V3 X = cross (F, Z);
-    const V3 O = V3 { kick.C.x, kick.C.y, kick.C.z - kick.r } + 0.35 * normalised (V3 { a.x, a.y, 0 });
+    const V3 O = V3 { kick.C.x, kick.C.y, kick.C.z - kick.r } + 0.35 * back;
     const double bright = 1.0 + 0.35 * sel;
+    const bool fixedParts = parts != PedalParts::moving, movingParts = parts != PedalParts::fixed;
     auto P = [&] (double x, double f, double z) { return O + x * X + f * F + z * Z; };
     auto seg = [&] (V3 p, V3 q, Rgb c, float w = 1) { out.segments.push_back ({ cam.project (p), cam.project (q), c * bright, w, false }); };
     auto path = [&] (const std::vector<V3>& pts, Rgb c, float w = 1, bool closed = false) {
@@ -710,140 +720,148 @@ void addKickPedal (DrumDrawing& out, const DrumSpec& kick, const Camera& cam, do
         }
         path (pts, col, w);
     };
-    const Rgb chrome = kChrome, dim = kChromeD * 0.8, plate = kChromeD * 0.55, felt = kHead * 0.95;
+    const Rgb chrome = kChrome, dim = kChromeD * 0.8, plate = kChromeD * 0.5, felt = kHead * 0.95;
+    const double postF = -2.2, axleZ = 7.4, sx = 0.95, sr = 0.85;
+    const double heelF = -12.0, toeF = -2.9, heelZ = 0.75;
+    const double toeZ = 2.5 - 1.3 * swing;
+    const auto out0 = out.segments.size();
 
-    // base plate (dark in the photos) and the clamp over the hoop's bottom
-    path ({ P (-2.5, -0.2, 0.25), P (2.5, -0.2, 0.25), P (2.5, -6.2, 0.25), P (-2.5, -6.2, 0.25) }, plate, 1, true);
-    path ({ P (-2.5, -0.2, 0.0), P (2.5, -0.2, 0.0), P (2.5, -6.2, 0.0), P (-2.5, -6.2, 0.0) }, plate * 0.7, 1, true);
-    for (double x : { -2.5, 2.5 })
-        for (double f : { -0.2, -6.2 })
-            seg (P (x, f, 0.0), P (x, f, 0.25), plate * 0.7);
-    path ({ P (-1.1, -0.4, 0.25), P (-1.1, 0.15, 0.25), P (-1.1, 0.15, 1.25), P (-1.1, -0.35, 1.45) }, dim);
-    path ({ P (1.1, -0.4, 0.25), P (1.1, 0.15, 0.25), P (1.1, 0.15, 1.25), P (1.1, -0.35, 1.45) }, dim);
-    seg (P (-1.1, -0.35, 1.45), P (1.1, -0.35, 1.45), dim);
-    circle (P (0, -0.9, 1.35), X, Z, 0.25, dim, 12); // the clamp's T-screw
-    seg (P (0, -0.9, 1.6), P (0, -1.6, 1.9), dim);
-
-    // the two posts, their bosses on the plate and bearing housings on top
-    const double postF = -2.2, axleZ = 7.4;
-    for (double x : { -2.2, 2.2 })
+    if (fixedParts)
     {
-        for (double o : { -0.22, 0.22 })
-            seg (P (x + o, postF, 0.6), P (x + o, postF, axleZ - 0.45), chrome);
-        circle (P (x, postF, 0.45), X, F, 0.42, dim, 18);
-        circle (P (x, postF, 0.75), X, F, 0.32, dim, 18);
-        circle (P (x, postF, axleZ), F, Z, 0.5, chrome, 20);
-        circle (P (x + (x < 0 ? -0.25 : 0.25), postF, axleZ), F, Z, 0.5, dim, 20);
-    }
-    seg (P (-2.45, postF, axleZ), P (2.45, postF, axleZ), chrome); // the axle
-
-    // the sprocket (between the posts, right of the beater) and its teeth
-    const double sx = 0.95, sr = 0.85;
-    const double phi = swing * 0.55; // the sprocket turns with the beater
-    circle (P (sx, postF, axleZ), F, Z, sr, chrome, 28);
-    circle (P (sx + 0.12, postF, axleZ), F, Z, sr, dim, 28);
-    for (int k = 0; k < 14; ++k)
-    {
-        const double t = 2 * kPi * k / 14 + phi;
-        const V3 e = std::cos (t) * F + std::sin (t) * Z;
-        seg (P (sx, postF, axleZ) + sr * e, P (sx, postF, axleZ) + (sr + 0.14) * e, dim);
-    }
-
-    // the footboard: hinged at the heel, its toe raised (lower when the beater swings in)
-    const double heelF = -11.6, toeF = -2.9;
-    const double toeZ = 2.5 - 1.3 * swing, heelZ = 0.75;
-    auto board = [&] (double t, double x) { return P (x, heelF + t * (toeF - heelF), heelZ + t * (toeZ - heelZ)); };
-    auto halfW = [&] (double t) { return 1.5 + 0.2 * t; };
-    {
-        std::vector<V3> top, under;
-        for (double t : { 0.0, 1.0 })
+        // the black base plate under the footboard, wide at the posts, narrow at the heel
+        const std::vector<V3> base { P (-2.6, -0.2, 0.2), P (2.6, -0.2, 0.2), P (2.6, -3.6, 0.2), P (1.55, heelF - 3.4, 0.2), P (-1.55, heelF - 3.4, 0.2), P (-2.6, -3.6, 0.2) };
+        path (base, plate, 1, true);
+        std::vector<V3> under;
+        for (const auto& q : base)
+            under.push_back (q - V3 { 0, 0, 0.2 });
+        path (under, plate * 0.6, 1, true);
+        // the clamp over the hoop's bottom, its T-screw
+        for (double x : { -1.1, 1.1 })
+            path ({ P (x, -0.4, 0.2), P (x, 0.15, 0.2), P (x, 0.15, 1.25), P (x, -0.35, 1.45) }, dim);
+        seg (P (-1.1, -0.35, 1.45), P (1.1, -0.35, 1.45), dim);
+        circle (P (0, -0.9, 1.35), X, Z, 0.25, dim, 12);
+        seg (P (0, -0.9, 1.6), P (0, -1.6, 1.9), dim);
+        // the two posts, their bosses on the plate and bearing housings on top; the axle
+        for (double x : { -2.2, 2.2 })
         {
-            top.push_back (board (t, t == 0 ? -halfW (t) : -halfW (t)));
+            for (double o : { -0.22, 0.22 })
+                seg (P (x + o, postF, 0.6), P (x + o, postF, axleZ - 0.45), chrome);
+            circle (P (x, postF, 0.45), X, F, 0.42, dim, 18);
+            circle (P (x, postF, 0.75), X, F, 0.32, dim, 18);
+            circle (P (x, postF, axleZ), F, Z, 0.5, chrome, 20);
+            circle (P (x + (x < 0 ? -0.25 : 0.25), postF, axleZ), F, Z, 0.5, dim, 20);
         }
-        path ({ board (0, -halfW (0)), board (1, -halfW (1)), board (1, halfW (1)), board (0, halfW (0)) }, chrome, 1, true);
+        seg (P (-2.45, postF, axleZ), P (2.45, postF, axleZ), chrome);
+        // the sprocket's rim (its teeth turn with the beater)
+        circle (P (sx, postF, axleZ), F, Z, sr, chrome, 28);
+        circle (P (sx + 0.12, postF, axleZ), F, Z, sr, dim, 28);
+        // the heel plate: a ribbed rectangle behind the footboard, and its hinge
+        const double hb = heelF - 0.25, he = heelF - 3.4;
+        path ({ P (-1.45, hb, 0.5), P (1.45, hb, 0.5), P (1.45, he, 0.32), P (-1.45, he, 0.32) }, chrome, 1, true);
+        path ({ P (-1.45, hb, 0.3), P (1.45, hb, 0.3), P (1.45, he, 0.12), P (-1.45, he, 0.12) }, dim * 0.8, 1, true);
+        path ({ P (-1.15, hb - 0.35, 0.48), P (1.15, hb - 0.35, 0.48), P (1.15, he + 0.35, 0.34), P (-1.15, he + 0.35, 0.34) }, dim, 1, true);
+        for (int k = 1; k <= 8; ++k)
+        {
+            const double t = k / 9.0, f = hb - 0.35 + t * (he - hb + 0.7), z = 0.48 - 0.14 * t;
+            seg (P (-1.0, f, z), P (1.0, f, z), dim);
+        }
+        circle (P (-1.5, heelF, 0.62), F, Z, 0.17, dim, 10);
+        circle (P (1.5, heelF, 0.62), F, Z, 0.17, dim, 10);
+        seg (P (-1.5, heelF, 0.62), P (1.5, heelF, 0.62), dim);
+    }
+
+    if (movingParts)
+    {
+        // the footboard, hinged at the heel (t 0) to the toe (t 1): chamfered at the toe, widest
+        // just below it, narrowing to the heel; 0.22" thick
+        auto board = [&] (double t, double x) { return P (x, heelF + t * (toeF - heelF), heelZ + t * (toeZ - heelZ)); };
+        const std::vector<std::pair<double, double>> outline { { 0.0, -1.4 }, { 0.87, -1.8 }, { 1.0, -1.15 }, { 1.0, 1.15 }, { 0.87, 1.8 }, { 0.0, 1.4 } };
+        std::vector<V3> top, bottom;
         const V3 down { 0, 0, -0.22 };
-        path ({ board (0, -halfW (0)) + down, board (1, -halfW (1)) + down, board (1, halfW (1)) + down, board (0, halfW (0)) + down }, dim, 1, true);
-        seg (board (1, -halfW (1)), board (1, -halfW (1)) + down, dim);
-        seg (board (1, halfW (1)), board (1, halfW (1)) + down, dim);
-        // the ribbed borders down both sides, and two rows of slots at the toe and the heel end
-        for (double t = 0.04; t < 0.97; t += 0.035)
-            for (double sgn : { -1.0, 1.0 })
-                seg (board (t, sgn * (halfW (t) - 0.12)), board (t, sgn * (halfW (t) - 0.55)), dim);
-        for (double t : { 0.88, 0.92 })
-            seg (board (t, -0.8), board (t, 0.8), dim);
-        // the plate in the middle (the maker's name is not drawn)
-        path ({ board (0.36, -0.75), board (0.72, -0.75), board (0.72, 0.75), board (0.36, 0.75) }, chrome * 0.9, 1, true);
-        path ({ board (0.39, -0.6), board (0.69, -0.6), board (0.69, 0.6), board (0.39, 0.6) }, dim * 0.8, 1, true);
-        for (double t = 0.08; t < 0.3; t += 0.035)
-            seg (board (t, -0.75), board (t, 0.75), dim * 0.85);
-    }
-    // the heel plate and its hinge
-    path ({ P (-1.55, heelF, 0.55), P (1.55, heelF, 0.55), P (1.55, heelF - 3.1, 0.3), P (-1.55, heelF - 3.1, 0.3) }, chrome, 1, true);
-    path ({ P (-1.55, heelF, 0.3), P (1.55, heelF, 0.3), P (1.55, heelF - 3.1, 0.05), P (-1.55, heelF - 3.1, 0.05) }, dim * 0.8, 1, true);
-    for (double k = 0.15; k < 0.95; k += 0.1)
-        seg (P (-1.1, heelF - 3.1 * k, 0.55 - 0.25 * k), P (1.1, heelF - 3.1 * k, 0.55 - 0.25 * k), dim);
-    circle (P (-1.6, heelF, 0.62), F, Z, 0.17, dim, 10);
-    circle (P (1.6, heelF, 0.62), F, Z, 0.17, dim, 10);
-    seg (P (-1.6, heelF, 0.62), P (1.6, heelF, 0.62), dim);
-    // the link from the base plate's back to the heel
-    seg (P (-1.2, -6.2, 0.12), P (-1.2, heelF + 0.2, 0.3), plate * 0.8);
-    seg (P (1.2, -6.2, 0.12), P (1.2, heelF + 0.2, 0.3), plate * 0.8);
-
-    // the chain: off the sprocket's front (the drummer's side), down to the toe, its links
-    const V3 c0 = P (sx, postF - sr, axleZ), c1 = board (1.0, 0.0) + (sx * X);
-    for (double o : { -0.16, 0.16 })
-        seg (c0 + o * X, c1 + o * X, chrome);
-    for (int k = 1; k < 18; ++k)
-    {
-        const V3 q = c0 + (k / 18.0) * (c1 - c0);
-        seg (q - 0.16 * X, q + 0.16 * X, dim);
-    }
-
-    // the return spring on the right post: a crank off the axle, the coil down to the post's foot
-    const V3 crank = P (2.95, postF - 0.6 + 0.4 * swing, axleZ + 0.5 - 0.2 * swing);
-    seg (P (2.7, postF, axleZ), crank, chrome);
-    {
-        std::vector<V3> coil;
-        const V3 top = crank - V3 { 0, 0, 0.25 }, bot = P (2.95, postF - 0.55, 2.2);
-        const int turns = 16, n = turns * 10;
-        for (int i = 0; i <= n; ++i)
+        for (const auto& [t, x] : outline)
         {
-            const double t = (double) i / n, ang = 2 * kPi * turns * t;
-            coil.push_back (top + t * (bot - top) + 0.2 * std::cos (ang) * X + 0.2 * std::sin (ang) * F);
+            top.push_back (board (t, x));
+            bottom.push_back (board (t, x) + down);
         }
-        path (coil, chrome * 0.85);
-        seg (bot, P (2.7, postF, 0.9), dim);
+        path (top, chrome, 1, true);
+        path (bottom, dim * 0.8, 1, true);
+        for (size_t i = 0; i < top.size(); ++i)
+            seg (top[i], bottom[i], dim * 0.8);
+        auto hw = [] (double t) { return t < 0.87 ? 1.4 + 0.4 * t / 0.87 : 1.8 - 0.65 * (t - 0.87) / 0.13; };
+        // the grip slots: short bars down both sides, from below the toe to past the middle
+        for (double t = 0.84; t > 0.36; t -= 0.034)
+            for (double sg : { -1.0, 1.0 })
+                seg (board (t, sg * (hw (t) - 0.16)), board (t, sg * (hw (t) - 0.95)), dim);
+        // the long plate in the middle, and its inset
+        path ({ board (0.40, -0.62), board (0.86, -0.62), board (0.86, 0.62), board (0.40, 0.62) }, chrome * 0.9, 1, true);
+        path ({ board (0.43, -0.45), board (0.83, -0.45), board (0.83, 0.45), board (0.43, 0.45) }, dim * 0.75, 1, true);
+        circle (board (0.94, 0.0), (X), normalised (board (1, 0) - board (0, 0)), 0.12, dim, 10); // the rivet at the toe
+        // the lower panel and the raised lip over the hinge
+        path ({ board (0.08, -1.0), board (0.33, -1.0), board (0.33, 1.0), board (0.08, 1.0) }, dim * 0.7, 1, true);
+        path ({ board (0.0, -0.95), board (0.06, -0.95), board (0.06, 0.95), board (0.0, 0.95) }, chrome * 0.85, 1, true);
+
+        // the chain: off the sprocket's front (the drummer's side), down to the toe, its links
+        const V3 c0 = P (sx, postF - sr, axleZ), c1 = board (1.0, sx);
+        for (double o : { -0.16, 0.16 })
+            seg (c0 + o * X, c1 + o * X, chrome);
+        for (int k = 1; k < 18; ++k)
+        {
+            const V3 q = c0 + (k / 18.0) * (c1 - c0);
+            seg (q - 0.16 * X, q + 0.16 * X, dim);
+        }
+        // the sprocket's teeth, turning with the beater
+        const double phi = swing * 0.55;
+        for (int k = 0; k < 14; ++k)
+        {
+            const double t = 2 * kPi * k / 14 + phi;
+            const V3 e = std::cos (t) * F + std::sin (t) * Z;
+            seg (P (sx, postF, axleZ) + sr * e, P (sx, postF, axleZ) + (sr + 0.14) * e, dim);
+        }
+        // the return spring on the right post: a crank off the axle, the coil down to the foot
+        const V3 crank = P (2.95, postF - 0.6 + 0.4 * swing, axleZ + 0.5 - 0.2 * swing);
+        seg (P (2.7, postF, axleZ), crank, chrome);
+        {
+            std::vector<V3> coil;
+            const V3 top0 = crank - V3 { 0, 0, 0.25 }, bot = P (2.95, postF - 0.55, 2.2);
+            const int turns = 16, n = turns * 10;
+            for (int i = 0; i <= n; ++i)
+            {
+                const double t = (double) i / n, ang = 2 * kPi * turns * t;
+                coil.push_back (top0 + t * (bot - top0) + 0.2 * std::cos (ang) * X + 0.2 * std::sin (ang) * F);
+            }
+            path (coil, chrome * 0.85);
+            seg (bot, P (2.7, postF, 0.9), dim);
+        }
+        // the beater: its hub on the axle, the shaft (back toward the drummer at rest), the felt
+        const double rest = 40.0 * kPi / 180, hit = -9.0 * kPi / 180;
+        const double th = rest + swing * (hit - rest);
+        const V3 hub = P (0, postF, axleZ);
+        const V3 dir = -std::sin (th) * F + std::cos (th) * Z; // along the shaft, up
+        const V3 face = std::cos (th) * F + std::sin (th) * Z; // the felt's face, toward the drum
+        circle (hub, F, Z, 0.42, chrome, 16);
+        circle (hub + 0.5 * X, F, Z, 0.42, dim, 16);
+        const V3 tip = hub + 8.4 * dir;
+        for (double o : { -0.09, 0.09 })
+            seg (hub + o * X, tip + o * X, chrome);
+        circle (hub + 2.2 * dir, X, face, 0.22, dim, 10); // the memory lock
+        const double fr = 0.9, fl = 0.75;
+        const V3 front = tip + fl * face, cup = tip - 0.45 * face;
+        circle (front, X, dir, fr, felt, 26);
+        circle (tip, X, dir, fr, felt * 0.8, 26);
+        circle (cup, X, dir, fr * 0.7, chrome * 0.8, 20);
+        for (int k = 0; k < 4; ++k)
+        {
+            const double t = 2 * kPi * (k + 0.5) / 4;
+            const V3 e = std::cos (t) * X + std::sin (t) * dir;
+            seg (tip + fr * e, front + fr * e, felt * 0.9);
+            seg (cup + 0.7 * fr * e, tip + fr * e, chrome * 0.7);
+        }
     }
 
-    // the beater: its hub on the axle, the shaft (back toward the drummer at rest), the felt head
-    const double rest = 40.0 * kPi / 180, hit = -9.0 * kPi / 180;
-    const double th = rest + swing * (hit - rest);
-    const V3 hub = P (0, postF, axleZ);
-    const V3 dir = -std::sin (th) * F + std::cos (th) * Z;          // along the shaft, up
-    const V3 face = std::cos (th) * F + std::sin (th) * Z;          // the felt's face, toward the drum
-    circle (hub, F, Z, 0.42, chrome, 16);
-    circle (hub + 0.5 * X, F, Z, 0.42, dim, 16);
-    const V3 tip = hub + 8.4 * dir;
-    for (double o : { -0.09, 0.09 })
-        seg (hub + o * X, tip + o * X, chrome);
-    circle (hub + 2.2 * dir, X, face, 0.22, dim, 10); // the memory lock
-    // the felt: a cylinder, its axis toward the drum, its back a chrome cup
-    const double fr = 0.9, fl = 0.75;
-    const V3 front = tip + fl * face, back = tip - 0.45 * face;
-    circle (front, X, dir, fr, felt, 26);
-    circle (tip, X, dir, fr, felt * 0.8, 26);
-    circle (back, X, dir, fr * 0.7, chrome * 0.8, 20);
-    for (int k = 0; k < 4; ++k)
+    // its screen bounds join the drawing's
+    for (size_t i = out0; i < out.segments.size(); ++i)
     {
-        const double t = 2 * kPi * (k + 0.5) / 4;
-        const V3 e = std::cos (t) * X + std::sin (t) * dir;
-        seg (tip + fr * e, front + fr * e, felt * 0.9);
-        seg (back + 0.7 * fr * e, tip + fr * e, chrome * 0.7);
-    }
-
-    // its screen bounds join the drum's
-    for (const auto& sg : out.segments)
-    {
+        const auto& sg = out.segments[i];
         out.x0 = std::min ({ out.x0, sg.a.x, sg.b.x });
         out.x1 = std::max ({ out.x1, sg.a.x, sg.b.x });
         out.y0 = std::min ({ out.y0, sg.a.y, sg.b.y });
