@@ -88,6 +88,7 @@ struct Hit
 };
 
 // The batter head's mesh (25 rings x 96 points), which flexes in its membrane modes after hits.
+// A small head (the octobans' 6") draws every other ring and point, so its lines stay apart.
 class HeadMesh
 {
 public:
@@ -116,13 +117,15 @@ private:
     double r = 1;
     bool clear = false;
     double bright = 1;
+    int ringStep = 1, pointStep = 1;
     double near = 0;
     std::vector<V3> rest; // kRings x kPoints
     std::vector<Pt> restScreen;
 };
 
-// A drum as the mockup's Drum: C the batter head's centre, the axis out of the batter head,
-// radius r and depth d (inches), lugs per head.
+// A drum as the mockup's Drum: C the batter head's centre (the gong drum: its shell's top
+// edge), the axis out of the batter head, radius r and depth d of the shell (inches), lugs per
+// head. headR: the gong drum's head radius, larger than its shell's (0: the shell's).
 struct DrumSpec
 {
     Kind kind;
@@ -130,6 +133,7 @@ struct DrumSpec
     V3 axis;
     double r, d;
     int lugs;
+    double headR = 0;
 };
 
 // A drum drawn by a camera: its lines (without the batter head's mesh), the hull of its body
@@ -155,12 +159,14 @@ struct DrumLook
     Kind kind;
     double diameter, depth; // inches, as drawn and as the spec line under the DRUM box says
     int lugs;
+    double shellDiameter = 0; // the gong drum's shell, under its larger head (0: the diameter)
 };
 const DrumLook& drumLook (int drum);
 
 // The DRUM page's (and the TUNING page's) single drum: the drum at the origin, seen by the
 // mockup's camera (34 degrees up, 70" away, turned 8 degrees), scaled to fit `maxW` x `maxH`
-// design units and centred on `centre`.
+// design units and centred on `centre`. The gong drum is tilted toward the camera, as on its
+// stand; the four octobans share Octoban 4's scale, so their lengths read from page to page.
 struct Framed
 {
     DrumSpec spec;

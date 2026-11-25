@@ -96,7 +96,10 @@ juce::String drumTitle (int d)
 juce::String drumSpecLine (int d)
 {
     const auto& look = wire::drumLook (d);
-    return sizeText (look.diameter) + " " + kTimes + " " + sizeText (look.depth) + "  " + kDot + "  " + juce::String (look.lugs) + " LUGS";
+    const juce::String lugs = "  " + juce::String (kDot) + "  " + juce::String (look.lugs) + " LUGS";
+    if (look.shellDiameter > 0) // the gong drum: its head is larger than its shell
+        return sizeText (look.diameter) + " HEAD ON A " + sizeText (look.shellDiameter) + " " + kTimes + " " + sizeText (look.depth) + " SHELL" + lugs;
+    return sizeText (look.diameter) + " " + kTimes + " " + sizeText (look.depth) + lugs;
 }
 
 const char* artLabel (Art a)
