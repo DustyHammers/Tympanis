@@ -65,7 +65,6 @@ endforeach()
 # The editor's artwork and fonts (docs/UI.md).
 list(APPEND TYMPANIS_RESOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/ui/TYMPANIS_Background.png"
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/ui/knob.png"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/ui/Carlito-Regular.ttf"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/ui/PinyonScript-Regular.ttf"
 )

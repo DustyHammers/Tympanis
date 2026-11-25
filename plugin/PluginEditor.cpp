@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 
 #include <cmath>
+#include <iterator>
 
 namespace tympanis::ui
 {
@@ -123,12 +124,13 @@ juce::String levelText (float v)
 } // namespace
 
 // =====================================================================================
-// A knob drawn from the filmstrip, with its position arc (Cymbalis's Knob): vertical drag,
-// double-click resets, no mouse wheel.
+// A knob drawn by the plugin, with its position arc (Cymbalis's Knob since 2026-11-24, its
+// UI_SPEC section 6, "The knob"): vertical drag, double-click resets, no mouse wheel. Drawn in
+// design units under the editor's transform, so it is sharp at every size and on Retina screens.
 class Knob final : public juce::Slider
 {
 public:
-    Knob (const Assets& a, bool isBipolar) : assets (a), bipolar (isBipolar)
+    explicit Knob (bool isBipolar) : bipolar (isBipolar)
     {
         setSliderStyle (juce::Slider::RotaryVerticalDrag);
         setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
@@ -142,15 +144,10 @@ public:
 
     void paint (juce::Graphics& g) override
     {
+        // p: the knob's position 0-1, which turns the pointer and lights the arc
         const float p = (float) juce::jlimit (0.0, 1.0, valueToProportionOfLength (getValue()));
-        if (assets.knobStrip.isValid())
-        {
-            const int frame = juce::jlimit (0, Assets::knobFrames - 1, juce::roundToInt (p * (float) (Assets::knobFrames - 1)));
-            const int s = Assets::knobFrameSize;
-            g.setImageResamplingQuality (juce::Graphics::highResamplingQuality);
-            g.drawImage (assets.knobStrip, margin, margin, s, s, 0, frame * s, s, s);
-        }
         const auto c = getLocalBounds().toFloat().getCentre();
+        paintKnob (g, c, p);
         paintArc (g, c, -kSweep, kSweep, [] (float) { return palette::arcTrack; });
         const auto gold = [] (float t) { return palette::arcDark.interpolatedWith (palette::arcBright, juce::jlimit (0.0f, 1.0f, t)); };
         if (bipolar)
@@ -161,6 +158,45 @@ public:
 
 private:
     static constexpr float kRadius = 63.0f, kWidth = 2.5f, kSweep = 150.0f;
+
+    // The knob (Cymbalis's paintKnob), around the component's centre c, lit from the top left.
+    // The light stays put as the knob turns: the body, the rim and the pointer's shadow offset
+    // do not rotate; only the pointer does, at a = -150 + 300 p degrees clockwise from 12 o'clock.
+    static constexpr float kKnobRadius = 50.0f, kKnobRimRadius = 49.9f, kKnobRimWidth = 1.8f;
+    static constexpr float kKnobLight = 35.36f; // the gradients run from c + (-35.36, -35.36) to c + (35.36, 35.36)
+    static constexpr float kKnobRimStops[6] = { 0.0f, 0.06f, 0.14f, 0.5f, 0.8f, 1.0f };
+    static constexpr float kPointerFrom = 28.0f, kPointerTo = 45.0f, kPointerWidth = 2.0f;
+    static constexpr float kPointerShadowOffset = 1.3f, kPointerShadowWidth = 1.6f;
+
+    static void strokeSegment (juce::Graphics& g, juce::Point<float> from, juce::Point<float> to, float width, juce::Colour colour)
+    {
+        juce::Path segment;
+        segment.startNewSubPath (from);
+        segment.lineTo (to);
+        g.setColour (colour);
+        g.strokePath (segment, juce::PathStrokeType (width, juce::PathStrokeType::mitered, juce::PathStrokeType::butt));
+    }
+
+    static void paintKnob (juce::Graphics& g, juce::Point<float> c, float p)
+    {
+        const juce::Point<float> light (c.x - kKnobLight, c.y - kKnobLight), dark (c.x + kKnobLight, c.y + kKnobLight);
+        g.setGradientFill (juce::ColourGradient (palette::knobBodyLight, light, palette::knobBodyDark, dark, false));
+        g.fillEllipse (c.x - kKnobRadius, c.y - kKnobRadius, 2.0f * kKnobRadius, 2.0f * kKnobRadius);
+
+        constexpr size_t last = std::size (kKnobRimStops) - 1;
+        static_assert (std::size (kKnobRimStops) == std::size (palette::knobRim));
+        juce::ColourGradient rim (palette::knobRim[0], light, palette::knobRim[last], dark, false);
+        for (size_t i = 1; i < last; ++i)
+            rim.addColour (kKnobRimStops[i], palette::knobRim[i]);
+        g.setGradientFill (rim);
+        g.drawEllipse (c.x - kKnobRimRadius, c.y - kKnobRimRadius, 2.0f * kKnobRimRadius, 2.0f * kKnobRimRadius, kKnobRimWidth);
+
+        const float a = -kSweep + 2.0f * kSweep * p;
+        const auto from = onCircle (c, kPointerFrom, a), to = onCircle (c, kPointerTo, a);
+        const juce::Point<float> shadow (kPointerShadowOffset, kPointerShadowOffset);
+        strokeSegment (g, from + shadow, to + shadow, kPointerShadowWidth, palette::knobPointerShadow);
+        strokeSegment (g, from, to, kPointerWidth, palette::knobPointer);
+    }
 
     static juce::Point<float> onCircle (juce::Point<float> c, float radius, float degrees)
     {
@@ -198,7 +234,6 @@ private:
         }
     }
 
-    const Assets& assets;
     const bool bipolar;
 };
 
@@ -975,7 +1010,7 @@ Content::Content (TympanisProcessor& p)
     // DRUM page: knobs and note boxes
     for (size_t i = 0; i < knobs.size(); ++i)
     {
-        knobs[i] = std::make_unique<Knob> (assets, knobSpecs[i].bipolar);
+        knobs[i] = std::make_unique<Knob> (knobSpecs[i].bipolar);
         const auto c = knobSpecs[i].centre;
         knobs[i]->setBounds (juce::roundToInt (c.x) - Knob::size / 2, juce::roundToInt (c.y) - Knob::size / 2, Knob::size, Knob::size);
         knobs[i]->setTitle (knobSpecs[i].label);

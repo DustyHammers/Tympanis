@@ -2,14 +2,13 @@
 
 The approved mockups (Kris, 2026-11-24) are drawn by `docs/ui/tympanis_mockup.py` (reference only; its paths point at a Cymbalis checkout). The DRUM page is the script's last version, with the Velocity Sensitivity knob (approved as the to-do layout, built 2026-11-24).
 
-Everything is in design units of a 1536 x 1024 artwork, scaled with one transform; the editor resizes at 3:2 from 960 x 640 to 1536 x 1024 (as Cymbalis). Look, fonts, palette, knob filmstrip with position arcs, boxes, popups and the DHammers logo are Cymbalis's (its `docs/UI_SPEC.md`), the code mostly ported from its `PluginEditor.cpp`.
+Everything is in design units of a 1536 x 1024 artwork, scaled with one transform; the editor resizes at 3:2 from 960 x 640 to 1536 x 1024 (as Cymbalis). Look, fonts, palette, knobs (drawn by the plugin, as Cymbalis since 2026-11-24: a body lit from the top left, a rim, the pointer and its shadow, at a = -150 + 300 p degrees; no filmstrip) with position arcs, boxes, popups and the DHammers logo are Cymbalis's (its `docs/UI_SPEC.md`), the code mostly ported from its `PluginEditor.cpp`.
 
 ## Assets (`resources/ui/`)
 
 | File | |
 |---|---|
 | `TYMPANIS_Background.png` | Cymbalis's background with its title painted out and TYMPANIS / MAPLE MODELING INSTRUMENT drawn in (`tools/ui/make_background.py`) |
-| `knob.png` | Cymbalis's knob filmstrip, 91 frames of 128 x 128 |
 | `Carlito-Regular.ttf`, `Carlito-OFL.txt` | UI font (SIL OFL) |
 | `PinyonScript-Regular.ttf`, `PinyonScript-OFL.txt` | DHammers logo (SIL OFL) |
 
