@@ -12,6 +12,7 @@ On each hit (`Drum::strike`):
 - **Hit-to-hit variation** (hardwired): velocity N(0, 0.02), spectral tilt N(0, 0.4) dB/oct above 2x the main mode, strike position N(0, 0.015) on heads (never kicks), lug strike angle N(0, 0.15).
 - **Velocity layers**: log-amplitude / linear frequency and decay interpolation between the two nearest layers; phase from the nearer layer. Level span 24 dB (the setting of every approved render).
 - **Strike position** gain per slot (heads; not kicks or side sticks), energy kept constant.
+- **Shell depth** (`Drum::setDepth`, plugin only, not in the prototype; Kris, 2026-11-25): the models hold the recorded depth only, so a deeper or shallower shell comes from the air it encloses, q = recorded depth / depth. The modes below 1.3 x the main mode (the fundamental's group, which moves the air between the heads) get f' = f sqrt((1 + 0.12 q) / 1.12) (the air takes 12 % of their stiffness, the air spring going as 1 / depth) and decay rates x sqrt(q) (shallower: shorter); the slots within 3 % of the recorded shell's first axial air mode (c / 2 x depth) move as 1 / depth. At the recorded depth the output is bit-identical. Toms 1-4 at 4" shallower: their fundamental about 0.6 to 0.9 semitone up.
 - **Uneven lug tension** (`lug_detune`): split slots get a twin oscillator a little below; the strike angle shares the hit between the pair. 0 = evenly tuned.
 - **Tension-modulation glide**, two stages, accumulating in rolls (capped).
 - **Noise layer**: 19 third-octave bands with exponential decay.

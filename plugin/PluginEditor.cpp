@@ -93,9 +93,12 @@ juce::String drumTitle (int d)
     return juce::String (kDrums[(size_t) d].name).toUpperCase() + "  " + kDot + "  " + sizeText (wire::drumLook (d).diameter);
 }
 
-juce::String drumSpecLine (int d)
+// depthIn: the shell's depth played (Size on Toms 1-4), < 0: as drawn by default.
+juce::String drumSpecLine (int d, double depthIn = -1)
 {
-    const auto& look = wire::drumLook (d);
+    auto look = wire::drumLook (d);
+    if (depthIn > 0)
+        look.depth = depthIn;
     const juce::String lugs = "  " + juce::String (kDot) + "  " + juce::String (look.lugs) + " LUGS";
     if (look.shellDiameter > 0) // the gong drum: its head is larger than its shell
         return sizeText (look.diameter) + " HEAD ON A " + sizeText (look.shellDiameter) + " " + kTimes + " " + sizeText (look.depth) + " SHELL" + lugs;
@@ -699,6 +702,18 @@ public:
     }
 
     juce::RangedAudioParameter* param() const { return state.getParameter (paramId); }
+
+    // Greyed out: shown, not editable (Size on the drums whose depth does not play).
+    void setGreyed (bool g)
+    {
+        if (g == greyed)
+            return;
+        greyed = g;
+        cancelEdit();
+        setAlpha (g ? 0.35f : 1.0f);
+        setInterceptsMouseClicks (! g, ! g);
+        slider.setEnabled (! g);
+    }
     bool changed() const
     {
         auto* p = param();
@@ -878,6 +893,7 @@ private:
     juce::String paramId;
     juce::String ends[2];
     int rowTop = 0;
+    bool greyed = false;
 };
 
 namespace
@@ -1097,14 +1113,18 @@ void Content::attachDrum()
 void Content::layoutTuningRows()
 {
     int top = kTuneFirstRow;
-    const double sz = kDrums[(size_t) drum].sizeIn;
+    const auto& info = kDrums[(size_t) drum];
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
     {
-        if (i == 3 && ! kDrums[(size_t) drum].strikePos)
+        if (i == 3 && ! info.strikePos)
             continue;
         const auto& spec = kDrumTuneSpecs[i];
         if (juce::String (spec.suffix) == "size")
-            drumTuneRows[i]->attach (paramId (spec.suffix), top, sizeText (0.5 * sz), sizeText (2.0 * sz));
+        {
+            // the shell's depth, -4 .. +2"; it plays on Toms 1-4 only (greyed out on the others)
+            drumTuneRows[i]->attach (paramId (spec.suffix), top, sizeText (info.depthIn - kDepthDownIn), sizeText (info.depthIn + kDepthUpIn));
+            drumTuneRows[i]->setGreyed (! info.depth);
+        }
         else
             drumTuneRows[i]->attach (paramId (spec.suffix), top);
         top += kTuneRowStep;
@@ -1175,6 +1195,21 @@ void Content::refresh()
     while (processor.popHit (e))
         if (e.row >= 0 && (size_t) e.row < kRows.size())
             showHit (e.row, e.velocity);
+
+    // Size (the shell's depth) on Toms 1-4: the drawings follow it
+    std::array<double, 17> depthOff {};
+    for (size_t d = 0; d < kDrums.size(); ++d)
+        if (kDrums[d].depth)
+            if (auto* v = processor.params.getRawParameterValue (juce::String (kDrums[d].key) + "_size"))
+                depthOff[d] = (double) v->load() - kDrums[d].depthIn;
+    if (depthOff != shownDepthOff)
+    {
+        shownDepthOff = depthOff;
+        drumView->setDepths (depthOff);
+        kitView->setDepths (depthOff);
+        smallView->setDepths (depthOff);
+        repaint (juce::Rectangle<int> (0, 430, 400, 40)); // the spec line
+    }
 
     const double now = juce::Time::getMillisecondCounterHiRes();
     for (size_t b = 0; b < noteBoxes.size(); ++b)
@@ -1379,7 +1414,8 @@ void Content::paintCommon (juce::Graphics& g)
     if (page != kitPage)
     {
         drawAt (g, assets.font (kHeaderSize, 3.45f), "DRUM", 199.5f, 348.0f, palette::label, Anchor::centre);
-        drawAt (g, assets.font (kRowSize, 2.4f), drumSpecLine (drum), 199.5f, 452.0f, palette::secondary, Anchor::centre);
+        drawAt (g, assets.font (kRowSize, 2.4f), drumSpecLine (drum, kDrums[(size_t) drum].depth ? kDrums[(size_t) drum].depthIn + shownDepthOff[(size_t) drum] : -1.0),
+                199.5f, 452.0f, palette::secondary, Anchor::centre);
     }
     if (! logoPath.isEmpty())
     {

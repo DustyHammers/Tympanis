@@ -187,6 +187,39 @@ void Drum::setSize(double inches)
     magDirty_ = polesDirty_ = true;
     designBands();      // coefficients only; call from the audio thread only between blocks
 }
+// Shell depth. The models hold one depth per drum (as recorded); a deeper or shallower shell is
+// modelled from the air it encloses, q = recorded depth / depth:
+//  - the air between the heads stiffens the modes that move it (the fundamental's group, below
+//    1.3 x the main mode): f^2 = f_head^2 + f_air^2 with f_air^2 proportional to 1/depth, the air
+//    taking kAirShare of the recorded stiffness, so f' = f sqrt((1 + kAirShare q) / (1 + kAirShare));
+//    the same group sustains as sqrt(depth) (shallower: shorter, deeper: longer);
+//  - the shell's first axial air mode (c / 2 depth) moves as 1 / depth: the slots within 3 % of it.
+// Only the plugin sets it (Toms 1-4, the Size parameter); q = 1 is bit-identical to before.
+namespace
+{
+constexpr double kAirShare = 0.12, kLowGroup = 1.3, kSoundInPerS = 13504.0, kCavityWindow = 0.03;
+}
+void Drum::setDepth(double recordedIn, double depthIn)
+{
+    if (recordedIn <= 0 || depthIn <= 0) return;
+    recDepthIn_ = recordedIn;
+    const double q = clampd(recordedIn / depthIn, 0.25, 4.0);
+    if (q != depthQ_) { depthQ_ = q; magDirty_ = polesDirty_ = true; }
+}
+double Drum::depthPitch(double f) const
+{
+    if (depthQ_ == 1) return 1;
+    if (f < kLowGroup * d_->fMain) return std::sqrt((1 + kAirShare * depthQ_) / (1 + kAirShare));
+    const double fc = kSoundInPerS / (2 * recDepthIn_);  // the recorded shell's first axial mode
+    if (std::fabs(f / fc - 1) < kCavityWindow) return depthQ_;
+    return 1;
+}
+double Drum::depthDecay(double f) const
+{
+    if (depthQ_ == 1 || f >= kLowGroup * d_->fMain) return 1;
+    return std::sqrt(depthQ_);   // decay rate: shallower (q > 1) faster
+}
+
 void Drum::setTubeLen(double x)
 {
     tubeLen_ = clampd(x, 0.5, 2.0);
@@ -445,11 +478,11 @@ void Drum::computePoles(bool all, double gam)
     const double twoPiOverSr = 2 * kPi / sr_;
     if (magDirty_)
     {
-        for (int k = 0; k < K_; ++k) mag_[(size_t) k] = std::exp(-D_[(size_t) k] * dmul_[(size_t) k] * sf_ / sr_);
+        for (int k = 0; k < K_; ++k) mag_[(size_t) k] = std::exp(-D_[(size_t) k] * dmul_[(size_t) k] * sf_ * depthDecay(F_[(size_t) k]) / sr_);
         magDirty_ = false;
     }
     auto pole = [&](size_t k) {
-        const double w = twoPiOverSr * F_[k] * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k]);
+        const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k]);
         wblk_[k] = w;
         pblk_[k] = std::polar(mag_[k], w);
     };
@@ -463,7 +496,7 @@ void Drum::computePoles(bool all, double gam)
         {
             const size_t k = (size_t) d_->lug.slots[s];
             const double dl = scale * d_->lug.rel[s];
-            const double w = twoPiOverSr * F_[k] * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k]);
+            const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k]);
             ptw_[s] = std::polar(mag_[k], w * (1 - dl));      // the lower eigenmode
             pblk_[k] = std::polar(mag_[k], w * (1 + dl));     // main slot: the upper eigenmode
         }

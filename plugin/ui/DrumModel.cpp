@@ -1,5 +1,7 @@
 #include "DrumModel.h"
 
+#include <mutex>
+
 #include <algorithm>
 #include <cmath>
 
@@ -806,7 +808,8 @@ const DrumLook& drumLook (int drum)
 namespace
 {
 // A drum of the plugin at the origin and the DRUM page's camera, at F = 1000 and not yet centred.
-void pageDrum (int drum, DrumSpec& spec, Camera& cam)
+// The camera aims at the middle of the drum as drawn by default (depthOffIn 0).
+void pageDrum (int drum, DrumSpec& spec, Camera& cam, double depthOffIn)
 {
     const auto& look = drumLook (drum);
     spec.kind = look.kind;
@@ -816,35 +819,59 @@ void pageDrum (int drum, DrumSpec& spec, Camera& cam)
     spec.axis = look.kind == Kind::kick ? V3 { -0.5, -0.866, 0 } : look.kind == Kind::gong ? V3 { 0, -0.45, 1 } : V3 { 0, 0, 1 };
     spec.r = (look.shellDiameter > 0 ? look.shellDiameter : look.diameter) / 2;
     spec.headR = look.shellDiameter > 0 ? look.diameter / 2 : 0.0;
-    spec.d = look.depth;
+    spec.d = look.depth + depthOffIn;
     spec.lugs = look.lugs;
     V3 a, u, v;
     basis (spec.axis, a, u, v);
-    const V3 target = spec.C - (0.5 * spec.d) * a;
+    const V3 target = spec.C - (0.5 * look.depth) * a;
     // the mockup's camera; a bass drum, lying on its side, seen from lower down
     cam = Camera::orbit (target, look.kind == Kind::kick ? 14 : 34, 70, 1000, 0, 0, -8);
 }
+
+// The deepest a drum's shell is drawn (Size: Toms 1-4 up to +2"), inches more than by default.
+double deepestOffIn (int drum)
+{
+    return drum >= 6 && drum <= 9 ? 2.0 : 0.0; // KitMap.h kDepthUpIn on the drums whose depth plays
+}
+
+// The scale (F = 1000 x k) that fits a drum at its deepest into maxW x maxH.
+double fitScale (int drum, double maxW, double maxH)
+{
+    DrumSpec s;
+    Camera c;
+    pageDrum (drum, s, c, deepestOffIn (drum));
+    const DrumDrawing p = drawDrum (s, c);
+    return std::min (maxW / std::max (1.0, (double) (p.x1 - p.x0)), maxH / std::max (1.0, (double) (p.y1 - p.y0)));
+}
 } // namespace
 
-Framed frameDrum (int drum, Pt centre, double maxW, double maxH)
+Framed frameDrum (int drum, Pt centre, double maxW, double maxH, double depthOffIn, Scale scale)
 {
     Framed fr;
     Camera cam;
-    pageDrum (drum, fr.spec, cam);
+    pageDrum (drum, fr.spec, cam, depthOffIn);
     // measure at F = 1000, then scale and centre (the projection is linear in F, cx and cy)
     const DrumDrawing probe = drawDrum (fr.spec, cam);
-    double w = probe.x1 - probe.x0, h = probe.y1 - probe.y0;
-    if (fr.spec.kind == Kind::octo)
+    double k = 0;
+    if (scale == Scale::kit)
     {
-        // all four at Octoban 4's scale (the camera is as far from each)
-        DrumSpec s4;
-        Camera c4;
-        pageDrum (16, s4, c4);
-        const DrumDrawing p4 = drawDrum (s4, c4);
-        w = p4.x1 - p4.x0;
-        h = p4.y1 - p4.y0;
+        // every drum at the scale that fits the largest (worked out once per box)
+        static std::mutex lock;
+        static std::vector<std::array<double, 3>> known; // maxW, maxH, k
+        std::lock_guard<std::mutex> g (lock);
+        for (const auto& e : known)
+            if (e[0] == maxW && e[1] == maxH)
+                k = e[2];
+        if (k <= 0)
+        {
+            k = 1e9;
+            for (int d = 0; d < 17; ++d)
+                k = std::min (k, fitScale (d, maxW, maxH));
+            known.push_back ({ maxW, maxH, k });
+        }
     }
-    const double k = std::min (maxW / std::max (1.0, w), maxH / std::max (1.0, h));
+    else
+        k = fitScale (drum, maxW, maxH);
     cam.F = 1000 * k;
     cam.cx = centre.x - k * 0.5 * (probe.x0 + probe.x1);
     cam.cy = centre.y - k * 0.5 * (probe.y0 + probe.y1);
@@ -873,6 +900,19 @@ const std::vector<KitItem>& kitLayout()
         return it;
     }();
     return items;
+}
+
+DrumSpec kitSpec (const KitItem& item, double depthOffIn)
+{
+    DrumSpec s = item.spec;
+    if (depthOffIn != 0)
+    {
+        V3 a, u, v;
+        basis (s.axis, a, u, v);
+        s.d += depthOffIn;
+        s.C = s.C + depthOffIn * a;
+    }
+    return s;
 }
 
 Camera kitCamera()

@@ -39,6 +39,10 @@ public:
     void setDrum (int drum);
     int drum() const noexcept { return shownDrum; }
 
+    // Each drum's shell, inches deeper than drawn by default (Size on Toms 1-4; KitMap.h order).
+    // A change redraws the still drawing (kit: the whole kit; drum, small: if the drum shown).
+    void setDepths (const std::array<double, 17>& offsetsIn);
+
     // A strike on a drum: its head moves and flashes (drum: only if it is the drum shown; small:
     // never). rpos: 0 centre .. 1 edge. ageSeconds: how long ago it struck (tools).
     void strike (int drum, float velocity, double rpos, double ageSeconds = 0.0);
@@ -93,6 +97,7 @@ private:
     const Mode mode;
     const juce::Rectangle<int> designArea;
     int shownDrum = 8;
+    std::array<double, 17> depthOff {};
 
     float builtScale = 0.0f;
     bool needsBuild = true;

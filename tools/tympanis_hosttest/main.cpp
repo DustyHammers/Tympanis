@@ -97,10 +97,14 @@ int runChecks()
               "no strike position on the bass drums");
         check(h.p->getMidiChannel() == kDefaultMidiChannel, "default MIDI channel " + juce::String(kDefaultMidiChannel));
         {
+            // Size is the shell's depth: -4 .. +2" in 1" steps (Kris, 2026-11-25)
+            auto* t3 = h.p->params.getParameter("tom3_size");
+            const auto r = t3->getNormalisableRange();
+            check(std::abs(t3->convertFrom0to1(t3->getDefaultValue()) - 10.0f) < 1e-3f && std::abs(r.start - 6.0f) < 1e-3f
+                      && std::abs(r.end - 12.0f) < 1e-3f && std::abs(r.interval - 1.0f) < 1e-3f,
+                  "Tom 3 Size is its shell depth: 10\" (6\" .. 12\", 1\" steps)");
             auto* s4 = h.p->params.getParameter("snare4_size");
-            const auto r = s4->getNormalisableRange();
-            check(std::abs(s4->convertFrom0to1(s4->getDefaultValue()) - 10.0f) < 1e-3f && std::abs(r.start - 5.0f) < 1e-3f && std::abs(r.end - 20.0f) < 1e-3f,
-                  "Snare 4 is a 10\" snare: Size 10\" (5\" .. 20\")");
+            check(std::abs(s4->convertFrom0to1(s4->getDefaultValue()) - 5.0f) < 1e-3f, "Snare 4 Size: its 5\" depth");
         }
         // every row plays on its default note
         for (size_t r = 0; r < kRows.size(); ++r)
@@ -261,8 +265,10 @@ int runChecks()
             return e;
         };
         const int tom3 = kRows[18].defaultNote;
-        Host a(44100, 256), big(44100, 256), longd(44100, 256), centre(44100, 256), rim(44100, 256);
-        big.set("tom3_size", 20.0f);
+        Host a(44100, 256), big(44100, 256), longd(44100, 256), centre(44100, 256), rim(44100, 256), shallow(44100, 256), sn(44100, 256), snSize(44100, 256);
+        big.set("tom3_size", 12.0f);
+        shallow.set("tom3_size", 6.0f);
+        snSize.set("snare1_size", 2.5f);
         longd.set("tom3_decay", 3.0f);
         centre.set("tom3_strike_pos", 0.05f);
         rim.set("tom3_strike_pos", 0.85f);
@@ -271,8 +277,18 @@ int runChecks()
         const auto yd = longd.play({ { 0, tom3, 110 } }, 66150, 256);
         const auto yc = centre.play({ { 0, tom3, 110 } }, 66150, 256);
         const auto yr = rim.play({ { 0, tom3, 110 } }, 66150, 256);
-        check(crossings(yb, 2205, 44100) < 0.8 * crossings(ya, 2205, 44100),
-              "tom 3 size 20\": lower pitch (zero crossings " + juce::String(crossings(yb, 2205, 44100)) + " vs " + juce::String(crossings(ya, 2205, 44100)) + ")");
+        const auto ys = shallow.play({ { 0, tom3, 110 } }, 66150, 256);
+        // the ring after the attack: the fundamental's group (its pitch follows the depth)
+        check(crossings(ys, 22050, 66150) > crossings(ya, 22050, 66150) && crossings(ya, 22050, 66150) > crossings(yb, 22050, 66150),
+              "tom 3 depth 6\" / 10\" / 12\": its ring lower as the shell deepens (zero crossings " + juce::String(crossings(ys, 22050, 66150)) + ", "
+                  + juce::String(crossings(ya, 22050, 66150)) + ", " + juce::String(crossings(yb, 22050, 66150)) + ")");
+        {
+            // Size does nothing on the other drums (greyed out in the editor)
+            const int s1 = kRows[2].defaultNote;
+            const auto y0 = sn.play({ { 0, s1, 110 } }, 22050, 256);
+            const auto y1 = snSize.play({ { 0, s1, 110 } }, 22050, 256);
+            check(y0 == y1, "snare 1 Size changes nothing (its depth does not play)");
+        }
         check(energy(yd, 22050, 66150) > 2.0 * energy(ya, 22050, 66150), "tom 3 decay 3x: more sound 0.5..1.5 s after the hit");
         check(crossings(yr, 441, 22050) > crossings(yc, 441, 22050),
               "tom 3 strike near the rim is brighter than at the centre (zero crossings " + juce::String(crossings(yr, 441, 22050)) + " vs " + juce::String(crossings(yc, 441, 22050)) + ")");

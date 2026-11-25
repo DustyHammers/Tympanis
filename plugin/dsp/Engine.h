@@ -61,6 +61,9 @@ public:
     void setStrikePos(double r);
     void setSize(double inches);
     void setTubeLen(double x);
+    // Shell depth (plugin only, not in the prototype; Kris, 2026-11-25), inches: the recorded
+    // shell's and the one played. Equal: nothing changes. See depthPitch() and depthDecay().
+    void setDepth(double recordedIn, double depthIn);
 
     double tuneRatio() const { return tune_; }
     double decayMul(double f) const;            // multiplies decay rates (decay parameter)
@@ -115,7 +118,9 @@ private:
 
     // parameters
     double tune_ = 1, lug_ = 0, decay_ = 1, glideAmt_ = 1, clickMix_ = 1, noiseMix_ = 1, velRange_ = 30;
-    double strikePos_ = 0.35, sf_ = 1, sizeIn_ = 14, tubeLen_ = 1;
+    double strikePos_ = 0.35, sf_ = 1, sizeIn_ = 14, tubeLen_ = 1, depthQ_ = 1, recDepthIn_ = 10;
+    double depthPitch(double f) const;
+    double depthDecay(double f) const;
     std::vector<double> tubefac_;
 
     // bank state

@@ -11,6 +11,10 @@
 //   kit-snare1-hit.png      KIT page, Tom 3 selected, Snare 1 50 ms after a hit
 //   tuning-tom3.png         TUNING page, Tom 3
 //   tuning-kick1.png        TUNING page, Kick 1 (no Strike Position)
+//   tuning-snare1.png       TUNING page, Snare 1 (Size greyed out: its depth does not play)
+//   kit-toms-shallow.png    KIT page, Toms 1-4 at their shallowest (Size -4"): lower on the kicks
+//   drum-tom1-shallow.png   DRUM page, Tom 1 at 4" deep
+//   tuning-tom1-shallow.png TUNING page, the same
 //   drum-snare2-hit-2x.png  the DRUM page's hit at twice the pixels (a Retina display)
 // and prints how long the wireframes took to draw: the still drawing, and one moving frame.
 //
@@ -150,6 +154,27 @@ int main (int argc, char** argv)
     {
         auto e = open (Content::tuningPage, 0);
         save (*e, dir.getChildFile ("tuning-kick1.png"));
+    }
+    {
+        auto e = open (Content::tuningPage, 2);
+        save (*e, dir.getChildFile ("tuning-snare1.png"));
+    }
+    {
+        // Size (the shell's depth) on Toms 1-4 at its lowest: the drawings follow it
+        for (int d = 6; d <= 9; ++d)
+            if (auto* p = processor.params.getParameter (juce::String (tympanis::kDrums[(size_t) d].key) + "_size"))
+                p->setValueNotifyingHost (0.0f);
+        const std::pair<int, const char*> shots[] = { { Content::kitPage, "kit-toms-shallow.png" }, { Content::drumPage, "drum-tom1-shallow.png" },
+                                                       { Content::tuningPage, "tuning-tom1-shallow.png" } };
+        for (const auto& [page, name] : shots)
+        {
+            auto e = open (page, page == Content::kitPage ? 8 : 6);
+            e->content().refresh();
+            save (*e, dir.getChildFile (name));
+        }
+        for (int d = 6; d <= 9; ++d)
+            if (auto* p = processor.params.getParameter (juce::String (tympanis::kDrums[(size_t) d].key) + "_size"))
+                p->setValueNotifyingHost (p->getDefaultValue());
     }
     return failures == 0 ? 0 : 1;
 }

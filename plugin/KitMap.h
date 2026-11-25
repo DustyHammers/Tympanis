@@ -23,19 +23,28 @@ struct DrumInfo
 {
     const char* key;     // bake key (resources/bake/<key>.bake.json) and parameter ID prefix
     const char* name;    // display name
-    double sizeIn;       // catalog head diameter (inches): the Size parameter's default; range 0.5x .. 2x
+    double sizeIn;       // catalog head diameter (inches), as baked (the bake's native_in)
     bool strikePos;      // has a Strike Position parameter (not the bass drums: fixed beater, as sampled)
+    double depthIn;      // shell depth (inches), as drawn: the Size parameter's default
+    bool depth;          // Size (the shell's depth) plays: Toms 1-4 only; greyed out on the others
 };
 
+// The Size parameter is the shell's depth (Kris, 2026-11-25): its default -4 .. +2 inches, in 1" steps.
+constexpr double kDepthDownIn = 4, kDepthUpIn = 2;
+
 // Same order as tools/bake_kit.py KIT (the engine's drum index). Sizes as prototype/engine.py NATIVE_IN,
-// except Snare 4, a 10" snare (Kris, 2026-11-24; tools/bake_kit.py CATALOG_IN).
+// except Snare 4, a 10" snare (Kris, 2026-11-24; tools/bake_kit.py CATALOG_IN). Depths as drawn
+// (plugin/ui/DrumModel.cpp drumLook, which must agree).
 constexpr std::array<DrumInfo, 17> kDrums { {
-    { "kick1", "Kick 1", 22, false },   { "kick2", "Kick 2", 22, false },
-    { "snare1", "Snare 1", 14, true }, { "snare2", "Snare 2", 14, true }, { "snare3", "Snare 3", 14, true }, { "snare4", "Snare 4", 10, true },
-    { "tom1", "Tom 1", 10, true },     { "tom2", "Tom 2", 12, true },     { "tom3", "Tom 3", 13, true },     { "tom4", "Tom 4", 14, true },
-    { "tom5", "Tom 5", 16, true },     { "tom6", "Tom 6", 18, true },
-    { "gong", "Gong Drum", 22, true },
-    { "octo1", "Octoban 1", 6, true }, { "octo2", "Octoban 2", 6, true }, { "octo3", "Octoban 3", 6, true }, { "octo4", "Octoban 4", 6, true },
+    { "kick1", "Kick 1", 22, false, 18, false },   { "kick2", "Kick 2", 22, false, 18, false },
+    { "snare1", "Snare 1", 14, true, 6.5, false }, { "snare2", "Snare 2", 14, true, 6.5, false },
+    { "snare3", "Snare 3", 14, true, 6.5, false }, { "snare4", "Snare 4", 10, true, 5, false },
+    { "tom1", "Tom 1", 10, true, 8, true },        { "tom2", "Tom 2", 12, true, 9, true },
+    { "tom3", "Tom 3", 13, true, 10, true },       { "tom4", "Tom 4", 14, true, 11, true },
+    { "tom5", "Tom 5", 16, true, 16, false },      { "tom6", "Tom 6", 18, true, 16, false },
+    { "gong", "Gong Drum", 22, true, 14, false },
+    { "octo1", "Octoban 1", 6, true, 11, false },  { "octo2", "Octoban 2", 6, true, 14.7, false },
+    { "octo3", "Octoban 3", 6, true, 18.3, false }, { "octo4", "Octoban 4", 6, true, 22, false },
 } };
 
 struct NoteRow
