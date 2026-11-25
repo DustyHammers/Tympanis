@@ -90,8 +90,8 @@ int runChecks()
     {
         Host h(44100, 256);
         check(h.p->isKitLoaded(), "baked kit loads" + (h.p->isKitLoaded() ? juce::String() : ": " + h.p->getLoadError()));
-        check(h.p->getParameters().size() == 119,
-              "119 host parameters (17 x tune, lug detune, decay, size, level, pan; 15 x strike position; snare buzz; main volume): "
+        check(h.p->getParameters().size() == 136,
+              "136 host parameters (17 x tune, lug detune, decay, size, level, pan, velocity sensitivity; 15 x strike position; snare buzz; main volume): "
                   + juce::String(h.p->getParameters().size()));
         check(h.p->params.getParameter("kick1_strike_pos") == nullptr && h.p->params.getParameter("tom1_strike_pos") != nullptr,
               "no strike position on the bass drums");
@@ -187,6 +187,41 @@ int runChecks()
         Host b(44100, 256);
         b.p->setStateInformation(mb.getData(), (int) mb.getSize());
         check(b.p->getRowNote(14) == 50 && b.p->getRowNote(16) == kNoteNone, "a saved state with a shared note: the first row keeps it");
+    }
+    {
+        // Velocity Sensitivity (as Cymbalis): v = vf + s (v_in - vf), vf = 100/127
+        const int note = kRows[2].defaultNote;    // snare 1
+        auto hit = [note](float sens, int vel) {
+            Host h(44100, 256);
+            h.set("snare_buzz", 0.0f);
+            h.set("snare1_vel_sens", sens);
+            return h.play({ { 10, note, vel } }, 22050, 256);
+        };
+        Host d(44100, 256);
+        auto* vs = d.p->params.getParameter("snare1_vel_sens");
+        check(vs != nullptr && std::abs(vs->getDefaultValue() - 1.0f) < 1e-6f && vs->getText(vs->getDefaultValue(), 8) == "100%",
+              "velocity sensitivity per drum, default 100%");
+        const double full127 = peak(hit(1.0f, 127)), full40 = peak(hit(1.0f, 40));
+        const auto zero1 = hit(0.0f, 1), zero127 = hit(0.0f, 127), full100 = hit(1.0f, 100);
+        double diff = 0;
+        for (size_t i = 0; i < zero1.size(); ++i) diff = std::max(diff, (double) std::abs(zero1[i] - zero127[i]));
+        check(diff < 1e-6 * peak(zero127), "velocity sensitivity 0%: velocity 1 and 127 play the same");
+        double d100 = 0;
+        for (size_t i = 0; i < zero1.size(); ++i) d100 = std::max(d100, (double) std::abs(zero127[i] - full100[i]));
+        check(d100 < 1e-6 * peak(full100), "velocity sensitivity 0%: every hit plays as velocity 100");
+        const double r100 = 20 * std::log10(full127 / full40);
+        const double r50 = 20 * std::log10(peak(hit(0.5f, 127)) / peak(hit(0.5f, 40)));
+        check(r100 > 6.0 && r50 > 0.5 && r50 < r100 - 1.0,
+              "velocity sensitivity narrows the dynamics (velocity 127 vs 40: " + juce::String(r100, 1) + " dB at 100%, "
+                  + juce::String(r50, 1) + " dB at 50%)");
+        Host o(44100, 256);
+        o.set("kick1_vel_sens", 0.0f);
+        o.p->clearHits();
+        o.play({ { 10, kRows[0].defaultNote, 20 }, { 300, kRows[2].defaultNote, 20 } }, 1024, 256);
+        TympanisProcessor::HitEvent e1 {}, e2 {};
+        const bool got = o.p->popHit(e1) && o.p->popHit(e2);
+        check(got && std::abs(e1.velocity - 100.0f / 127.0f) < 1e-5f && std::abs(e2.velocity - 20.0f / 127.0f) < 1e-5f,
+              "velocity sensitivity is per drum, and the editor sees the velocity played");
     }
     {
         // mixer: level, pan, main volume
@@ -293,7 +328,7 @@ int runChecks()
         std::unique_ptr<juce::AudioProcessorEditor> ed(b.p->createEditor());
         check(ed != nullptr && ed->getWidth() == 1200 && ed->getHeight() == 800, "the editor opens at the saved size");
         ed.reset();
-        check(b.p->getParameters().size() == 119, "the editor adds no parameters (119)");
+        check(b.p->getParameters().size() == 136, "the editor adds no parameters (136)");
     }
     std::cout << (failures ? "FAILED: " + std::to_string(failures) : std::string("all passed")) << "\n";
     return failures ? 1 : 0;

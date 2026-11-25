@@ -81,9 +81,9 @@ jobs:
             exit 1
           fi
 
-      # The processor as a host drives it: the baked kit loads, 119 parameters, every MIDI note
+      # The processor as a host drives it: the baked kit loads, 136 parameters, every MIDI note
       # row plays, other channels are ignored, host block sizes 1..4096, saved state (parameters,
-      # MIDI channel, notes, the editor's page, drum and size), the tail falls silent, the
+      # MIDI channel, notes, the editor's page, drum and size), the tail falls silent, velocity sensitivity, the
       # editor's hits and MIDI learn, the editor opens (tools/tympanis_hosttest).
       - name: Processor checks
         run: |

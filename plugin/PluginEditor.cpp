@@ -899,8 +899,9 @@ const std::array<TuneRow::Spec, 2> kKitTuneSpecs { {
 Content::Content (TympanisProcessor& p)
     : processor (p),
       knobSpecs { {
-          { "level", true, { 637.0f, 881.0f }, "LEVEL", "-", "+", false },
-          { "pan", true, { 937.0f, 881.0f }, "PAN", "L", "R", true },
+          { "vel_sens", true, { 487.0f, 881.0f }, "VELOCITY SENSITIVITY", "-", "+", false },
+          { "level", true, { 787.0f, 881.0f }, "LEVEL", "-", "+", false },
+          { "pan", true, { 1087.0f, 881.0f }, "PAN", "L", "R", true },
           { "strike_pos", true, { 1349.0f, 642.0f }, "STRIKE POSITION", "CENTRE", "RIM", false },
           { "main_volume", false, { 1350.0f, 881.0f }, "MAIN VOLUME", "-", "+", false },
       } }
@@ -1040,7 +1041,7 @@ void Content::showPage (int pg)
     smallView->setVisible (tuneP);
     drumBox->setVisible (! kitP);
     for (size_t i = 0; i < knobs.size(); ++i)
-        knobs[i]->setVisible (drumP && (i != 2 || kDrums[(size_t) drum].strikePos));
+        knobs[i]->setVisible (drumP && (juce::String (knobSpecs[i].suffix) != "strike_pos" || kDrums[(size_t) drum].strikePos));
     for (size_t b = 0; b < noteBoxes.size(); ++b)
         noteBoxes[b]->setVisible (drumP && b < drumRows.size());
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
@@ -1416,7 +1417,8 @@ void Content::paintDrumPage (juce::Graphics& g)
             continue;
         const auto& spec = knobSpecs[i];
         const auto c = spec.centre;
-        const auto f = assets.font (kHeaderSize, 3.3f);
+        // VELOCITY SENSITIVITY at Cymbalis's spacing (3.09); the others 3.3
+        const auto f = assets.font (kHeaderSize, juce::String (spec.label).length() > 16 ? 3.09f : 3.3f);
         juce::String text (spec.label);
         if ((int) i == draggingKnob)
         {
