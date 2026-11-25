@@ -493,8 +493,9 @@ struct DrumBuilder
     // The gong drum (TAMA's, Kris's photo, 2026-11-24): a 22" head mounted timpani style on a
     // 20" shell with no bottom head. A support ring flares from the shell's top edge out to the
     // 22" bearing edge; the head's collar is pulled down over it by a thin flat counter hoop whose
-    // top sits below the playing surface. The lugs sit on the shell; their rods angle out to
-    // claws hooked over the hoop.
+    // top sits below the playing surface. The lugs sit on the shell just under the hoop; their
+    // rods angle out through ears on the hoop, their tips above it (2026-11-25).
+    static constexpr double kGongLugY0 = 1.2;
     void gongHardware (const std::vector<double>& lugT)
     {
         const bool headFaces = vis (C, a);
@@ -515,27 +516,33 @@ struct DrumBuilder
         for (double t : lugT)
         {
             const V3 n = normalAt (t), tg = -std::sin (t) * u + std::cos (t) * v;
-            // the lug, its flat end up toward the hoop, 2.4" below the shell's edge
-            V3 end;
-            if (! bulletLug (t, 0.0, 1.0, 1.95, 1.6, end, 0.36, 0.95))
-                continue;
-            const V3 base = ringPoint (r, -3.1, t);
-            const V3 vd = cam.pos - base;
-            const bool sideLayer = dot (vd, n) / length (vd) <= 0.1;
             const Rgb cc = chromeCol (n);
-            // the rod, angled out to the claw under the hoop, and its T-handle
-            const V3 rod1 = ringPoint (rh + 0.42, hh - 1.05, t);
-            line (end, rod1, kChrome * (0.8 * bright), 1, sideLayer);
-            line (rod1 - 0.24 * tg, rod1 + 0.24 * tg, cc * (0.9 * bright), 1, sideLayer);
-            // the claw: up the hoop's face and over its top edge
-            const V3 claw[5] = { ringPoint (rh + 0.42, hh - 1.05, t), ringPoint (rh + 0.34, hh - 0.85, t), ringPoint (rh + 0.32, hh - 0.40, t),
-                                 ringPoint (rh + 0.26, hh - 0.24, t), ringPoint (rh + 0.12, hh - 0.27, t) };
-            for (double o : { -0.16, 0.16 })
+            // As TAMA's (Kris's photo, 2026-11-25): each rod runs from its lug, just under the
+            // hoop, up and out through an ear on the hoop, its tip standing above the hoop. The ear
+            // and the tip show wherever the hoop does (all round when the head faces the camera),
+            // so every tension point shows; the lug only on the near side.
+            const V3 earLo = ringPoint (rh + 0.40, hh - 0.80, t), earHi = ringPoint (rh + 0.40, hh - 0.30, t);
+            const V3 tip = ringPoint (rh + 0.40, hh + 0.25, t);
+            const bool hoopSeen = headFaces || vis (earLo, n);
+            V3 end;
+            const bool lugDrawn = bulletLug (t, 0.0, 1.0, kGongLugY0, 1.6, end, 0.36, 0.95); // its flat end 1.65" below the shell's edge
+            if (hoopSeen || lugDrawn)
             {
-                std::vector<V3> pts;
-                for (const V3& q : claw)
-                    pts.push_back (q + o * tg);
-                poly (pts, cc * bright, 1, sideLayer);
+                const bool sideLayer = ! hoopSeen;
+                // the ear: a small bracket off the hoop's band
+                for (double o : { -0.17, 0.17 })
+                    poly ({ ringPoint (rh + 0.24, hh - 0.80, t) + o * tg, earLo + o * tg, earHi + o * tg, ringPoint (rh + 0.24, hh - 0.30, t) + o * tg },
+                          cc * bright, 1, sideLayer);
+                line (earHi - 0.17 * tg, earHi + 0.17 * tg, cc * (0.9 * bright), 1, sideLayer);
+                // the rod's tip above the hoop, and its T-handle
+                line (earLo, tip, kChrome * (0.85 * bright), 1, sideLayer);
+                line (tip - 0.2 * tg, tip + 0.2 * tg, cc * (0.9 * bright), 1, sideLayer);
+            }
+            if (lugDrawn)
+            {
+                // the rod from the lug's flat end, angled out to the ear
+                const V3 vd = cam.pos - ringPoint (r, -0.45 - kGongLugY0 - 0.7, t);
+                line (end, earLo, kChrome * (0.8 * bright), 1, dot (vd, n) / length (vd) <= 0.1);
             }
         }
     }
@@ -815,8 +822,9 @@ void pageDrum (int drum, DrumSpec& spec, Camera& cam, double depthOffIn)
     spec.kind = look.kind;
     spec.C = { 0, 0, 0 };
     // a bass drum lies on its side, its batter head toward the drummer, turned to show its
-    // shell; the gong drum tilts toward the drummer, as on its stand
-    spec.axis = look.kind == Kind::kick ? V3 { -0.5, -0.866, 0 } : look.kind == Kind::gong ? V3 { 0, -0.45, 1 } : V3 { 0, 0, 1 };
+    // shell; the gong drum tilts left and toward the drummer, seen from low down, as on its stand
+    // in Kris's photo (mirrored, his choice 2026-11-25)
+    spec.axis = look.kind == Kind::kick ? V3 { -0.5, -0.866, 0 } : look.kind == Kind::gong ? V3 { -0.8, -0.75, 1 } : V3 { 0, 0, 1 };
     spec.r = (look.shellDiameter > 0 ? look.shellDiameter : look.diameter) / 2;
     spec.headR = look.shellDiameter > 0 ? look.diameter / 2 : 0.0;
     spec.d = look.depth + depthOffIn;
@@ -824,8 +832,8 @@ void pageDrum (int drum, DrumSpec& spec, Camera& cam, double depthOffIn)
     V3 a, u, v;
     basis (spec.axis, a, u, v);
     const V3 target = spec.C - (0.5 * look.depth) * a;
-    // the mockup's camera; a bass drum, lying on its side, seen from lower down
-    cam = Camera::orbit (target, look.kind == Kind::kick ? 14 : 34, 70, 1000, 0, 0, -8);
+    // the mockup's camera; a bass drum, lying on its side, and the gong drum seen from lower down
+    cam = Camera::orbit (target, look.kind == Kind::kick ? 14 : look.kind == Kind::gong ? 10 : 34, 70, 1000, 0, 0, -8);
 }
 
 // The deepest a drum's shell is drawn (Size: Toms 1-4 up to +2"), inches more than by default.
