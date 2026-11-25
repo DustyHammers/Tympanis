@@ -87,7 +87,6 @@ juce::GlyphArrangement arrange (const juce::Font& font, const juce::String& text
 Assets::Assets()
 {
     background = image ("TYMPANIS_Background.png");
-    knobStrip = image ("knob.png");
 
     // Carlito Regular (OFL), as Cymbalis without Calibri Light.
     int size = 0;
