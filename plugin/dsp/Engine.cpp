@@ -329,7 +329,7 @@ void Drum::strike(double vel, Art art)
     const double fr = lp - i;
     const Layer& A = L[(size_t) i];
     const Layer& B = L[(size_t) i2];
-    const double gain = std::pow(10.0, -velRange_ * std::pow(1 - vel, 1.3) / 20.0);
+    const double gain = artTrim_[(size_t) art] * std::pow(10.0, -velRange_ * std::pow(1 - vel, 1.3) / 20.0);
 
     std::vector<double>& sg = scratchB_;
     if (art != Art::Side) strikeGain(pos, art, sg);
