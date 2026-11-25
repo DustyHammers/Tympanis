@@ -10,6 +10,7 @@ On each hit (`Drum::strike`):
 
 - **Re-strike damping** (hardwired): the stick or beater loads what is already ringing, per mode by its shape at the contact point and its period against the contact time; the loaded part is removed over the contact time. The previous hits' contact modes and the wire noise are damped too.
 - **Hit-to-hit variation** (hardwired): velocity N(0, 0.02), spectral tilt N(0, 0.4) dB/oct above 2x the main mode, strike position N(0, 0.015) on heads (never kicks), lug strike angle N(0, 0.15).
+- **Level trims**: `Drum::setArtTrim` scales everything one articulation's strikes make (modes, noise, contact transient); the plugin uses it for four hot tom rim shots (`docs/PLUGIN.md`, Output). Default 1: the port checks are unaffected.
 - **Velocity layers**: log-amplitude / linear frequency and decay interpolation between the two nearest layers; phase from the nearer layer. Level span 24 dB (the setting of every approved render).
 - **Strike position** gain per slot (heads; not kicks or side sticks), energy kept constant.
 - **Uneven lug tension** (`lug_detune`): split slots get a twin oscillator a little below; the strike angle shares the hit between the pair. 0 = evenly tuned.

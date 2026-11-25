@@ -58,6 +58,9 @@ public:
     void setClickMix(double x) { clickMix_ = x; }
     void setNoiseMix(double x) { noiseMix_ = x; }
     void setVelRangeDb(double x) { velRange_ = x; }
+    // A fixed level trim for one articulation (gain, 1 = none): scales everything its strikes
+    // make (modes, noise, contact transient).
+    void setArtTrim(Art a, double gain) { artTrim_[(size_t) a] = gain; }
     void setStrikePos(double r);
     void setSize(double inches);
     void setTubeLen(double x);
@@ -115,6 +118,7 @@ private:
 
     // parameters
     double tune_ = 1, lug_ = 0, decay_ = 1, glideAmt_ = 1, clickMix_ = 1, noiseMix_ = 1, velRange_ = 30;
+    std::array<double, kNumArts> artTrim_ { 1.0, 1.0, 1.0 };
     double strikePos_ = 0.35, sf_ = 1, sizeIn_ = 14, tubeLen_ = 1;
     std::vector<double> tubefac_;
 
