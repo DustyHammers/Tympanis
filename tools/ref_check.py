@@ -90,12 +90,72 @@ def band_db(x):
     return np.array(out)
 
 
+def burst_sequence():
+    """Single hits on every drum and articulation, far apart: the contact transient's noise burst."""
+    ev = []; t = 0.05
+    for key, model in KIT:
+        arts = ['head']
+        m = json.load(open(os.path.join(ROOT, 'resources', 'models', model + '.json')))
+        if 'articulations' in m: arts = list(m['articulations'])
+        for art in arts:
+            for v in (1.0, 0.8, 0.6):
+                ev.append([round(t, 4), key, v, art]); t += 0.4
+    return ev, t + 0.4
+
+
+def burst_windows(x, ev):
+    """x: the noise alone (a render with noise minus the same without). Its energy in 1/3-octave
+    groups (0.5-2, 2-6, 6-16 kHz) in 0-2, 2-5, 5-10, 10-20 and 20-40 ms after each hit, summed over
+    the hits (dB), and the kurtosis of the 2-16 kHz part in 0-40 ms (3 for gaussian noise; a
+    gated or scrambled envelope raises it)."""
+    from scipy.signal import butter, sosfilt
+    bands = [(500, 2000), (2000, 6000), (6000, 16000)]
+    wins = [(0.0, 0.002), (0.002, 0.005), (0.005, 0.010), (0.010, 0.020), (0.020, 0.040)]
+    ys = [sosfilt(butter(4, b, 'band', fs=SR, output='sos'), x) for b in bands]
+    hf = sosfilt(butter(4, [2000, 16000], 'band', fs=SR, output='sos'), x)
+    e = np.zeros((len(bands), len(wins)))
+    segs = []
+    for t, *_ in ev:
+        a = int(round(t * SR))
+        for bi, y in enumerate(ys):
+            for wi, (w0, w1) in enumerate(wins):
+                seg = y[a + int(w0 * SR):a + int(w1 * SR)]
+                e[bi, wi] += np.sum(seg * seg)
+        s = hf[a:a + int(0.040 * SR)]
+        segs.append(s / (np.sqrt(np.mean(s * s)) + 1e-30))
+    z = np.concatenate(segs)
+    return 10 * np.log10(e + 1e-30), float(np.mean(z ** 4))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--render', required=True)
     ap.add_argument('--noise', action='store_true')
+    ap.add_argument('--burst', action='store_true', help='compare the noise (contact bursts) over time after single hits')
     ap.add_argument('--cache', help='keep the Python render in this .npy file and reuse it')
     a = ap.parse_args()
+    if a.burst:
+        # the noise alone: the same hits with noise minus without (the modes cancel exactly)
+        ev, dur = burst_sequence()
+        print(f'{len(ev)} single hits, {dur:.1f} s')
+        if a.cache and os.path.exists(a.cache):
+            z = np.load(a.cache); yp, yp0 = z['yp'], z['yp0']
+        else:
+            yp = python_render(ev, dur, True); yp0 = python_render(ev, dur, False)
+            if a.cache: np.savez(a.cache, yp=yp, yp0=yp0)
+        yc = cpp_render(a.render, ev, dur, True); yc0 = cpp_render(a.render, ev, dur, False)
+        n = min(len(yp), len(yp0), len(yc), len(yc0))
+        ep, kp = burst_windows(yp[:n] - yp0[:n], ev)
+        ec, kc = burst_windows(yc[:n] - yc0[:n], ev)
+        d = ec - ep
+        print('noise energy after the hits, C++ - Python (dB); rows 0.5-2 / 2-6 / 6-16 kHz,')
+        print('columns 0-2 / 2-5 / 5-10 / 10-20 / 20-40 ms:')
+        print(np.round(d, 2))
+        print(f'kurtosis of the 2-16 kHz noise in 0-40 ms: Python {kp:.2f}, C++ {kc:.2f}')
+        # the first 2 ms hold little noise energy and vary from run to run: not compared
+        print(f'max |difference| from 2 ms: {np.max(np.abs(d[:, 1:])):.2f} dB (limit 1.5); kurtosis difference {abs(kc - kp):.2f} (limit 0.4)')
+        ok = np.max(np.abs(d[:, 1:])) < 1.5 and abs(kc - kp) < 0.4
+        sys.exit(0 if ok else 1)
     ev, dur = sequence()
     print(f'{len(ev)} hits, {dur:.1f} s')
     if a.cache and os.path.exists(a.cache): yp = np.load(a.cache)

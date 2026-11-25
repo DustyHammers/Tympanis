@@ -205,10 +205,11 @@ public:
     {
         run(out, n, [&](int, int j) { const double e = env[j]; env[j] = e * r[j]; return e; }, nullptr);
     }
-    // Per-band, per-sample levels: env[j * stride + i].
+    // Per-sample, per-band levels: env[i * stride + j] (sample-major: the bands of one sample
+    // side by side, stride >= the number of bands).
     void processEnv(double* out, int n, const double* env, int stride)
     {
-        run(out, n, [&](int i, int j) { return env[(size_t) j * (size_t) stride + (size_t) i]; }, nullptr);
+        run(out, n, [&](int i, int j) { return env[(size_t) i * (size_t) stride + (size_t) j]; }, nullptr);
     }
     // One level for all bands: out[i] += drive[i] * sum_j y_j * gain_j.
     void processCommon(double* out, int n, const double* drive)

@@ -79,10 +79,12 @@ public:
 
     juce::AudioProcessorValueTreeState params;
 
-    // Fixed output gain under the Main Volume parameter. Full-velocity head hits peak near 1.0 in
-    // engine units (about -14 dBFS out at 0 dB level, centre pan); the loudest single hit, tom 3's
-    // rim shot (3.8), peaks at about -2.3 dBFS.
-    static constexpr double kOutputGain = 0.2;
+    // Fixed output gain under the Main Volume parameter: 0.4 (Kris, 2026-11-24: about Cymbalis's
+    // loudness; was 0.2). Full-velocity head hits peak near 1.0 in engine units, about -8 dBFS out
+    // at 0 dB level, centre pan, and measure -20 to -30 LUFS momentary (a full Nova Ride bow hit
+    // in Cymbalis: -25). The four hottest tom rim shots are trimmed (KitMap.h kRowTrims) so no
+    // single hit peaks above -3 dBFS.
+    static constexpr double kOutputGain = 0.4;
     // Level span from velocity 0 to 127 (as in every render Kris approved).
     static constexpr double kVelRangeDb = 24.0;
     // Level and Main Volume: -60 dB at the bottom of the range means off.

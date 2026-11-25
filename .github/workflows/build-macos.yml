@@ -218,3 +218,8 @@ jobs:
 
       - name: Port check against prototype/engine.py
         run: python3 tools/ref_check.py --render build/tools/tympanis_render/tympanis_render
+
+      # The noise alone after single hits, over time (the contact bursts' envelopes): catches
+      # what the whole-render checks average away (the burst envelope bug, 2026-11-24).
+      - name: Burst check against prototype/engine.py
+        run: python3 tools/ref_check.py --render build/tools/tympanis_render/tympanis_render --burst
