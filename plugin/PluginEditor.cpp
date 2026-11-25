@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "ui/EditorSize.h"
 
 #include <cmath>
 
@@ -1523,19 +1524,23 @@ TympanisEditor::TympanisEditor (TympanisProcessor& p) : AudioProcessorEditor (&p
 
     // resizable at a fixed 3:2, from 960 x 640 to 1536 x 1024 (as Cymbalis)
     setResizable (true, true);
-    setResizeLimits (960, 640, kDesignWidth, kDesignHeight);
+    setResizeLimits (kEditorMinWidth, kEditorMinHeight, kDesignWidth, kDesignHeight);
     if (auto* c = getConstrainer())
         c->setFixedAspectRatio ((double) kDesignWidth / (double) kDesignHeight);
     setLookAndFeel (&resizerLookAndFeel);
 
-    if (w < 960)
+    // The saved size, or 1104 x 736, smaller where the primary display leaves no room for a
+    // host's window around it (editorOpeningWidth, as Cymbalis). It used to open as large as
+    // the screen allowed (its height - 80), which ran past the bottom in hosts with their own
+    // title and preset bars.
+    if (w < kEditorMinWidth)
     {
         juce::Rectangle<int> area (0, 0, kDesignWidth, kDesignHeight);
         if (auto* d = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay())
             area = d->userArea;
-        w = juce::jmin (kDesignWidth, area.getWidth() - 40, juce::roundToInt ((area.getHeight() - 80) * 1.5));
+        w = editorOpeningWidth (area.getWidth(), area.getHeight(), kDesignWidth);
     }
-    w = juce::jlimit (960, kDesignWidth, w);
+    w = juce::jlimit (kEditorMinWidth, kDesignWidth, w);
     sizeIsSet = true;
     setSize (w, juce::roundToInt (w * (double) kDesignHeight / (double) kDesignWidth));
     startTimerHz (30);

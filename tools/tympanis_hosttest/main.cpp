@@ -7,6 +7,7 @@
 //                                      through processBlock and write a 24-bit stereo WAV
 //                                      (optional "params": { parameter_id: value, ... })
 #include "PluginProcessor.h"
+#include "ui/EditorSize.h"
 #include "dsp/Json.h"
 
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -360,6 +361,18 @@ int runChecks()
         // the editor opens, on the saved page, and closes
         std::unique_ptr<juce::AudioProcessorEditor> ed(b.p->createEditor());
         check(ed != nullptr && ed->getWidth() == 1200 && ed->getHeight() == 800, "the editor opens at the saved size");
+        // with no saved size: 1104 x 736, smaller on a small screen (as Cymbalis)
+        using tympanis::ui::editorOpeningWidth;
+        check(editorOpeningWidth(1920, 1080, 1536) == 1104 && editorOpeningWidth(2560, 1440, 1536) == 1104
+                  && editorOpeningWidth(1440, 900, 1536) == 1050 && editorOpeningWidth(1280, 800, 1536) == 960,
+              "opening size with no saved size: 1104 wide, smaller on small screens, never below 960 ("
+                  + juce::String(editorOpeningWidth(1440, 900, 1536)) + " on 1440 x 900)");
+        {
+            Host fresh(44100, 256);
+            std::unique_ptr<juce::AudioProcessorEditor> fe(fresh.p->createEditor());
+            check(fe != nullptr && fe->getWidth() * 2 == fe->getHeight() * 3 && fe->getWidth() <= 1104 && fe->getWidth() >= 960,
+                  "a new editor opens at most 1104 x 736, at 3:2: " + juce::String(fe ? fe->getWidth() : 0) + " x " + juce::String(fe ? fe->getHeight() : 0));
+        }
         ed.reset();
         check(b.p->getParameters().size() == 136, "the editor adds no parameters (136)");
     }
