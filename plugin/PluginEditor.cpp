@@ -1,5 +1,4 @@
 #include "PluginEditor.h"
-#include "ui/EditorSize.h"
 
 #include <cmath>
 

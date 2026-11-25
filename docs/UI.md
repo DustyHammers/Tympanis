@@ -2,7 +2,9 @@
 
 The approved mockups (Kris, 2026-11-24) are drawn by `docs/ui/tympanis_mockup.py` (reference only; its paths point at a Cymbalis checkout). The DRUM page is the script's last version, with the Velocity Sensitivity knob (approved as the to-do layout, built 2026-11-24).
 
-Everything is in design units of a 1536 x 1024 artwork, scaled with one transform; the editor resizes at 3:2 from 960 x 640 to 1536 x 1024 (as Cymbalis). A new editor with no saved size opens at 1104 x 736 (as Cymbalis; Kris, 2026-11-25), smaller where the primary display's user area leaves less than 40 px across or 200 px down for a host's window around it, never below 960 x 640 (`plugin/ui/EditorSize.h`); a session's saved size wins. Look, fonts, palette, knob filmstrip with position arcs, boxes, popups and the DHammers logo are Cymbalis's (its `docs/UI_SPEC.md`), the code mostly ported from its `PluginEditor.cpp`.
+Everything is in design units of a 1536 x 1024 artwork, scaled with one transform; the editor resizes at 3:2 from 960 x 640 to 1536 x 1024 (as Cymbalis). Look, fonts, palette, knob filmstrip with position arcs, boxes, popups and the DHammers logo are Cymbalis's (its `docs/UI_SPEC.md`), the code mostly ported from its `PluginEditor.cpp`.
+
+**Opening size:** A new editor with no saved size opens at 1104 x 736 (as Cymbalis; Kris, 2026-11-25), smaller where the primary display's user area leaves less than 40 px across or 200 px down for a host's window around it, never below 960 x 640 (`plugin/ui/EditorSize.h`); a session's saved size wins.
 
 ## Assets (`resources/ui/`)
 

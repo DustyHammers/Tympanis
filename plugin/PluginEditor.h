@@ -5,6 +5,7 @@
 // Level, Pan and Strike Position, and Main Volume. KIT: the kit's wireframe; a click on a drum selects it. TUNING: the
 // selected drum's parameters as sliders, and the whole kit's.
 
+#include "ui/EditorSize.h"
 #include "PluginProcessor.h"
 #include "ui/UiAssets.h"
 #include "ui/WireView.h"
