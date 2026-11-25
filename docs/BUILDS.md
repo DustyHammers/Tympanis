@@ -53,3 +53,7 @@ cmake --build build --target Tympanis_VST3 Tympanis_AU
 | AU type | `aumu` (instrument) |
 
 Not notarized: builds are for Kris's own machines (the quarantine step above).
+
+## JUCE splash screen
+
+The plugin is built with `JUCE_DISPLAY_SPLASH_SCREEN=0` (Kris, 2026-11-25, as Cymbalis): no "Made with JUCE" logo when the editor opens. Whether the JUCE licence in use allows that is Kris's to settle.
