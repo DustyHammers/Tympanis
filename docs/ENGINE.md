@@ -79,7 +79,24 @@ The CMake build gzips the bake into the plugin. `python3 tools/bake_kit.py --che
 1. **One thread, back to back** (unchanged, the plugin's real-time figure): 20 s at 44.1, 48 and 96 kHz, 64- and 256-sample blocks. On a 2.1 GHz Xeon (Linux, one core): about 4x real time at 44.1 and 48 kHz, 2.2x at 96 kHz.
 2. **Per block, paced** (2026-11-25): after a 1 s lead, each block starts at its deadline on a real-time thread, as in a host, and is timed (S s per case, 4 in CI), at 1, 2 and 3 threads (the drums through the pool). Per case: the block time as a % of the block (mean, p99, worst, blocks over 100 %); pool runs per block; the caller's wait in shared runs (median / p99 / max); the workers' wake-up delay (median / p99, the share that found them asleep); the workers' CPU (% of one core, spinning included). Then the bench's own time.
 
-The CI job prints both for the macOS runner (Apple M1, virtual) in its summary. Locally (Linux VM, 2.1 GHz Xeon, 4 cores, 2 s per case), 3 threads against 1: mean block time 26 -> 21 % at 44.1 kHz / 64, 28 -> 14 % at 44.1 kHz / 256, 56 -> 37 % at 96 kHz / 64 (blocks over 100 %: 46 -> 16); runs per block 1.00-1.02; wake-ups 37-90 us median at 2 threads (150-300 us at 3, this VM); the workers 10-37 % of a core. A wake-up is a large part of a 64-sample block, which is why turning threads on waits for tests in hosts.
+The CI job prints both for the macOS runner (Apple M1, virtual) in its summary. First CI figures (run 45681418531, 2026-11-25, 4 s per paced case; the bench step took 115 s, the pool's self-test 15 s):
+
+- One thread, back to back: 5.4-5.5x real time at 44.1 kHz, 4.0-4.1x at 48 kHz, 2.1-2.7x at 96 kHz.
+- Paced, block time as % of the block, mean / worst / blocks over 100 %:
+
+| Rate / block | 1 thread | 2 threads | 3 threads |
+|---|---|---|---|
+| 44.1 kHz / 64 | 24 / 236 / 20 | 14 / 126 / 2 | 11 / 190 / 4 |
+| 44.1 kHz / 256 | 20 / 126 / 1 | 10 / 45 / 0 | 7.0 / 54 / 0 |
+| 48 kHz / 64 | 28 / 334 / 20 | 23 / 1307 / 60 | 16 / 433 / 30 |
+| 48 kHz / 256 | 26 / 97 / 0 | 15 / 104 / 1 | 11 / 138 / 1 |
+| 96 kHz / 64 | 55 / 521 / 853 | 28 / 619 / 46 | 23 / 559 / 20 |
+| 96 kHz / 256 | 48 / 229 / 184 | 26 / 357 / 10 | 20 / 169 / 3 |
+
+- Runs per block 1.00-1.02. Wake-up median 13-24 us (p99 47-645 us), nearly always from sleep. Caller wait median 0.1-8 us, p99 24-561 us, max 0.8-3.9 ms (a worker stopped mid-job on this virtual machine, as in Cymbalis's runs). Workers 8.5-41 % of a core.
+- Reading it as Cymbalis's runs are read: one 4 s run per case on a virtual machine, so differences under about 1.5x are noise (48 kHz / 64 at 2 threads, worse than 1, is such a run). The large ones hold: the mean block time halves at 2-3 threads, and at 96 kHz the blocks over the deadline go from hundreds to tens or a few.
+
+Locally (Linux VM, 2.1 GHz Xeon, 4 cores, 2 s per case), 3 threads against 1: mean block time 26 -> 21 % at 44.1 kHz / 64, 28 -> 14 % at 44.1 kHz / 256, 56 -> 37 % at 96 kHz / 64 (blocks over 100 %: 46 -> 16); runs per block 1.00-1.02; wake-ups 37-90 us median at 2 threads (150-300 us at 3, this VM); the workers 10-37 % of a core. A wake-up is a large part of a 64-sample block, which is why turning threads on waits for tests in hosts.
 
 The bank, noise bands, bursts and transients run SIMD across modes/bands (`#pragma omp simd`, SSE4.1 on x86_64).
 
