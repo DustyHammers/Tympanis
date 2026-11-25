@@ -23,7 +23,12 @@ Common: the title (in the background), the tabs DRUM / KIT / TUNING (y 258; the 
 
 ## Wireframes (`plugin/ui/`)
 
-`DrumModel` is the mockup's geometry ported line for line (no JUCE): shells in British racing green, two-tier die-cast hoops with ears, Starclassic bullet lugs, the kicks' wood hoops and claws, the head mesh (25 rings x 96 points) that flexes in membrane modes J_m after a hit and flashes where the stick lands. Sizes as drawn: `drumLook()` (Snare 4 a 10" snare, Tom 5 a 16" floor tom; the depths of Snare 3, the gong drum and the octobans are a guess, to be confirmed). The drawing does not follow the Size parameter.
+`DrumModel` is the mockup's geometry ported line for line (no JUCE): shells in British racing green, two-tier die-cast hoops with ears, Starclassic bullet lugs, the kicks' wood hoops and claws, the head mesh (25 rings x 96 points) that flexes in membrane modes J_m after a hit and flashes where the stick lands. Sizes as drawn: `drumLook()` (Snare 4 a 10" snare, Tom 5 a 16" floor tom; Snare 3's depth is a guess, to be confirmed). The drawing does not follow the Size parameter.
+
+The gong drum and the octobans (Kris's TAMA photos, mockups approved 2026-11-24):
+
+- **Gong drum**: TAMA's 22" head mounted timpani style on a 20" x 14" shell with no bottom head. A support ring flares from the shell's top edge out to the 22" bearing edge; a thin flat counter hoop, its top below the playing surface, pulls the head's collar down over it; the lugs sit on the shell, their rods angled out to claws hooked over the hoop. On the DRUM page it tilts toward the drummer, as on its stand. Only the shell hides the hardware behind it (with the wider head, the lugs at the sides went missing). The spec line reads 22" HEAD ON A 20" x 14" SHELL.
+- **Octobans**: 6" tubes 11", 14.7", 18.3" and 22" long (Octobans 2 and 3 evenly between 1 and 4; equal ratios, 13.9" and 17.5", is the alternative, not decided). The tom lug as on the toms (a shorter one looked tilted); a slimmer hoop with small ears; the head mesh draws every other ring and point (the full mesh made a moire on a 6" head). All four DRUM pages use Octoban 4's scale, so the lengths read from page to page.
 
 `WireRaster` draws it in software: anti-aliased lines combined by their brightest value, the side hardware only outside the drum's body, the kit drums hiding what is behind them, the mockup's bloom, the flash. `WireView` keeps the still drawing per drum, selection and size, in physical pixels (sharp on Retina), and after a hit draws only the moving head, in its own box, at 30 Hz for 2 s; then its timer stops. Times on the CI's Apple M1 (virtual), from `tympanis_snapshot`:
 

@@ -162,6 +162,8 @@ struct DrumBuilder
     double bright;
     V3 C, a, u, v;
     double r, d;
+    // the gong drum: its head's radius and the height of its bearing edge above the shell's
+    double rh, hh;
     DrumDrawing out;
 
     DrumBuilder (const DrumSpec& spec, const Camera& camera, double sel) : s (spec), cam (camera), bright (1.0 + 0.35 * sel)
@@ -170,6 +172,8 @@ struct DrumBuilder
         basis (s.axis, a, u, v);
         r = s.r;
         d = s.d;
+        rh = s.headR > 0 ? s.headR : r;
+        hh = s.kind == Kind::gong ? 0.6 : 0.0;
     }
 
     bool vis (V3 P, V3 n) const { return dot (cam.pos - P, n) > 0; }
@@ -203,7 +207,8 @@ struct DrumBuilder
     {
         const int NS = s.kind == Kind::octo ? 36 : 72;
         const int nseg = std::max (6, (int) (d * 1.2));
-        const double cov = s.kind != Kind::kick ? 0.45 : 0.0;
+        // the hoops cover the shell's ends (not the gong drum's: its hoop stands off the shell)
+        const double cov = s.kind != Kind::kick && s.kind != Kind::gong ? 0.45 : 0.0;
         const bool two = s.kind != Kind::octo && s.kind != Kind::gong;
         const double x0 = cov / d, x1 = 1 - (two ? cov / d : 0.0);
         std::vector<Pt> sp ((size_t) ((NS + 1) * (nseg + 1)));
@@ -345,6 +350,12 @@ struct DrumBuilder
             ax = sgn * a;
         };
 
+        if (s.kind == Kind::gong)
+        {
+            gongHardware (lugT);
+            return;
+        }
+
         if (s.kind == Kind::kick)
         {
             const Rgb wood = kBurstD * 0.9 + kAmber * 0.75;
@@ -392,7 +403,8 @@ struct DrumBuilder
             for (double tl : lugT)
             {
                 const double dd = std::remainder (tt[(size_t) i] - tl, 2 * kPi) * r;
-                k = std::max (k, std::pow (std::clamp (1 - (dd / 0.95) * (dd / 0.95), 0.0, 1.0), 1.5));
+                const double ewid = s.kind == Kind::octo ? 0.6 : 0.95;  // octobans: small ears
+                k = std::max (k, std::pow (std::clamp (1 - (dd / ewid) * (dd / ewid), 0.0, 1.0), 1.5));
             }
             ew[(size_t) i] = k;
         }
@@ -414,19 +426,30 @@ struct DrumBuilder
         for (auto [off, sgn] : ends)
         {
             const bool face = vis (C + off * a, sgn * a);
-            hoopLine (0.03, 0, 0.52, 0, off, sgn, kChrome * 0.85, 1, face);          // inner tier: inner edge
-            hoopLine (0.13, 0, 0.58, 0, off, sgn, kChrome * 1.0, 2, face);           // inner tier: rounded top
-            hoopLine (0.24, 0, 0.50, 0, off, sgn, kChrome * 0.85, 1, face);          // inner tier: outer edge
-            hoopLine (0.27, 0, 0.20, 0, off, sgn, kChrome * 0.55, 1, face);          // the step down
-            hoopLine (0.32, 0, 0.16, 0, off, sgn, kChrome * 0.8, 1, face);           // outer tier: top, inner
-            hoopLine (0.58, 0.30, 0.14, 0, off, sgn, kChrome * 1.0, 2, face);        // outer tier: top edge
-            hoopLine (0.64, 0.30, -0.10, 0, off, sgn, kChrome * 0.55, 1, false);     // outer tier: face
-            hoopLine (0.64, 0.34, -0.42, -0.30, off, sgn, kChrome * 0.9, 1, false);  // lower edge into the ears
+            if (s.kind == Kind::octo)
+            {
+                // a 6" hoop: the same shape in fewer, finer lines (the full set crowds together)
+                hoopLine (0.10, 0, 0.50, 0, off, sgn, kChrome * 1.0, 1, face);           // rounded top
+                hoopLine (0.30, 0, 0.14, 0, off, sgn, kChrome * 0.6, 1, face);           // the step down
+                hoopLine (0.40, 0.16, 0.10, 0, off, sgn, kChrome * 0.95, 1, face);       // outer top edge, ears
+                hoopLine (0.44, 0.18, -0.30, -0.16, off, sgn, kChrome * 0.8, 1, false);  // lower edge into the ears
+            }
+            else
+            {
+                hoopLine (0.03, 0, 0.52, 0, off, sgn, kChrome * 0.85, 1, face);          // inner tier: inner edge
+                hoopLine (0.13, 0, 0.58, 0, off, sgn, kChrome * 1.0, 2, face);           // inner tier: rounded top
+                hoopLine (0.24, 0, 0.50, 0, off, sgn, kChrome * 0.85, 1, face);          // inner tier: outer edge
+                hoopLine (0.27, 0, 0.20, 0, off, sgn, kChrome * 0.55, 1, face);          // the step down
+                hoopLine (0.32, 0, 0.16, 0, off, sgn, kChrome * 0.8, 1, face);           // outer tier: top, inner
+                hoopLine (0.58, 0.30, 0.14, 0, off, sgn, kChrome * 1.0, 2, face);        // outer tier: top edge
+                hoopLine (0.64, 0.30, -0.10, 0, off, sgn, kChrome * 0.55, 1, false);     // outer tier: face
+                hoopLine (0.64, 0.34, -0.42, -0.30, off, sgn, kChrome * 0.9, 1, false);  // lower edge into the ears
+            }
             for (double t : lugT)
             {
                 V3 n, tg, ax;
                 frame (t, sgn, n, tg, ax);
-                const V3 e0 = C + off * a + (r + 0.62) * n;
+                const V3 e0 = C + off * a + (r + (s.kind == Kind::octo ? 0.45 : 0.62)) * n;
                 const V3 vd = cam.pos - e0;
                 const double f = dot (vd, n) / length (vd);
                 if (f < -0.35)
@@ -452,9 +475,10 @@ struct DrumBuilder
                     const V3 pp = rc + 0.17 * (std::cos (x) * n + std::sin (x) * tg);
                     line (pp + 0.06 * ax, pp + 0.34 * ax, cc * (0.9 * bright), 1, sideLayer);
                 }
-                // the lug, and the rod from under the ear into its flat end
-                const double y0 = s.kind == Kind::octo ? 0.7 : 0.45;
-                const double Lg = s.kind == Kind::octo ? 1.3 : std::min (1.7, 0.9 + 0.1 * d);
+                // the lug, and the rod from under the ear into its flat end (octobans: the tom
+                // lug; shorter, it looked tilted, Kris 2026-11-24)
+                const double y0 = 0.45;
+                const double Lg = s.kind == Kind::octo ? 1.6 : std::min (1.7, 0.9 + 0.1 * d);
                 V3 end;
                 if (bulletLug (t, off, sgn, y0, Lg, end))
                     line (rc - 0.7 * ax, end, kChromeD * (0.95 * bright), 1, sideLayer);
@@ -462,6 +486,56 @@ struct DrumBuilder
         }
         if (s.kind == Kind::octo)
             ring (0.0, 0.0, -d, 1, kBurstD * 1.5 + kAmber * 0.4, 1, vis (C - d * a, -1.0 * a));
+    }
+
+    // The gong drum (TAMA's, Kris's photo, 2026-11-24): a 22" head mounted timpani style on a
+    // 20" shell with no bottom head. A support ring flares from the shell's top edge out to the
+    // 22" bearing edge; the head's collar is pulled down over it by a thin flat counter hoop whose
+    // top sits below the playing surface. The lugs sit on the shell; their rods angle out to
+    // claws hooked over the hoop.
+    void gongHardware (const std::vector<double>& lugT)
+    {
+        const bool headFaces = vis (C, a);
+        // the support ring and its flare, in short spokes
+        ring (0.05, 0.10, 0.0, 1.0, kChrome * 0.45, 1, headFaces);
+        for (int k = 0; k < 36; ++k)
+        {
+            const double t = 2 * kPi * k / 36;
+            if (! (headFaces || vis (ringPoint (r, 0.0, t), normalAt (t))))
+                continue;
+            line (ringPoint (r + 0.05, 0.10, t), ringPoint (rh - 0.05, hh - 0.08, t), kChrome * (0.35 * bright));
+        }
+        // the head's collar, then the counter hoop: top edge, band face, bottom edge
+        ring (rh - r + 0.10, hh - 0.22, 0.0, 1.0, kHead * 0.48, 1, false);
+        ring (rh - r + 0.22, hh - 0.30, 0.0, 1.0, kChrome * 1.0, 1, headFaces);
+        ring (rh - r + 0.24, hh - 0.55, 0.0, 1.0, kChrome * 0.5, 1, false);
+        ring (rh - r + 0.24, hh - 0.80, 0.0, 1.0, kChrome * 0.85, 1, false);
+        for (double t : lugT)
+        {
+            const V3 n = normalAt (t), tg = -std::sin (t) * u + std::cos (t) * v;
+            // the lug, its flat end up toward the hoop, 2.4" below the shell's edge
+            V3 end;
+            if (! bulletLug (t, 0.0, 1.0, 1.95, 1.6, end, 0.36, 0.95))
+                continue;
+            const V3 base = ringPoint (r, -3.1, t);
+            const V3 vd = cam.pos - base;
+            const bool sideLayer = dot (vd, n) / length (vd) <= 0.1;
+            const Rgb cc = chromeCol (n);
+            // the rod, angled out to the claw under the hoop, and its T-handle
+            const V3 rod1 = ringPoint (rh + 0.42, hh - 1.05, t);
+            line (end, rod1, kChrome * (0.8 * bright), 1, sideLayer);
+            line (rod1 - 0.24 * tg, rod1 + 0.24 * tg, cc * (0.9 * bright), 1, sideLayer);
+            // the claw: up the hoop's face and over its top edge
+            const V3 claw[5] = { ringPoint (rh + 0.42, hh - 1.05, t), ringPoint (rh + 0.34, hh - 0.85, t), ringPoint (rh + 0.32, hh - 0.40, t),
+                                 ringPoint (rh + 0.26, hh - 0.24, t), ringPoint (rh + 0.12, hh - 0.27, t) };
+            for (double o : { -0.16, 0.16 })
+            {
+                std::vector<V3> pts;
+                for (const V3& q : claw)
+                    pts.push_back (q + o * tg);
+                poly (pts, cc * bright, 1, sideLayer);
+            }
+        }
     }
 
     // A ring r + dr around the axis, h out from the end `off` (sgn: out of the drum).
@@ -492,14 +566,15 @@ struct DrumBuilder
         }
     }
 
-    std::vector<Pt> hull (double dr, double front, double back) const
+    std::vector<Pt> hull (double dr, double front, double back) const { return hull2 (r + dr, front, r + dr, back); }
+    std::vector<Pt> hull2 (double rFront, double front, double rBack, double back) const
     {
         std::vector<Pt> pts;
         for (int i = 0; i < 64; ++i)
         {
             const double t = 2 * kPi * i / 63;
-            pts.push_back (cam.project (ringPoint (r + dr, front, t)));
-            pts.push_back (cam.project (ringPoint (r + dr, back, t)));
+            pts.push_back (cam.project (ringPoint (rFront, front, t)));
+            pts.push_back (cam.project (ringPoint (rBack, back, t)));
         }
         return convexHull (std::move (pts));
     }
@@ -509,13 +584,15 @@ struct DrumBuilder
         out.headVisible = vis (C, a);
         HeadMesh& h = out.head;
         h.cam = cam;
-        h.C = C;
+        const V3 Ch = C + hh * a; // the gong drum's head: on its bearing edge, 22"
+        h.C = Ch;
         h.a = a;
         h.u = u;
         h.v = v;
-        h.r = r;
+        h.r = rh;
         h.clear = s.kind == Kind::kick;
         h.bright = bright;
+        h.ringStep = h.pointStep = s.kind == Kind::octo ? 2 : 1;
         const auto& rr = ringRadii();
         h.rest.resize ((size_t) (HeadMesh::kRings * HeadMesh::kPoints));
         h.restScreen.resize (h.rest.size());
@@ -525,7 +602,7 @@ struct DrumBuilder
             for (int j = 0; j < HeadMesh::kPoints; ++j)
             {
                 const double t = 2 * kPi * j / HeadMesh::kPoints;
-                const V3 P = C + r * rr[(size_t) i] * normalAt (t);
+                const V3 P = Ch + rh * rr[(size_t) i] * normalAt (t);
                 const size_t k = (size_t) (i * HeadMesh::kPoints + j);
                 h.rest[k] = P;
                 h.restScreen[k] = cam.project (P);
@@ -535,7 +612,7 @@ struct DrumBuilder
                 h.y1 = std::max (h.y1, h.restScreen[k].y);
             }
         // how far the flex can move a point on the screen, per unit of displacement
-        const double k = 0.35 * r / 7;
+        const double k = 0.35 * rh / 7;
         float reach = 0;
         for (int j = 0; j < HeadMesh::kPoints; j += 8)
         {
@@ -545,7 +622,7 @@ struct DrumBuilder
         }
         h.flexReach = reach;
         // the head's point nearest the camera: where a drummer's stick lands
-        const V3 toCam = cam.pos - C;
+        const V3 toCam = cam.pos - Ch;
         h.near = std::atan2 (dot (toCam, v), dot (toCam, u));
     }
 
@@ -576,11 +653,13 @@ struct DrumBuilder
         out.segments.reserve (12000);
         shell();
         hardware();
-        out.bodyHull = hull (0.25, 0.55, -d - 0.55);
+        // the gong drum: only its shell hides the hardware behind it (its wider head would hide
+        // the lugs at the sides, Kris 2026-11-24)
+        out.bodyHull = s.kind == Kind::gong ? hull (0.0, 0.0, -d) : hull (0.25, 0.55, -d - 0.55);
         headMesh();
         if (s.kind == Kind::snare)
             snareParts();
-        out.silhouette = hull (0.9, 0.6, -d - 0.6);
+        out.silhouette = s.kind == Kind::gong ? hull2 (rh + 0.5, hh + 0.2, r + 0.9, -d - 0.6) : hull (0.9, 0.6, -d - 0.6);
         out.depth = cam.depth (C - 0.5 * d * a);
         bounds();
         return std::move (out);
@@ -674,16 +753,22 @@ void HeadMesh::draw (const Hit* hits, int numHits, std::vector<Segment>& out, st
         const double gg = 0.5 * (glow[p] + glow[q]);
         return base + (kHot - base) * gg;
     };
-    for (int i = 0; i < NR; ++i)
-        for (int j = 0; j < NT; ++j)
+    // the rings drawn (every ringStep-th, and always the edge) and the points on them
+    static thread_local std::vector<int> drawn;
+    drawn.clear();
+    for (int i = 0; i < NR - 1; i += ringStep)
+        drawn.push_back (i);
+    drawn.push_back (NR - 1);
+    for (int i : drawn)
+        for (int j = 0; j < NT; j += pointStep)
         {
-            const size_t p = (size_t) (i * NT + j), q = (size_t) (i * NT + (j + 1) % NT);
+            const size_t p = (size_t) (i * NT + j), q = (size_t) (i * NT + (j + pointStep) % NT);
             out.push_back ({ sp[p], sp[q], col (p, q), 1, false });
         }
-    for (int j = 0; j < NT; j += 2)
-        for (int i = 0; i < NR - 1; ++i)
+    for (int j = 0; j < NT; j += 2 * pointStep)
+        for (size_t k = 0; k + 1 < drawn.size(); ++k)
         {
-            const size_t p = (size_t) (i * NT + j), q = (size_t) ((i + 1) * NT + j);
+            const size_t p = (size_t) (drawn[k] * NT + j), q = (size_t) (drawn[k + 1] * NT + j);
             out.push_back ({ sp[p], sp[q], col (p, q), 1, false });
         }
 
@@ -705,38 +790,60 @@ void HeadMesh::draw (const Hit* hits, int numHits, std::vector<Segment>& out, st
 const DrumLook& drumLook (int drum)
 {
     // KitMap.h order. The kit as Kris described it (2026-11-24): Snare 4 is a 10" snare; Tom 5
-    // a 16" floor tom. Depths as drawn in the approved mockup; Snare 3, the gong drum and the
-    // octobans (not on the KIT page yet) at the sizes the DRUM page draws them.
+    // a 16" floor tom; the gong drum TAMA's 22" head on a 20" x 14" shell; the octobans 11" to
+    // 22" long (2 and 3 evenly between). Depths as drawn in the approved mockup; Snare 3's a guess.
     static const std::array<DrumLook, 17> table { {
         { Kind::kick, 22, 18, 10 },  { Kind::kick, 22, 18, 10 },
         { Kind::snare, 14, 6.5, 10 }, { Kind::snare, 14, 6.5, 10 }, { Kind::snare, 14, 6.5, 10 }, { Kind::snare, 10, 5, 8 },
         { Kind::tom, 10, 8, 6 },     { Kind::tom, 12, 9, 6 },      { Kind::tom, 13, 10, 6 },     { Kind::tom, 14, 11, 6 },
         { Kind::floor, 16, 16, 8 },  { Kind::floor, 18, 16, 8 },
-        { Kind::gong, 22, 10, 10 },
-        { Kind::octo, 6, 14, 4 },    { Kind::octo, 6, 14, 4 },     { Kind::octo, 6, 14, 4 },     { Kind::octo, 6, 14, 4 },
+        { Kind::gong, 22, 14, 10, 20 },
+        { Kind::octo, 6, 11, 4 },    { Kind::octo, 6, 14.7, 4 },   { Kind::octo, 6, 18.3, 4 },   { Kind::octo, 6, 22, 4 },
     } };
     return table[(size_t) std::clamp (drum, 0, 16)];
 }
 
-Framed frameDrum (int drum, Pt centre, double maxW, double maxH)
+namespace
+{
+// A drum of the plugin at the origin and the DRUM page's camera, at F = 1000 and not yet centred.
+void pageDrum (int drum, DrumSpec& spec, Camera& cam)
 {
     const auto& look = drumLook (drum);
-    Framed fr;
-    fr.spec.kind = look.kind;
-    fr.spec.C = { 0, 0, 0 };
-    // a bass drum lies on its side, its batter head toward the drummer, turned to show its shell
-    fr.spec.axis = look.kind == Kind::kick ? V3 { -0.5, -0.866, 0 } : V3 { 0, 0, 1 };
-    fr.spec.r = look.diameter / 2;
-    fr.spec.d = look.depth;
-    fr.spec.lugs = look.lugs;
+    spec.kind = look.kind;
+    spec.C = { 0, 0, 0 };
+    // a bass drum lies on its side, its batter head toward the drummer, turned to show its
+    // shell; the gong drum tilts toward the drummer, as on its stand
+    spec.axis = look.kind == Kind::kick ? V3 { -0.5, -0.866, 0 } : look.kind == Kind::gong ? V3 { 0, -0.45, 1 } : V3 { 0, 0, 1 };
+    spec.r = (look.shellDiameter > 0 ? look.shellDiameter : look.diameter) / 2;
+    spec.headR = look.shellDiameter > 0 ? look.diameter / 2 : 0.0;
+    spec.d = look.depth;
+    spec.lugs = look.lugs;
     V3 a, u, v;
-    basis (fr.spec.axis, a, u, v);
-    const V3 target = fr.spec.C - (0.5 * fr.spec.d) * a;
-    // measure at F = 1000, then scale and centre (the projection is linear in F, cx and cy)
+    basis (spec.axis, a, u, v);
+    const V3 target = spec.C - (0.5 * spec.d) * a;
     // the mockup's camera; a bass drum, lying on its side, seen from lower down
-    Camera cam = Camera::orbit (target, look.kind == Kind::kick ? 14 : 34, 70, 1000, 0, 0, -8);
+    cam = Camera::orbit (target, look.kind == Kind::kick ? 14 : 34, 70, 1000, 0, 0, -8);
+}
+} // namespace
+
+Framed frameDrum (int drum, Pt centre, double maxW, double maxH)
+{
+    Framed fr;
+    Camera cam;
+    pageDrum (drum, fr.spec, cam);
+    // measure at F = 1000, then scale and centre (the projection is linear in F, cx and cy)
     const DrumDrawing probe = drawDrum (fr.spec, cam);
-    const double w = probe.x1 - probe.x0, h = probe.y1 - probe.y0;
+    double w = probe.x1 - probe.x0, h = probe.y1 - probe.y0;
+    if (fr.spec.kind == Kind::octo)
+    {
+        // all four at Octoban 4's scale (the camera is as far from each)
+        DrumSpec s4;
+        Camera c4;
+        pageDrum (16, s4, c4);
+        const DrumDrawing p4 = drawDrum (s4, c4);
+        w = p4.x1 - p4.x0;
+        h = p4.y1 - p4.y0;
+    }
     const double k = std::min (maxW / std::max (1.0, w), maxH / std::max (1.0, h));
     cam.F = 1000 * k;
     cam.cx = centre.x - k * 0.5 * (probe.x0 + probe.x1);
