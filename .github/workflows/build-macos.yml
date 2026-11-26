@@ -76,14 +76,18 @@ jobs:
       - name: Build
         run: |
           set -o pipefail
-          if ! cmake --build build --target ${PRODUCT}_VST3 ${PRODUCT}_AU TympanisHostTest TympanisSnapshot tympanis_render dhpool_selftest --parallel 2>&1 | tee build.log; then
+          if ! cmake --build build --target ${PRODUCT}_VST3 ${PRODUCT}_AU TympanisHostTest TympanisSnapshot tympanis_render --parallel 2>&1 | tee build.log; then
             .github/scripts/annotate_errors.sh build.log Build
             exit 1
           fi
 
       # The shared job pool (third_party/dhpool, a copy of Cymbalis's): every job once per run, the
-      # same bits at 1-4 threads, workgroup hooks, prepare / release cycles.
+      # same bits at 1-4 threads, workgroup hooks, prepare / release cycles. Skipped for now (Kris,
+      # 2026-11-26: "skip these tests until they are actually needed"; the plugin renders on one
+      # thread). To turn it back on: remove the `if: false` here and on Linux, and add
+      # dhpool_selftest to the Build step's targets.
       - name: Job pool self-test
+        if: false
         run: build/third_party/dhpool/dhpool_selftest
 
       # The processor as a host drives it: the baked kit loads, 136 parameters, every MIDI note
@@ -225,7 +229,9 @@ jobs:
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DTYMPANIS_BUILD_PLUGIN=OFF
           cmake --build build --parallel
 
+      # Skipped for now, as on the Mac (see the build job).
       - name: Job pool self-test
+        if: false
         run: build/third_party/dhpool/dhpool_selftest
 
       - name: Port check against prototype/engine.py
@@ -241,8 +247,9 @@ jobs:
           md5sum "$RUNNER_TEMP"/kit_t*.f64
           test "$(md5sum "$RUNNER_TEMP"/kit_t*.f64 | awk '{print $1}' | sort -u | wc -l)" -eq 1
 
-      # The same render at 4 threads built with ThreadSanitizer, and the pool's self-test: no data race.
-      - name: ThreadSanitizer (renderer at 4 threads, pool self-test)
+      # The same render at 4 threads built with ThreadSanitizer: no data race. (The pool's self-test
+      # under ThreadSanitizer is skipped for now, with the self-test steps.)
+      - name: ThreadSanitizer (renderer at 4 threads)
         run: |
           cmake -B build-tsan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTYMPANIS_BUILD_PLUGIN=OFF -DCMAKE_CXX_FLAGS="-fsanitize=thread -g" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
           cmake --build build-tsan --parallel
@@ -250,7 +257,6 @@ jobs:
           sudo sysctl -w vm.mmap_rnd_bits=28
           export TSAN_OPTIONS="halt_on_error=1"
           build-tsan/tools/tympanis_render/tympanis_render --bake resources/bake --seq tools/seq/kit_busy_mono.json --threads 4
-          build-tsan/third_party/dhpool/dhpool_selftest --quick
 
       # The noise alone after single hits, over time (the contact bursts' envelopes): catches
       # what the whole-render checks average away (the burst envelope bug, 2026-11-24).
