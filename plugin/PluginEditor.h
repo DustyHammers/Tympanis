@@ -131,7 +131,8 @@ private:
     std::array<bool, kRows.size()> lit {};
     int shownChannel = -1;
     std::array<double, tympanis::kDrums.size()> shownDepthOff {}; // Size on Toms 1-4, inches off the drawn depth
-    std::array<bool, tympanis::kDrums.size()> shownSnaresOff {};  // the SNARES switches off (all on to start)
+    std::array<bool, tympanis::kDrums.size()> shownSnaresOff {};
+    int kitHitDrum = -1; // the KIT page: the drum last played since the last refresh()  // the SNARES switches off (all on to start)
     int shownLearn = -1;
     double learnStartMs = 0.0;
 };

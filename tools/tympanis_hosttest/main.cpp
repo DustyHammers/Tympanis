@@ -461,6 +461,23 @@ int runChecks()
             check(d.p->drumFinish() == 0 && te->content().wireView(Content::kitPage)->currentFinish() == tympanis::ui::wire::Finish::green,
                   "choosing a finish on SETTINGS sets it for the session and the drawings");
         }
+        {
+            // the KIT page: a drum played becomes the selected drum; on the DRUM page it does not
+            Host k(44100, 256);
+            k.p->setEditorPage(1);
+            k.p->setSelectedDrum(8);
+            std::unique_ptr<juce::AudioProcessorEditor> ke(k.p->createEditor());
+            auto* kt = dynamic_cast<TympanisEditor*>(ke.get());
+            const int row = rowIndex("tom1"), tom1 = tympanis::kRows[(size_t) row].drum;
+            k.play({ { 10, k.p->getRowNote(row), 100 } }, 2048, 256);
+            kt->content().refresh();
+            const bool kitSel = k.p->selectedDrum() == tom1;
+            kt->content().showPage(tympanis::ui::Content::drumPage);
+            const int gongRow = rowIndex("gong");
+            k.play({ { 10, k.p->getRowNote(gongRow), 100 } }, 2048, 256);
+            kt->content().refresh();
+            check(kitSel && k.p->selectedDrum() == tom1, "KIT page: playing a drum selects it; the DRUM page keeps its drum");
+        }
         // the editor opens, on the saved page, and closes
         std::unique_ptr<juce::AudioProcessorEditor> ed(b.p->createEditor());
         check(ed != nullptr && ed->getWidth() == 1200 && ed->getHeight() == 800, "the editor opens at the saved size");
