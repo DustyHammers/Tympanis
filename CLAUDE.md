@@ -21,7 +21,7 @@ Tympanis (working name) is a physically modelled drum instrument (macOS VST3 + A
 | Path | Contents |
 |---|---|
 | `prototype/engine.py` | Python engine (md5 735fd0ea), the reference the C++ engine was ported from |
-| `resources/models/` | The 17 locked kit models (modal data per articulation and velocity layer), and the Popcorn Snare's wires-off model derived from them (`tools/snares_off.py`) |
+| `resources/models/` | The 18 locked kit models (modal data per articulation and velocity layer): the 17 fitted ones and the Popcorn Snare's wires-off model derived from them (`tools/snares_off.py`) |
 | `resources/bake/` | Baked kit for the C++ engine (`tools/bake_kit.py`), packed into the plugin (`tools/pack_bake`) |
 | `plugin/dsp/` | C++ engine, no JUCE (`Engine.h`, `KitData.h`, `Filters.h`, `Json.h`) |
 | `plugin/` | JUCE processor (`PluginProcessor.*`), editor (`PluginEditor.*`), drums and note rows (`KitMap.h`), packed bake format (`PackedBake.*`, from Cymbalis) |
