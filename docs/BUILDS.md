@@ -29,7 +29,7 @@ The test tools (`dhpool_selftest`, the host test, the snapshot tool) are still b
 
 **Before threads go on in the plugin** (step 3 of the kit plan with Cymbalis), the full tests must run, and pass, on every pull request again: the job pool self-test, the paced bench, the same bits at 1-3 threads and ThreadSanitizer are the multi-core checks the merged kit relies on. They are on request for now, not removed.
 
-Typical times (macOS 15 runner, M1): before this change both jobs took about 7.5-8 minutes; now about TIMES_AFTER.
+Typical times (2026-11-26): before this change both jobs took about 7.5-8 minutes. Now, on a push or pull request, the macOS job takes about 4.5 minutes and the Linux job about 5.5; with full tests, about 6 and 8.
 
 ## Getting a build
 
