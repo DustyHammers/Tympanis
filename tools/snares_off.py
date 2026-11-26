@@ -16,13 +16,16 @@ Per articulation (head, rim, side) and velocity layer (matched by relative posit
     absolute band. Noise T60 capped at 1 s, as in every snare model.
 Amplitudes, phases, glide and the modelled transients (pulses, modes, burst) are unchanged.
 
+Locked (Kris, 2026-11-26): docs/locked.md5 holds its md5; CI checks it is current (--check).
+
 Check: the same transform applied to Snare 1 comes within about 5 dB (rms over octave bands and
 time windows) of the real Snare 2, from about 23 dB (head); the wire bands within 2-3 dB. Kris
 approved the Popcorn's sound by ear (render 46b, 2026-11-26).
 
-Usage: python3 tools/snares_off.py            (writes the model)
-       python3 tools/snares_off.py --check    (fails if the committed model differs)
-The locked models are only read.
+Usage: python3 tools/snares_off.py --check    (fails if the committed model differs)
+       python3 tools/snares_off.py            (writes the model)
+The model it writes is locked (Kris, 2026-11-26; docs/locked.md5): rewrite it only when Kris asks.
+The locked models it reads are only read.
 """
 import argparse, copy, json, math, os, sys
 import numpy as np
@@ -103,7 +106,8 @@ def derive():
                 b['peak_rms'] = float(b['peak_rms'] * math.exp(lvl[j]))
                 b['decay'] = float(max(b['decay'] * math.exp(dcy[j]), 6.91 / NOISE_T60_CAP))
     res['fix'] = tg.get('fix', '') + ' + snares off, derived from the SNRE_720 / SNRE_722 wires-on / wires-off pair (tools/snares_off.py)'
-    res['locked'] = False
+    res['locked'] = ('2026-11-26 Kris: locked ("merge and lock"), the Popcorn Snare\'s wires-off model, derived by '
+                     'tools/snares_off.py; sound approved by ear (render 46b)')
     res['derived_from'] = {'target': TARGET, 'on': ON, 'off': OFF, 'tool': 'tools/snares_off.py'}
     return res
 
