@@ -33,7 +33,7 @@ constexpr float kKnobEndSide = 73.0f;    // and their centres, each side
 
 // TUNING page: the rows' tops, the slider, the number box, the reset arrow.
 constexpr int kTuneFirstRow = 160, kTuneRowStep = 62;
-constexpr int kKitBandTop = 620, kKitFirstRow = 680;
+constexpr int kKitBandTop = 682, kKitFirstRow = 742;
 constexpr float kSliderX0 = 640.0f, kSliderX1 = 1236.0f;
 constexpr float kThumbRadius = 7.0f;
 const juce::Rectangle<int> kNumberBox (1256, -3, 104, 24); // y relative to the row's top
@@ -185,6 +185,7 @@ private:
 
         constexpr size_t last = std::size (kKnobRimStops) - 1;
         static_assert (std::size (kKnobRimStops) == std::size (palette::knobRim));
+        static_assert (wire::kDrumCount == (int) kDrums.size(), "plugin/ui/DrumModel.h kDrumCount must match KitMap.h");
         juce::ColourGradient rim (palette::knobRim[0], light, palette::knobRim[last], dark, false);
         for (size_t i = 1; i < last; ++i)
             rim.addColour (kKnobRimStops[i], palette::knobRim[i]);
@@ -540,6 +541,8 @@ public:
         g.fillAll (palette::popup);
         drawBoxOutline (g, getLocalBounds(), palette::boxOutline);
         const auto f = assets.font (kRowSize, kPopupSpacing);
+        // a name wider than its cell (POPCORN SNARE in the drum menu) gets tighter letter spacing
+        const auto tight = assets.font (kRowSize, 1.0f);
         for (int i = 0; i < items.size(); ++i)
         {
             const auto r = itemBounds (i);
@@ -548,7 +551,8 @@ public:
                 g.setColour (palette::bronze);
                 g.drawRect (r.reduced (2), 1);
             }
-            drawValue (g, f, items[i], r.toFloat(), selected < 0 || i == selected || i == hover ? palette::label : palette::secondary);
+            const bool fits = inkBounds (f, items[i]).getWidth() <= (float) r.getWidth() - 16.0f;
+            drawValue (g, fits ? f : tight, items[i], r.toFloat(), selected < 0 || i == selected || i == hover ? palette::label : palette::secondary);
         }
     }
     void mouseMove (const juce::MouseEvent& e) override { setHover (itemAt (e.getPosition())); }
@@ -688,7 +692,7 @@ private:
 class TuneRow final : public juce::Component, private juce::Slider::Listener
 {
 public:
-    enum class Format { semitones, plain, times, inches, decibels, pan };
+    enum class Format { semitones, plain, times, inches, decibels, pan, onOff };
     struct Spec
     {
         const char* suffix; // <drum key>_<suffix>, or a whole parameter ID
@@ -727,7 +731,7 @@ public:
         ends[0] = leftEnd.isNotEmpty() ? leftEnd : juce::String (spec.leftEnd != nullptr ? spec.leftEnd : "");
         ends[1] = rightEnd.isNotEmpty() ? rightEnd : juce::String (spec.rightEnd != nullptr ? spec.rightEnd : "");
         setBounds (440, top - 6, 1060, 46);
-        slider.setBounds (juce::roundToInt (kSliderX0 - kThumbRadius) - getX(), top + 1 - getY(), juce::roundToInt (kSliderX1 - kSliderX0 + 2 * kThumbRadius), 16);
+        slider.setBounds (juce::roundToInt (kSliderX0 - kThumbRadius) - getX(), top + 1 - getY(), juce::roundToInt (x1() - kSliderX0 + 2 * kThumbRadius), 16);
         attachment.reset();
         attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (state, paramId, slider);
         if (auto* p = param())
@@ -737,6 +741,7 @@ public:
     }
 
     juce::RangedAudioParameter* param() const { return state.getParameter (paramId); }
+    float x1() const { return spec.format == Format::onOff ? kSliderX0 + 96.0f : kSliderX1; }
 
     // Greyed out: shown, not editable (Size on the drums whose depth does not play).
     void setGreyed (bool g)
@@ -774,6 +779,7 @@ public:
             case Format::times: return juce::String (v, 2) + " x";
             case Format::inches: return juce::String (v, 1) + " in";
             case Format::decibels: return levelText ((float) v);
+            case Format::onOff: return v > 0.5 ? "ON" : "OFF";
             case Format::pan:
                 if (std::abs (v) < 0.005)
                     return "C";
@@ -795,7 +801,7 @@ public:
         drawAt (g, assets.font (kRowSize, 2.6f), spec.label, 460.0f, y + 4.0f, palette::label);
         const auto endFont = assets.font (12.5f, 1.6f);
         drawAt (g, endFont, ends[0], kSliderX0, y + 24.0f, palette::secondary);
-        drawAt (g, endFont, ends[1], kSliderX1, y + 24.0f, palette::secondary, Anchor::right);
+        drawAt (g, endFont, ends[1], x1(), y + 24.0f, palette::secondary, Anchor::right);
         // the value's box
         const auto box = kNumberBox.translated (0, rowTop);
         g.setColour (palette::popup);
@@ -900,7 +906,9 @@ private:
         }
         else if (spec.format == Format::decibels && t.contains ("INF"))
             v = TympanisProcessor::kLevelMinDb;
-        if (auto* p = param(); p != nullptr && (t.containsAnyOf ("0123456789") || t.contains ("INF") || t.startsWith ("C")))
+        else if (spec.format == Format::onOff && (t.startsWith ("ON") || t.startsWith ("OF")))
+            v = t.startsWith ("ON") ? 1.0 : 0.0;
+        if (auto* p = param(); p != nullptr && (t.containsAnyOf ("0123456789") || t.contains ("INF") || t.startsWith ("C") || t.startsWith ("O")))
         {
             p->beginChangeGesture();
             p->setValueNotifyingHost (p->convertTo0to1 ((float) juce::jlimit ((double) p->getNormalisableRange().start, (double) p->getNormalisableRange().end, v)));
@@ -943,6 +951,7 @@ const std::array<TuneRow::Spec, 7> kDrumTuneSpecs { {
     { "level", true, "LEVEL", TuneRow::Format::decibels, false, nullptr, nullptr },
     { "pan", true, "PAN", TuneRow::Format::pan, true, "L", "R" },
 } };
+const TuneRow::Spec kSnaresSpec { "snares", true, "SNARES", TuneRow::Format::onOff, false, "OFF", "ON" };
 const std::array<TuneRow::Spec, 2> kKitTuneSpecs { {
     { "snare_buzz", false, "SNARE BUZZ", TuneRow::Format::plain, false, "OFF", "FULL" },
     { "main_volume", false, "MAIN VOLUME", TuneRow::Format::decibels, false, nullptr, nullptr },
@@ -1038,6 +1047,8 @@ Content::Content (TympanisProcessor& p)
         drumTuneRows.push_back (std::make_unique<TuneRow> (assets, processor.params, spec));
         addChildComponent (*drumTuneRows.back());
     }
+    snaresRow = std::make_unique<TuneRow> (assets, processor.params, kSnaresSpec);
+    addChildComponent (*snaresRow);
     for (size_t i = 0; i < kitTuneRows.size(); ++i)
     {
         kitTuneRows[i] = std::make_unique<TuneRow> (assets, processor.params, kKitTuneSpecs[i]);
@@ -1045,11 +1056,11 @@ Content::Content (TympanisProcessor& p)
         addChildComponent (*kitTuneRows[i]);
     }
     resetDrumButton = std::make_unique<FooterButton> (assets, "RESET DRUM");
-    resetDrumButton->setBounds (1124, 830, 160, 34);
+    resetDrumButton->setBounds (1124, 892, 160, 34);
     resetDrumButton->onClick = [this] { resetParams (false); };
     addChildComponent (*resetDrumButton);
     resetAllButton = std::make_unique<FooterButton> (assets, "RESET ALL");
-    resetAllButton->setBounds (1300, 830, 160, 34);
+    resetAllButton->setBounds (1300, 892, 160, 34);
     resetAllButton->onClick = [this] { resetParams (true); };
     addChildComponent (*resetAllButton);
 
@@ -1100,6 +1111,7 @@ void Content::showPage (int pg)
         noteBoxes[b]->setVisible (drumP && b < drumRows.size());
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
         drumTuneRows[i]->setVisible (tuneP && (i != 3 || kDrums[(size_t) drum].strikePos));
+    snaresRow->setVisible (tuneP && kDrums[(size_t) drum].engineOff >= 0);
     for (auto& r : kitTuneRows)
         r->setVisible (tuneP);
     resetDrumButton->setVisible (tuneP);
@@ -1149,6 +1161,12 @@ void Content::layoutTuningRows()
 {
     int top = kTuneFirstRow;
     const auto& info = kDrums[(size_t) drum];
+    // the Snares On/Off switch first, on the drums that have one (Kris, 2026-11-26)
+    if (info.engineOff >= 0)
+    {
+        snaresRow->attach (paramId ("snares"), top);
+        top += kTuneRowStep;
+    }
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
     {
         if (i == 3 && ! info.strikePos)
@@ -1168,6 +1186,8 @@ void Content::layoutTuningRows()
 
 bool Content::drumModified() const
 {
+    if (kDrums[(size_t) drum].engineOff >= 0 && snaresRow->changed())
+        return true;
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
         if ((i != 3 || kDrums[(size_t) drum].strikePos) && drumTuneRows[i]->changed())
             return true;
@@ -1193,6 +1213,8 @@ void Content::resetParams (bool wholeKit)
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
         if (i != 3 || kDrums[(size_t) drum].strikePos)
             drumTuneRows[i]->reset();
+    if (kDrums[(size_t) drum].engineOff >= 0)
+        snaresRow->reset();
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1232,7 +1254,7 @@ void Content::refresh()
             showHit (e.row, e.velocity);
 
     // Size (the shell's depth) on Toms 1-4: the drawings follow it
-    std::array<double, 17> depthOff {};
+    std::array<double, kDrums.size()> depthOff {};
     for (size_t d = 0; d < kDrums.size(); ++d)
         if (kDrums[d].depth)
             if (auto* v = processor.params.getRawParameterValue (juce::String (kDrums[d].key) + "_size"))
@@ -1362,7 +1384,7 @@ void Content::closePopup()
     popupClosed = nullptr;
 }
 
-// The 17 drums, two columns, below the DRUM box.
+// The drums, two columns, below the DRUM box.
 void Content::openDrumMenu()
 {
     juce::StringArray names;

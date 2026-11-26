@@ -107,6 +107,7 @@ private:
 
     // TUNING page
     std::vector<std::unique_ptr<TuneRow>> drumTuneRows;
+    std::unique_ptr<TuneRow> snaresRow;
     std::array<std::unique_ptr<TuneRow>, 2> kitTuneRows;
     std::unique_ptr<FooterButton> resetDrumButton, resetAllButton;
     bool shownModified = false;
@@ -120,7 +121,7 @@ private:
     std::array<double, kRows.size()> litUntilMs {};
     std::array<bool, kRows.size()> lit {};
     int shownChannel = -1;
-    std::array<double, 17> shownDepthOff {}; // Size on Toms 1-4, inches off the drawn depth
+    std::array<double, tympanis::kDrums.size()> shownDepthOff {}; // Size on Toms 1-4, inches off the drawn depth
     int shownLearn = -1;
     double learnStartMs = 0.0;
 };

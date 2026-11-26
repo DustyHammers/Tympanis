@@ -41,14 +41,13 @@ public:
 
     // Each drum's shell, inches deeper than drawn by default (Size on Toms 1-4; KitMap.h order).
     // A change redraws the still drawing (kit: the whole kit; drum, small: if the drum shown).
-    void setDepths (const std::array<double, 17>& offsetsIn);
+    void setDepths (const std::array<double, wire::kDrumCount>& offsetsIn);
 
     // A strike on a drum: its head moves and flashes (drum: only if it is the drum shown; small:
     // never). rpos: 0 centre .. 1 edge. ageSeconds: how long ago it struck (tools).
     void strike (int drum, float velocity, double rpos, double ageSeconds = 0.0);
 
-    // kit: a click on a drum (KitMap.h index; Snare 1 and 2 are one drum drawn: a click on it
-    // gives Snare 1, or Snare 2 when Snare 1 is selected).
+    // kit: a click on a drum (KitMap.h index).
     std::function<void (int drum)> onDrumClicked;
 
     // For tools/tympanis_snapshot: draws the current frame now, at this physical scale; the time
@@ -110,7 +109,7 @@ private:
     const Mode mode;
     const juce::Rectangle<int> designArea;
     int shownDrum = 8;
-    std::array<double, 17> depthOff {};
+    std::array<double, wire::kDrumCount> depthOff {};
 
     float builtScale = 0.0f;
     bool needsBuild = true;

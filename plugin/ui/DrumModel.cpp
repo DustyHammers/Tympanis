@@ -1027,19 +1027,19 @@ void HeadMesh::draw (const Hit* hits, int numHits, std::vector<Segment>& out, st
 // =====================================================================================
 const DrumLook& drumLook (int drum)
 {
-    // KitMap.h order. The kit as Kris described it (2026-11-24): Snare 4 is a 10" snare; Tom 5
-    // a 16" floor tom; the gong drum TAMA's 22" head on a 20" x 14" shell. Tom 1 is 10" x 10" and
-    // the octobans 17.5", 18.5", 21" and 23.5" long (Kris, 2026-11-25). The other depths as drawn
-    // in the approved mockup; Snare 3's a guess.
-    static const std::array<DrumLook, 17> table { {
+    // KitMap.h order. The kit as Kris described it (2026-11-24): the Popcorn Snare is a 10" snare;
+    // Tom 5 a 16" floor tom; the gong drum TAMA's 22" head on a 20" x 14" shell. Tom 1 is 10" x 10"
+    // and the octobans 17.5", 18.5", 21" and 23.5" long (Kris, 2026-11-25). The other depths as
+    // drawn in the approved mockup.
+    static const std::array<DrumLook, kDrumCount> table { {
         { Kind::kick, 22, 18, 10 },  { Kind::kick, 22, 18, 10 },
-        { Kind::snare, 14, 6.5, 10 }, { Kind::snare, 14, 6.5, 10 }, { Kind::snare, 14, 6.5, 10 }, { Kind::snare, 10, 5, 8 },
+        { Kind::snare, 14, 6.5, 10 }, { Kind::snare, 10, 5, 8 },
         { Kind::tom, 10, 10, 6 },    { Kind::tom, 12, 9, 6 },      { Kind::tom, 13, 10, 6 },     { Kind::tom, 14, 11, 6 },
         { Kind::floor, 16, 16, 8 },  { Kind::floor, 18, 16, 8 },
         { Kind::gong, 22, 14, 10, 20 },
         { Kind::octo, 6, 17.5, 4 },  { Kind::octo, 6, 18.5, 4 },   { Kind::octo, 6, 21, 4 },     { Kind::octo, 6, 23.5, 4 },
     } };
-    return table[(size_t) std::clamp (drum, 0, 16)];
+    return table[(size_t) std::clamp (drum, 0, kDrumCount - 1)];
 }
 
 namespace
@@ -1103,7 +1103,7 @@ Framed frameDrum (int drum, Pt centre, double maxW, double maxH, double depthOff
         if (k <= 0)
         {
             k = 1e9;
-            for (int d = 0; d < 17; ++d)
+            for (int d = 0; d < kDrumCount; ++d)
                 k = std::min (k, fitScale (d, maxW, maxH));
             known.push_back ({ maxW, maxH, k });
         }
@@ -1126,15 +1126,15 @@ const std::vector<KitItem>& kitLayout()
         // the kicks in a V; the rack toms over them, in front of the kick shells they sit on
         it.push_back ({ 0, { Kind::kick, { -13.8, 7, 11.5 }, { std::sin (vk), -std::cos (vk), 0 }, 11, 18, 10 }, 0 });
         it.push_back ({ 1, { Kind::kick, { 13.8, 7, 11.5 }, { -std::sin (vk), -std::cos (vk), 0 }, 11, 18, 10 }, 0 });
-        it.push_back ({ 2, { Kind::snare, { 0, -14, 25 }, lean (0.1, 0), 7, 6.5, 10 }, 0 });          // Snare 1 and 2
-        it.push_back ({ 5, { Kind::snare, { -27, -12, 25 }, lean (0.12, 0.08), 5, 5.0, 8 }, 0 });     // Snare 4, 10"
-        it.push_back ({ 6, { Kind::tom, { -24.5, 14.5, 33.5 }, lean (0.45, 0.16), 5, 10, 6 }, -25 }); // head level with the others
-        it.push_back ({ 7, { Kind::tom, { -9.5, 16, 34.5 }, lean (0.45, 0.05), 6, 9, 6 }, -25 });
-        it.push_back ({ 8, { Kind::tom, { 6.5, 16, 35.5 }, lean (0.45, -0.05), 6.5, 10, 6 }, -25 });
-        it.push_back ({ 9, { Kind::tom, { 23, 14.5, 36.5 }, lean (0.45, -0.16), 7, 11, 6 }, -25 });
+        it.push_back ({ 2, { Kind::snare, { 0, -14, 25 }, lean (0.1, 0), 7, 6.5, 10 }, 0 });          // the Snare
+        it.push_back ({ 3, { Kind::snare, { -27, -12, 25 }, lean (0.12, 0.08), 5, 5.0, 8 }, 0 });     // the Popcorn Snare, 10"
+        it.push_back ({ 4, { Kind::tom, { -24.5, 14.5, 33.5 }, lean (0.45, 0.16), 5, 10, 6 }, -25 }); // head level with the others
+        it.push_back ({ 5, { Kind::tom, { -9.5, 16, 34.5 }, lean (0.45, 0.05), 6, 9, 6 }, -25 });
+        it.push_back ({ 6, { Kind::tom, { 6.5, 16, 35.5 }, lean (0.45, -0.05), 6.5, 10, 6 }, -25 });
+        it.push_back ({ 7, { Kind::tom, { 23, 14.5, 36.5 }, lean (0.45, -0.16), 7, 11, 6 }, -25 });
         // the floor toms side by side, coming toward the camera, turned slightly to the snare
-        it.push_back ({ 10, { Kind::floor, { 27.5, -1, 20.5 }, { -0.12, -0.08, 1.0 }, 8, 16, 8 }, 0 });
-        it.push_back ({ 11, { Kind::floor, { 37.5, -18, 21.5 }, { -0.14, -0.06, 1.0 }, 9, 16, 8 }, 0 });
+        it.push_back ({ 8, { Kind::floor, { 27.5, -1, 20.5 }, { -0.12, -0.08, 1.0 }, 8, 16, 8 }, 0 });
+        it.push_back ({ 9, { Kind::floor, { 37.5, -18, 21.5 }, { -0.14, -0.06, 1.0 }, 9, 16, 8 }, 0 });
         return it;
     }();
     return items;
@@ -1160,8 +1160,6 @@ Camera kitCamera()
 
 int kitItemForDrum (int drum)
 {
-    if (drum == 3)
-        drum = 2; // Snare 2 is Snare 1 with its wires off
     const auto& items = kitLayout();
     for (size_t i = 0; i < items.size(); ++i)
         if (items[i].drum == drum)

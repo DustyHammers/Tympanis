@@ -68,7 +68,8 @@ target_link_libraries(TympanisPackBake
         juce::juce_recommended_warning_flags
 )
 
-set(TYMPANIS_BAKE_KEYS kit kick1 kick2 snare1 snare2 snare3 snare4 tom1 tom2 tom3 tom4 tom5 tom6 gong octo1 octo2 octo3 octo4)
+# The kit's engine drums (tools/bake_kit.py KIT): Snare 3 is baked but not in the plugin.
+set(TYMPANIS_BAKE_KEYS kit kick1 kick2 snare1 snare2 snare4 snare4_off tom1 tom2 tom3 tom4 tom5 tom6 gong octo1 octo2 octo3 octo4)
 set(TYMPANIS_RESOURCES)
 foreach(key ${TYMPANIS_BAKE_KEYS})
     set(json "${CMAKE_CURRENT_SOURCE_DIR}/resources/bake/${key}.bake.json")

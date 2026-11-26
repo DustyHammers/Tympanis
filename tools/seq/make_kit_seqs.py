@@ -5,14 +5,22 @@ thread (and as main before it): kit_busy_mono.json (tympanis_render) and kit_bus
 
 Every drum and articulation is struck many times over 8 s: groups of hits on one sample, flams
 (hits a few samples apart), rolls on single drums and quiet gaps, with the snare buzz on and
-uneven lug tension on some drums (twin oscillators). The stereo one also moves levels and pans
-during the render, so the gains ramp."""
+uneven lug tension on some drums (twin oscillators). The mono one strikes every engine drum,
+the snares' wires-off models (Snare 2, snare4_off) too; the stereo one plays the plugin's rows,
+moves levels and pans during the render, so the gains ramp, and flips the Snare's and the
+Popcorn Snare's Snares switches (Kris, 2026-11-26), so their hits go to both models."""
 import json, random, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROWS = [('kick1', 'head'), ('kick2', 'head')] + [(f'snare{i}', a) for i in range(1, 5) for a in ('head', 'rim', 'side')] \
+# the engine's drums (tools/bake_kit.py KIT) and their articulations
+ROWS = [('kick1', 'head'), ('kick2', 'head')] + [(d, a) for d in ('snare1', 'snare2', 'snare4', 'snare4_off') for a in ('head', 'rim', 'side')] \
     + [(f'tom{i}', a) for i in range(1, 7) for a in ('head', 'rim')] + [('gong', 'head')] + [(f'octo{i}', 'head') for i in range(1, 5)]
-ROW_ID = {(d, a): d if a == 'head' else f'{d}_{a}' for d, a in ROWS}
+# the plugin's row for an engine drum's articulation: the wires-off models play through their
+# drum's rows (which model a hit plays is the switch's)
+PLUGIN_DRUM = {'snare2': 'snare1', 'snare4_off': 'snare4'}
+def row_id(d, a):
+    d = PLUGIN_DRUM.get(d, d)
+    return d if a == 'head' else f'{d}_{a}'
 
 def events(sr):
     rnd = random.Random(20261125)
@@ -49,16 +57,20 @@ rnd = random.Random(7)
 auto = []
 for k in range(40):
     tt = round(0.1 + k * 0.19, 4)
-    d = rnd.choice(['kick1', 'kick2', 'snare1', 'snare2', 'tom1', 'tom3', 'tom5', 'gong', 'octo2'])
+    d = rnd.choice(['kick1', 'kick2', 'snare1', 'snare4', 'tom1', 'tom3', 'tom5', 'gong', 'octo2'])
     if rnd.random() < 0.5:
         auto.append([tt, f'{d}_level', round(rnd.uniform(-18, 3), 2)])
     else:
         auto.append([tt, f'{d}_pan', round(rnd.uniform(-1, 1), 2)])
 auto.append([2.0, 'snare_buzz', 0.9])
+for k, (sw, on) in enumerate([('snare1_snares', 0), ('snare4_snares', 0), ('snare1_snares', 1), ('snare4_snares', 1),
+                              ('snare1_snares', 0), ('snare1_snares', 1)]):
+    auto.append([round(0.9 + k * 1.1, 4), sw, on])
+auto.sort(key=lambda a: a[0])
 auto.append([5.0, 'main_volume', -4.0])
 stereo = {'sample_rate': sr, 'block': 256, 'duration': 8.0,
           'params': {'snare_buzz': 0.6, 'tom3_lug_detune': 0.6, 'snare1_lug_detune': 0.4},
           'automation': auto,
-          'events': [[round(t, 6), ROW_ID[(d, a)], int(round(20 + 107 * v))] for t, d, a, v in ev]}
+          'events': [[round(t, 6), row_id(d, a), int(round(20 + 107 * v))] for t, d, a, v in ev]}
 json.dump(stereo, open(os.path.join(HERE, 'kit_busy_stereo.json'), 'w'), indent=0)
 print(len(ev), 'hits,', len(auto), 'parameter moves')

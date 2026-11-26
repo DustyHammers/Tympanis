@@ -78,7 +78,7 @@ void WireView::setDrum (int d)
     repaint();
 }
 
-void WireView::setDepths (const std::array<double, 17>& offsetsIn)
+void WireView::setDepths (const std::array<double, wire::kDrumCount>& offsetsIn)
 {
     if (offsetsIn == depthOff)
         return;
@@ -617,10 +617,7 @@ void WireView::mouseUp (const juce::MouseEvent& e)
     const int i = itemAt (e.position + designArea.getPosition().toFloat());
     if (i < 0 || ! onDrumClicked)
         return;
-    int d = items[(size_t) i].drum;
-    if (d == 2 && shownDrum == 2)
-        d = 3; // Snare 1 selected: a click on it gives Snare 2 (the same drum, wires off)
-    onDrumClicked (d);
+    onDrumClicked (items[(size_t) i].drum);
 }
 
 } // namespace tympanis::ui

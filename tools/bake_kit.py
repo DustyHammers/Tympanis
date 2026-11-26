@@ -26,13 +26,16 @@ sys.path.insert(0, os.path.join(ROOT, 'prototype'))
 import engine as E  # noqa: E402
 
 # Kit order: this is the drum index order used by the C++ kit (and the snare-buzz order).
+# Snare 1 and Snare 2 are the Snare's wires-on and wires-off models, Snare 4 and snare4_off the
+# Popcorn Snare's (Kris, 2026-11-26; plugin/KitMap.h). Snare 1 and 2 keep their places (2 and 3),
+# and the toms theirs, so they play the same bits as before Snare 3 left the kit.
 KIT = [
     ('kick1',   'KICK_705_SPkick2_DRY7S'),
     ('kick2',   'KICK_707_SPkick2_DRY7S'),
     ('snare1',  'SNRE_720_SPsnare1_shared'),
     ('snare2',  'SNRE_722_SPsnare2_shared'),
-    ('snare3',  'SNRE_724_SPsnare3_shared'),
     ('snare4',  'SNRE_725_SPsnare4_shared'),
+    ('snare4_off', 'SNRE_725_SPsnare4_off_derived'),   # tools/snares_off.py
     ('tom1',    'TOM_729_SPtom1_DRY7S'),
     ('tom2',    'TOM_730_SPtom2_DRY7S'),
     ('tom3',    'TOM_731_SPtom3_DRY7S'),
@@ -49,7 +52,15 @@ KIT = [
 # every snare 14" (Kris, 2026-11-24: Snare 4 is a 10" snare). native_in is only the Size
 # parameter's reference: at the catalog size the drum sounds as modelled (sf = 1); its range is
 # 0.5x .. 2x that. Nothing else in the bake depends on it.
-CATALOG_IN = {'snare4': 10.0}
+CATALOG_IN = {'snare4': 10.0, 'snare4_off': 10.0}
+# Baked and checked like the kit's drums, but not in the kit (not in kit.bake.json, not packed into
+# the plugin): Snare 3, taken out of the plugin with its model kept (Kris, 2026-11-26).
+RESERVED = [
+    ('snare3',  'SNRE_724_SPsnare3_shared'),
+]
+# Snares with no sympathetic head bank and wire buzz: the Popcorn Snare's wires-off model only
+# plays when hit, so the kit's buzz stays as it was (Kris, 2026-11-26).
+NO_SYM = {'snare4_off'}
 GRID_STEP = 0.01          # radius grid r = i / 100, i = 0 .. 95 (0 = centre, 0.95 = max strike_pos)
 GRID_N = 96
 SR = E.SR
@@ -152,7 +163,7 @@ def bake_drum(key, model):
         'strike_gain_grid': gain_grid,
         'shape2_grid': shape_grid,
     }
-    if out['kind'] == 'snare':
+    if out['kind'] == 'snare' and key not in NO_SYM:
         k = E.Kit({key: d}, snare_buzz=0.5)
         S = k.sym[key]
         out['sym'] = {'freq': fl(S['F']), 'decay': fl(S['D']), 'w': fl(S['w']), 'href': float(S['href']),
@@ -190,7 +201,7 @@ def main():
         'burst_bands': [[float(lo), float(hi)] for lo, hi in E.BURST_BANDS],
         'burst_norm_corr': burst_corr(),
     }
-    for key, model in KIT:
+    for key, model in KIT + RESERVED:
         files[f'{key}.bake.json'] = bake_drum(key, model)
     bad = []
     os.makedirs(a.out, exist_ok=True)

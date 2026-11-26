@@ -169,6 +169,9 @@ double pedalSwing (double secondsSinceHit);
 
 // ---- The drums of the plugin (KitMap.h order) as drawn on the DRUM and TUNING pages, and the kit.
 
+// The plugin's drums (KitMap.h kDrums.size(); the editor checks they agree).
+constexpr int kDrumCount = 15;
+
 struct DrumLook
 {
     Kind kind;
@@ -194,8 +197,8 @@ struct Framed
 enum class Scale { kit, own };
 Framed frameDrum (int drum, Pt centre, double maxW, double maxH, double depthOffIn = 0, Scale scale = Scale::own);
 
-// The KIT page: the drums drawn (Snare 1 stands for Snare 1 and 2; Snare 3, the gong drum and
-// the octobans are not drawn for now), in the approved layout.
+// The KIT page: the drums drawn (the gong drum and the octobans are not drawn for now), in the
+// approved layout.
 struct KitItem
 {
     int drum;       // KitMap.h index
@@ -207,7 +210,7 @@ const std::vector<KitItem>& kitLayout();
 // kick; the head moves along the axis, down when shallower; Kris, 2026-11-25).
 DrumSpec kitSpec (const KitItem& item, double depthOffIn);
 Camera kitCamera();
-// The kit item a drum is drawn as (Snare 2 as Snare 1), or -1.
+// The kit item a drum is drawn as, or -1.
 int kitItemForDrum (int drum);
 
 } // namespace tympanis::ui::wire
