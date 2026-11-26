@@ -23,6 +23,8 @@
 #include <cstdint>
 #include <vector>
 
+namespace dhpool { class JobPool; } // third_party/dhpool (a copy of Cymbalis's shared/dhpool)
+
 namespace tympanis
 {
 
@@ -72,6 +74,8 @@ public:
     double decayMul(double f) const;            // multiplies decay rates (decay parameter)
     const DrumData& data() const { return *d_; }
     bool silent() const { return ! bankActive_ && ! twinActive_ && nTr_ == 0 && nPulse_ == 0 && nBurst_ == 0 && ! noiseActive_; }
+    // The modal slots ringing: the kit's cost estimate for rendering this drum (heaviest first).
+    int ringingSlots() const { return nAct_; }
     double bandNorm(int j) const { return bnorm_[(size_t) j]; }
 
     // Test hook: replace all noise by silence (deterministic output for the reference test).
@@ -182,6 +186,12 @@ public:
     void setSnareBuzz(double x) { buzz_ = x < 0 ? 0 : x > 1 ? 1 : x; }
     void setNoiseless(bool b);
 
+    // The pool the drums render through (borrowed: the caller owns it, prepares it off the audio
+    // path and may share it, as the merged kit will with the cymbals). nullptr (the default): every
+    // drum on the calling thread, as before. The output is bit-identical either way, at any
+    // number of threads (docs/ENGINE.md, "Kit").
+    void setPool(dhpool::JobPool* pool) { pool_ = pool; }
+
     // Writes n samples (mono kit mix, every drum at unity) to out.
     void render(double* out, int n);
 
@@ -205,6 +215,7 @@ private:
         NoiseBank wires;                      // gain per band: band norm x wire-noise peak
     };
     void renderChunk(double* out, double* L, double* R, int n);
+    static void renderDrumJob(void* kit, int drum); // one drum into its own buffer (a pool job)
 
     const KitData* data_ = nullptr;
     std::vector<Drum> drums_;
@@ -215,6 +226,9 @@ private:
     std::vector<std::vector<double>> outs_;
     std::vector<double> mix_, head_, drive_, wire_;
     std::vector<double> gainL_, gainR_, targetL_, targetR_;
+    dhpool::JobPool* pool_ = nullptr;
+    std::vector<int> runOrder_, quiet_;   // per chunk: the drums to share, heaviest first; the silent ones
+    int jobN_ = 0;                        // the chunk's length, for the jobs
 };
 
 } // namespace tympanis

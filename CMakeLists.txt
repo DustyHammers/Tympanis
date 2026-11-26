@@ -10,7 +10,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(TYMPANIS_BUILD_PLUGIN "Build the JUCE plugin (VST3/AU)" ON)
 
-# Engine and console tools (no JUCE).
+# The shared job pool (a copy of Cymbalis's shared/dhpool, third_party/dhpool/SOURCE.md; its
+# self-test dhpool_selftest comes with it), then the engine and console tools (no JUCE).
+add_subdirectory(third_party/dhpool)
 add_subdirectory(plugin/dsp)
 add_subdirectory(tools/tympanis_render)
 

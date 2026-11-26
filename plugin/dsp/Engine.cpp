@@ -1,5 +1,7 @@
 #include "Engine.h"
 
+#include "JobPool.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -824,6 +826,8 @@ void Kit::init(const KitData* data, bool restrikeDamp, bool variation, int chunk
         sym_.push_back(std::move(s));
     }
     outs_.assign(drums_.size(), std::vector<double>((size_t) chunk_, 0.0));
+    runOrder_.assign(drums_.size(), 0);
+    quiet_.assign(drums_.size(), 0);
     mix_.assign((size_t) chunk_, 0); head_.assign((size_t) chunk_, 0); drive_.assign((size_t) chunk_, 0); wire_.assign((size_t) chunk_, 0);
     gainL_.assign(drums_.size(), 1.0); gainR_ = gainL_; targetL_ = gainL_; targetR_ = gainL_;
 }
@@ -880,14 +884,45 @@ void Kit::renderStereo(double* L, double* R, int n)
     for (int k = 0; k < n; k += chunk_) renderChunk(nullptr, L + k, R + k, std::min(chunk_, n - k));
 }
 
+void Kit::renderDrumJob(void* kit, int drum)
+{
+    Kit& k = *static_cast<Kit*>(kit);
+    double* o = k.outs_[(size_t) drum].data();
+    std::fill(o, o + k.jobN_, 0.0);
+    k.drums_[(size_t) drum].render(o, k.jobN_);
+}
+
+// The chunk in four stages. 1: every drum renders into its own buffer; each drum has its own state
+// and random sequences and reads only its own and the kit's read-only data, so the drums that are
+// sounding go through the pool (if any), heaviest first, and the silent ones are rendered here
+// after it (they cost little and keep their state as before). 2-4 stay on this thread, in this
+// order, as before: 2: the mix, summed in drum order (so the same bits at any thread count);
+// 3: the snare buzz, each snare driven by the mix with the earlier snares' sympathetic ring and
+// wires in it (serial by nature); 4: the per-drum gain ramps into L and R, in drum order, after
+// the snare pass has added into the snares' own buffers.
 void Kit::renderChunk(double* out, double* L, double* R, int n)
 {
+    int nRun = 0, nQuiet = 0;
+    for (int d = 0; d < (int) drums_.size(); ++d)
+    {
+        if (drums_[(size_t) d].silent()) { quiet_[(size_t) nQuiet++] = d; continue; }
+        // heaviest first: by ringing slots, most first (ties keep drum order); insertion sort, 17 at most
+        const int c = drums_[(size_t) d].ringingSlots();
+        int k = nRun++;
+        while (k > 0 && drums_[(size_t) runOrder_[(size_t) k - 1]].ringingSlots() < c) { runOrder_[(size_t) k] = runOrder_[(size_t) k - 1]; --k; }
+        runOrder_[(size_t) k] = d;
+    }
+    jobN_ = n;
+    if (pool_ != nullptr && nRun >= 2)
+        pool_->run(nRun, runOrder_.data(), &Kit::renderDrumJob, this);
+    else
+        for (int k = 0; k < nRun; ++k) renderDrumJob(this, runOrder_[(size_t) k]);
+    for (int k = 0; k < nQuiet; ++k) renderDrumJob(this, quiet_[(size_t) k]);
+
     std::fill(mix_.begin(), mix_.begin() + n, 0.0);
     for (size_t d = 0; d < drums_.size(); ++d)
     {
-        double* o = outs_[d].data();
-        std::fill(o, o + n, 0.0);
-        drums_[d].render(o, n);
+        const double* o = outs_[d].data();
         for (int i = 0; i < n; ++i) mix_[(size_t) i] += o[i];
     }
     if (buzz_ > 0)

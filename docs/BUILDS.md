@@ -71,3 +71,9 @@ Not notarized: builds are for Kris's own machines (the quarantine step above).
 ## JUCE splash screen
 
 The plugin is built with `JUCE_DISPLAY_SPLASH_SCREEN=0` (Kris, 2026-11-25, as Cymbalis): no "Made with JUCE" logo when the editor opens. Whether the JUCE licence in use allows that is Kris's to settle.
+
+## dhpool (the shared job pool)
+
+`third_party/dhpool/` is a copy of Cymbalis's `shared/dhpool/` (github.com/DustyHammers/Cymbalis), the job pool both plugins, and the kit that merges them, render through. `third_party/dhpool/SOURCE.md` records the commit it was copied at (`cf9aad1`, 2026-11-25) and its version (1). The build adds it as its own target (`dhpool`, linked by the engine) with its self-test `dhpool_selftest`, which CI runs on the Mac and on Linux.
+
+**It is never edited here.** A change is made in Cymbalis; then the whole folder is copied again at the new Cymbalis commit (byte for byte, nothing else from Cymbalis) and `SOURCE.md` updated, in a pull request of its own, and the checks (the same bits at 1-3 threads, ThreadSanitizer) run on it.
