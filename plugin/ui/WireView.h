@@ -49,6 +49,10 @@ public:
     // A change redraws the still drawing (kit: the whole kit; drum, small: if the drum shown).
     void setDepths (const std::array<double, wire::kDrumCount>& offsetsIn);
 
+    // The snares' SNARES switches (KitMap.h order; true: off): their throw-off levers follow.
+    // A change redraws the still drawing (kit: the whole kit; drum, small: if the drum shown).
+    void setSnaresOff (const std::array<bool, wire::kDrumCount>& offIn);
+
     // A strike on a drum: its head moves and flashes (drum: only if it is the drum shown; small:
     // never). rpos: 0 centre .. 1 edge. ageSeconds: how long ago it struck (tools).
     void strike (int drum, float velocity, double rpos, double ageSeconds = 0.0);
@@ -118,6 +122,7 @@ private:
     wire::Finish finish = wire::Finish::green;
     int shownDrum = 8;
     std::array<double, wire::kDrumCount> depthOff {};
+    std::array<bool, wire::kDrumCount> snaresOff {};
 
     float builtScale = 0.0f;
     bool needsBuild = true;

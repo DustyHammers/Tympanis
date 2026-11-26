@@ -7,14 +7,14 @@
 //   drum-tom3-960.png       the same at the smallest size, 960 x 640
 //   drum-snare-hit.png      DRUM page, the Snare 50 ms after a full-velocity head hit
 //   drum-<key>.png          DRUM page, every other drum at rest
-//   kit-tom3.png            KIT page, Tom 3 selected
+//   kit-tom3.png            KIT page, Tom 3 selected (the gong drum on the right)
 //   kit-snare1-hit.png      KIT page, Tom 3 selected, the Snare 50 ms after a hit
 //   kit-pedals.png          KIT page at rest: the bass drum pedals
 //   kit-kick-hits.png       KIT page: Kick 1's pedal at its hit, Kick 2's 60 ms after its hit
 //   tuning-tom3.png         TUNING page, Tom 3
 //   tuning-kick1.png        TUNING page, Kick 1 (no Strike Position)
 //   tuning-snare1.png       TUNING page, the Snare: its SNARES switch on (Size greyed out)
-//   tuning-snare1-off.png   the same with the switch off
+//   tuning-snare1-off.png   the same with the switch off (the throw-off's lever down)
 //   tuning-snare4.png       TUNING page, the Popcorn Snare
 //   kit-toms-shallow.png    KIT page, Toms 1-4 at their shallowest (Size -4"): lower on the kicks
 //   drum-tom1-shallow.png   DRUM page, Tom 1 at 6" deep

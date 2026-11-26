@@ -29,6 +29,8 @@ constexpr Palette kGreen { { 64, 158, 80 }, { 128, 232, 150 }, { 30, 60, 28 } };
 constexpr Palette kNatural { { 244, 214, 162 }, { 255, 246, 226 }, { 150, 112, 64 } }; // natural lacquered maple
 const Palette& paletteOf (Finish f) { return f == Finish::natural ? kNatural : kGreen; }
 constexpr Rgb kChrome { 220, 216, 214 };   // hoops, lugs, claws
+constexpr Rgb kBrass { 214, 170, 84 };     // the air vents' grommets
+constexpr Rgb kRubber { 96, 92, 90 };      // the throw-off lever's grip
 constexpr Rgb kChromeD { 156, 152, 150 };
 constexpr Rgb kHead { 222, 204, 178 };     // coated head, pale cream
 constexpr Rgb kHot { 255, 238, 215 };
@@ -475,10 +477,15 @@ struct DrumBuilder
         hBot = twoEnds ? d - (0.45 + y0) : d;
         int best = 0, dir = 1;
         double bestF = -2;
+        const int strainerGap = s.kind == Kind::snare ? frontGap() : -1;
         for (int k = 0; k < nl; ++k)
             for (int sg : { -1, 1 })
             {
                 const double tk = 2 * kPi * (k + 0.5) / nl, tn = tk + sg * 2 * kPi / nl;
+                // not across a snare's throw-off
+                const int gapCrossed = ((sg > 0 ? k + 1 : k) % nl + nl) % nl;
+                if (gapCrossed == strainerGap)
+                    continue;
                 const Pt sTop = cam.project (C - hTop * a + r * normalAt (tk)), sBot = cam.project (C - hBot * a + r * normalAt (tn));
                 if (sBot.x >= sTop.x)
                     continue; // down to the left
@@ -494,6 +501,32 @@ struct DrumBuilder
             }
         tTop = 2 * kPi * (best + 0.5) / nl;
         tBot = tTop + dir * 2 * kPi / nl;
+    }
+
+    // Which lug gap (angle 2 pi k / nl) faces the camera most: the snares' throw-off goes there.
+    double facing (double t) const
+    {
+        const V3 n = normalAt (t);
+        const V3 vd = cam.pos - (C - 0.5 * d * a + r * n);
+        return dot (vd, n) / length (vd);
+    }
+    int frontGap() const
+    {
+        const int nl = std::max (3, s.lugs);
+        int best = 0;
+        for (int k = 1; k < nl; ++k)
+            if (facing (2 * kPi * k / nl) > facing (2 * kPi * best / nl))
+                best = k;
+        return best;
+    }
+    // the gap next to gap g that is to the right on screen
+    int gapRight (int g) const
+    {
+        const int nl = std::max (3, s.lugs);
+        const double tg = 2 * kPi * g / nl;
+        const Pt p0 = cam.project (C - 0.5 * d * a + r * normalAt (tg));
+        const Pt pp = cam.project (C - 0.5 * d * a + r * normalAt (tg + 2 * kPi / nl));
+        return pp.x > p0.x ? (g + 1) % nl : (g + nl - 1) % nl;
     }
 
     void shell()
@@ -839,19 +872,172 @@ struct DrumBuilder
         }
     }
 
+    // The snares' throw-off (Kris's photo of his Starclassic snare, mockup approved 2026-11-26) in
+    // the lug gap facing the camera, the butt end opposite: the lever up with the snares on, down
+    // with them off (the SNARES switch). Inches: x around the shell (+ to tg), H down from the
+    // batter edge, o out from the shell.
     void snareParts()
     {
-        // the strainer on the shell's side, and the butt end opposite
-        for (auto [t, h] : { std::pair<double, double> { -0.55 * kPi, 2.2 }, { 0.45 * kPi, 1.4 } })
+        const int nl = std::max (3, s.lugs);
+        const double ts = 2 * kPi * frontGap() / nl;
+        throwOff (ts, s.snaresOff);
+        butt (ts + kPi);
+    }
+    struct Local
+    {
+        V3 P0, n, tg, ax;
+        V3 at (double x, double H, double o) const { return P0 + x * tg + H * ax + o * n; }
+    };
+    Local localAt (double t) const
+    {
+        Local L;
+        L.n = normalAt (t);
+        L.tg = -std::sin (t) * u + std::cos (t) * v;
+        L.ax = -1.0 * a;
+        L.P0 = C + r * L.n;
+        return L;
+    }
+    // a box from (x0,H0,o0) to (x1,H1,o1): its front face, its edges back to the shell and its top
+    void box (const Local& L, double x0, double x1, double H0, double H1, double o0, double o1, Rgb c, bool round = false)
+    {
+        std::vector<V3> f;
+        if (round)
         {
-            const V3 n = normalAt (t), tg = -std::sin (t) * u + std::cos (t) * v;
-            const V3 P = C - 0.5 * d * a + r * n;
-            if (! vis (P, n))
-                continue;
-            poly ({ P + 0.8 * tg + (h / 2) * a + 0.5 * n, P - 0.8 * tg + (h / 2) * a + 0.5 * n, P - 0.8 * tg - (h / 2) * a + 0.5 * n,
-                    P + 0.8 * tg - (h / 2) * a + 0.5 * n },
-                  kChrome * bright, 1, false, true);
+            const double rr = std::min (0.18, 0.3 * std::min (x1 - x0, H1 - H0));
+            const double cx[4] = { x1 - rr, x1 - rr, x0 + rr, x0 + rr }, cy[4] = { H0 + rr, H1 - rr, H1 - rr, H0 + rr };
+            const double a0[4] = { -0.5 * kPi, 0, 0.5 * kPi, kPi };
+            for (int q = 0; q < 4; ++q)
+                for (int i = 0; i <= 4; ++i)
+                {
+                    const double t = a0[q] + 0.5 * kPi * i / 4;
+                    f.push_back (L.at (cx[q] + rr * std::cos (t), cy[q] + rr * std::sin (t), o1));
+                }
         }
+        else
+            f = { L.at (x0, H0, o1), L.at (x1, H0, o1), L.at (x1, H1, o1), L.at (x0, H1, o1) };
+        poly (f, c, 1, false, true);
+        for (double x : { x0, x1 })
+            for (double H : { H0, H1 })
+                line (L.at (x, H, o1), L.at (x, H, o0), c * 0.8);
+        line (L.at (x0, H0, o0), L.at (x1, H0, o0), c * 0.7);
+    }
+    void circle (V3 c0, V3 e1, V3 e2, double rr, Rgb col, int n = 20)
+    {
+        std::vector<V3> pts;
+        for (int i = 0; i < n; ++i)
+        {
+            const double t = 2 * kPi * i / n;
+            pts.push_back (c0 + rr * std::cos (t) * e1 + rr * std::sin (t) * e2);
+        }
+        poly (pts, col, 1, false, true);
+    }
+    void throwOff (double ts, bool off)
+    {
+        const Local L = localAt (ts);
+        if (! vis (L.at (0, 0.5 * d, 0), L.n))
+            return;
+        const Rgb ch = chromeCol (L.n) * bright, chD = kChromeD * bright;
+        const double bTop = d - 3.5, bBot = d - 1.3; // the body
+        // the back plate and the body, the blank plate on its front
+        box (L, -0.72, 0.72, bTop - 0.1, bBot + 0.1, 0.0, 0.08, chD * 0.8, true);
+        box (L, -0.62, 0.62, bTop, bBot, 0.08, 0.85, ch, true);
+        box (L, -0.45, 0.45, bTop + 1.0, bBot - 0.25, 0.85, 0.9, ch * 0.85, true);
+        // the knurled tension knob on top, its axis along the shell
+        {
+            const double kx = 0.18, ko = 0.5, kr = 0.27, h0 = bTop, h1 = bTop - 0.62;
+            circle (L.at (kx, h0, ko), L.tg, L.n, kr, ch);
+            circle (L.at (kx, h1, ko), L.tg, L.n, kr, ch);
+            circle (L.at (kx, h1 - 0.04, ko), L.tg, L.n, kr * 0.6, ch * 0.9);
+            for (int i = 0; i < 10; ++i)
+            {
+                const double t = 2 * kPi * i / 10;
+                const V3 e = kr * (std::cos (t) * L.tg + std::sin (t) * L.n);
+                line (L.at (kx, h0, ko) + e, L.at (kx, h1, ko) + e, ch * 0.8);
+            }
+            // its threaded post down into the body
+            line (L.at (kx, h0, ko), L.at (kx, bTop + 0.05, ko), chD);
+        }
+        // the lever: pivot at the body's upper left, up and to the left when on, down when off
+        {
+            const double px = -0.5, pH = bTop + 0.55, po = 0.95;
+            double dx = -0.72, dH = off ? 0.69 : -0.69;
+            const double nrm = std::sqrt (dx * dx + dH * dH);
+            dx /= nrm;
+            dH /= nrm;
+            const double qx = -dH, qH = dx; // across the lever
+            auto P = [&] (double along, double across, double o) { return L.at (px + along * dx + across * qx, pH + along * dH + across * qH, o); };
+            circle (L.at (px, pH, po), L.tg, -1.0 * L.ax, 0.2, ch);
+            poly ({ P (0, -0.1, po), P (1.5, -0.1, po + 0.15), P (1.5, 0.1, po + 0.15), P (0, 0.1, po) }, ch, 1, false, true);
+            // the grip: a block with grooves across it
+            const double g0 = 1.4, g1 = 2.9, gw = 0.32, o0 = po, o1 = po + 0.45;
+            std::vector<V3> top { P (g0, -gw, o1), P (g1, -gw, o1), P (g1, gw, o1), P (g0, gw, o1) };
+            poly (top, kRubber * bright, 1, false, true);
+            for (double al : { g0, g1 })
+                for (double ac : { -gw, gw })
+                    line (P (al, ac, o1), P (al, ac, o0), kRubber * (0.8 * bright));
+            poly ({ P (g0, -gw, o0), P (g1, -gw, o0), P (g1, gw, o0), P (g0, gw, o0) }, kRubber * (0.7 * bright), 1, false, true);
+            for (int i = 1; i <= 4; ++i)
+            {
+                const double al = g0 + 0.35 + (g1 - g0 - 0.5) * i / 5;
+                line (P (al, -gw * 0.8, o1 + 0.01), P (al, gw * 0.8, o1 + 0.01), kRubber * (1.25 * bright));
+            }
+        }
+        // the slide down to the clamp under the bottom hoop, its two screws, the snare cord
+        box (L, -0.42, 0.42, bBot, d + 0.35, 0.1, 0.55, chD);
+        box (L, -0.8, 0.8, d + 0.35, d + 0.95, 0.05, 0.75, ch, true);
+        for (double x : { -0.55, 0.55 })
+            circle (L.at (x, d + 0.72, 0.77), L.tg, -1.0 * L.ax, 0.12, ch * 0.9, 12);
+        for (double x : { -0.3, 0.3 })
+        {
+            std::vector<V3> cord;
+            for (int i = 0; i <= 12; ++i)
+            {
+                const double f = i / 12.0;
+                const double o = 0.35 - 2.4 * f, H = d + 0.95 + (off ? 0.55 : 0.12) * std::sin (kPi * f) - 0.7 * f;
+                cord.push_back (L.at (x * (1 - 0.6 * f) + 0.15 * std::sin (6 * f) * (x > 0 ? 1 : -1), H, o));
+            }
+            poly (cord, kChromeD * (0.75 * bright));
+        }
+    }
+    void butt (double tb)
+    {
+        const Local L = localAt (tb);
+        if (! vis (L.at (0, 0.5 * d, 0), L.n))
+            return;
+        const Rgb ch = chromeCol (L.n) * bright;
+        box (L, -0.55, 0.55, d - 1.9, d - 0.5, 0.05, 0.6, ch, true);
+        box (L, -0.8, 0.8, d + 0.35, d + 0.95, 0.05, 0.75, ch, true);
+    }
+
+    // The air vent (mockup approved 2026-11-26): a brass grommet in a lug gap facing the camera
+    // (snares: the gap to the right of the throw-off; the others: not the seam's gap). The gong
+    // drum and the octobans have none (Kris).
+    void vent()
+    {
+        if (s.kind == Kind::octo || s.kind == Kind::gong)
+            return;
+        const int nl = std::max (3, s.lugs);
+        int g = frontGap();
+        if (s.kind == Kind::snare)
+            g = gapRight (g);
+        else
+        {
+            double tTop, tBot, hTop, hBot;
+            seam (tTop, tBot, hTop, hBot);
+            const int seamGap = (int) std::lround (0.5 * (tTop + tBot) / (2 * kPi / nl));
+            if (((seamGap % nl) + nl) % nl == g)
+                g = gapRight (g);
+        }
+        const double t = 2 * kPi * g / nl;
+        const double H = s.kind == Kind::snare ? 0.42 * d : s.kind == Kind::kick ? 0.4 * d : 0.45 * d;
+        const Local L = localAt (t);
+        if (! vis (L.at (0, H, 0), L.n))
+            return;
+        const double l = std::clamp (dot (L.n, kLight), 0.0, 1.0);
+        const Rgb c = kBrass * ((0.75 + 0.45 * l) * bright);
+        circle (L.at (0, H, 0.04), L.tg, L.ax, 0.3, c, 24);
+        circle (L.at (0, H, 0.06), L.tg, L.ax, 0.22, c * 1.1, 20);
+        circle (L.at (0, H, 0.02), L.tg, L.ax, 0.13, c * 0.6, 16);
     }
 
     std::vector<Pt> hull (double dr, double front, double back) const { return hull2 (r + dr, front, r + dr, back); }
@@ -941,6 +1127,7 @@ struct DrumBuilder
         out.segments.reserve (12000);
         shell();
         hardware();
+        vent();
         // the gong drum: only its shell hides the hardware behind it (its wider head would hide
         // the lugs at the sides, Kris 2026-11-24)
         out.bodyHull = s.kind == Kind::gong ? hull (0.0, 0.0, -d) : hull (0.25, 0.55, -d - 0.55);
@@ -1423,6 +1610,9 @@ const std::vector<KitItem>& kitLayout()
         // the floor toms side by side, coming toward the camera, turned slightly to the snare
         it.push_back ({ 8, { Kind::floor, { 27.5, -1, 20.5 }, { -0.12, -0.08, 1.0 }, 8, 16, 8 }, 0 });
         it.push_back ({ 9, { Kind::floor, { 37.5, -18, 21.5 }, { -0.14, -0.06, 1.0 }, 9, 16, 8 }, 0 });
+        // the gong drum on its stand right of the floor toms, tilted to the drummer (Kris's markup,
+        // mockup approved 2026-11-26)
+        it.push_back ({ 10, { Kind::gong, { 54, -6, 32 }, { -0.75, -0.6, 1.0 }, 10, 14, 10, 11 }, 0 });
         return it;
     }();
     return items;

@@ -134,6 +134,7 @@ struct DrumSpec
     double r, d;
     int lugs;
     double headR = 0;
+    bool snaresOff = false; // a snare: its throw-off's lever down (the SNARES switch off)
 };
 
 // A drum drawn by a camera: its lines (without the batter head's mesh), the hull of its body
@@ -207,8 +208,7 @@ struct Framed
 enum class Scale { kit, own };
 Framed frameDrum (int drum, Pt centre, double maxW, double maxH, double depthOffIn = 0, Scale scale = Scale::own);
 
-// The KIT page: the drums drawn (the gong drum and the octobans are not drawn for now), in the
-// approved layout.
+// The KIT page: the drums drawn (the octobans are not drawn for now), in the approved layout.
 struct KitItem
 {
     int drum;       // KitMap.h index
