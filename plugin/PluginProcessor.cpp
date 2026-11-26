@@ -59,6 +59,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout TympanisProcessor::createLay
         if (kDrums[d].engineOff >= 0)
             group->addChild(std::make_unique<juce::AudioParameterBool>(juce::ParameterID { pid(d, "snares"), 1 }, name + " Snares", true,
                 juce::AudioParameterBoolAttributes().withStringFromValueFunction([](bool on, int) { return juce::String(on ? "On" : "Off"); })));
+        // Snare Wire Tension (Kris, 2026-11-26): 0 tight, as recorded (default) .. 1 loose; the
+        // wires-on model only
+        if (kDrums[d].engineOff >= 0)
+            group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "wire_tension"), 1 }, name + " Snare Wire Tension",
+                juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f), 0.0f));
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "tune"), 1 }, name + " Tune",
             juce::NormalisableRange<float>(-2.0f, 2.0f, 0.01f), 0.0f, A().withLabel("st")));
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "lug_detune"), 1 }, name + " Lug Detune",
@@ -108,6 +113,7 @@ TympanisProcessor::TympanisProcessor()
         p.pan = params.getRawParameterValue(pid(d, "pan"));
         p.velSens = params.getRawParameterValue(pid(d, "vel_sens"));
         p.snares = kDrums[d].engineOff >= 0 ? params.getRawParameterValue(pid(d, "snares")) : nullptr;
+        p.wire = kDrums[d].engineOff >= 0 ? params.getRawParameterValue(pid(d, "wire_tension")) : nullptr;
     }
     buzzParam = params.getRawParameterValue("snare_buzz");
     mainParam = params.getRawParameterValue("main_volume");
@@ -136,6 +142,10 @@ TympanisProcessor::TympanisProcessor()
             for (const auto& r : kRows)
                 if (juce::String(r.id) == t.row)
                     kit.drum(kDrums[(size_t) r.drum].engine).setArtTrim(r.art, std::pow(10.0, t.db / 20.0));
+        // Snare Wire Tension: the wires' share of each mode's damping, from the snares-off model
+        for (const auto& info : kDrums)
+            if (info.engineOff >= 0)
+                kit.drum(info.engine).setWireShares(wireShares(kitData->drums[(size_t) info.engine], kitData->drums[(size_t) info.engineOff]));
         kitLoaded = true;
     }
     catch (const std::exception& e)
@@ -206,6 +216,9 @@ void TympanisProcessor::applyParameters()
             if (const float v = p.strike->load(); changed(3, v)) each([&](Drum& dr) { dr.setStrikePos(v); });
         // the head's size is the recorded one (Size no longer scales it); Size is the shell's depth
         if (const float v = p.size->load(); changed(4, v) && kDrums[d].depth) each([&](Drum& dr) { dr.setDepth(kDrums[d].depthIn, v); });
+        // Snare Wire Tension: the wires-on model only (the wires-off one has no wires on it)
+        if (p.wire != nullptr)
+            if (const float v = p.wire->load(); changed(5, v)) kit.drum(kDrums[d].engine).setWireTension(v);
         // level, and pan with the -3 dB compensated constant-power law (0 dB in the centre)
         const double g = dbGain(p.level->load()) * main;
         const double th = juce::MathConstants<double>::pi * 0.25 * (juce::jlimit(-1.0f, 1.0f, p.pan->load()) + 1.0);

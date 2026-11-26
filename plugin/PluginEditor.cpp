@@ -32,8 +32,9 @@ constexpr float kKnobEndBelow = 77.0f;   // its end labels' ink top, below its c
 constexpr float kKnobEndSide = 73.0f;    // and their centres, each side
 
 // TUNING page: the rows' tops, the slider, the number box, the reset arrow.
-constexpr int kTuneFirstRow = 160, kTuneRowStep = 62;
-constexpr int kKitBandTop = 682, kKitFirstRow = 742;
+// The drum's rows are 56 apart (9 on the snares; Kris, 2026-11-26, layout A), the WHOLE KIT rows 62.
+constexpr int kTuneFirstRow = 160, kTuneRowStep = 62, kDrumRowStep = 56;
+constexpr int kKitBandTop = 682, kKitFirstRow = 742, kButtonsY = 892;
 constexpr float kSliderX0 = 640.0f, kSliderX1 = 1236.0f;
 constexpr float kThumbRadius = 7.0f;
 const juce::Rectangle<int> kNumberBox (1256, -3, 104, 24); // y relative to the row's top
@@ -996,6 +997,7 @@ const std::array<TuneRow::Spec, 7> kDrumTuneSpecs { {
     { "pan", true, "PAN", TuneRow::Format::pan, true, "L", "R" },
 } };
 const TuneRow::Spec kSnaresSpec { "snares", true, "SNARES", TuneRow::Format::onOff, false, "OFF", "ON" };
+const TuneRow::Spec kWireSpec { "wire_tension", true, "WIRE TENSION", TuneRow::Format::plain, false, "TIGHT", "LOOSE" };
 const std::array<TuneRow::Spec, 2> kKitTuneSpecs { {
     { "snare_buzz", false, "SNARE BUZZ", TuneRow::Format::plain, false, "OFF", "FULL" },
     { "main_volume", false, "MAIN VOLUME", TuneRow::Format::decibels, false, nullptr, nullptr },
@@ -1113,6 +1115,8 @@ Content::Content (TympanisProcessor& p)
     }
     snaresRow = std::make_unique<TuneRow> (assets, processor.params, kSnaresSpec);
     addChildComponent (*snaresRow);
+    wireRow = std::make_unique<TuneRow> (assets, processor.params, kWireSpec);
+    addChildComponent (*wireRow);
     for (size_t i = 0; i < kitTuneRows.size(); ++i)
     {
         kitTuneRows[i] = std::make_unique<TuneRow> (assets, processor.params, kKitTuneSpecs[i]);
@@ -1120,11 +1124,11 @@ Content::Content (TympanisProcessor& p)
         addChildComponent (*kitTuneRows[i]);
     }
     resetDrumButton = std::make_unique<FooterButton> (assets, "RESET DRUM");
-    resetDrumButton->setBounds (1124, 892, 160, 34);
+    resetDrumButton->setBounds (1124, kButtonsY, 160, 34);
     resetDrumButton->onClick = [this] { resetParams (false); };
     addChildComponent (*resetDrumButton);
     resetAllButton = std::make_unique<FooterButton> (assets, "RESET ALL");
-    resetAllButton->setBounds (1300, 892, 160, 34);
+    resetAllButton->setBounds (1300, kButtonsY, 160, 34);
     resetAllButton->onClick = [this] { resetParams (true); };
     addChildComponent (*resetAllButton);
 
@@ -1184,6 +1188,7 @@ void Content::showPage (int pg)
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
         drumTuneRows[i]->setVisible (tuneP && (i != 3 || kDrums[(size_t) drum].strikePos));
     snaresRow->setVisible (tuneP && kDrums[(size_t) drum].engineOff >= 0);
+    wireRow->setVisible (tuneP && kDrums[(size_t) drum].engineOff >= 0);
     for (auto& r : kitTuneRows)
         r->setVisible (tuneP);
     resetDrumButton->setVisible (tuneP);
@@ -1242,16 +1247,18 @@ void Content::attachDrum()
     }
 }
 
-// The TUNING page's drum rows, 62 apart from y 160 (no Strike Position on the bass drums).
+// The TUNING page's drum rows, 56 apart from y 160 (no Strike Position on the bass drums).
 void Content::layoutTuningRows()
 {
     int top = kTuneFirstRow;
     const auto& info = kDrums[(size_t) drum];
-    // the Snares On/Off switch first, on the drums that have one (Kris, 2026-11-26)
+    // the Snares On/Off switch and Wire Tension first, on the drums that have them (Kris, 2026-11-26)
     if (info.engineOff >= 0)
     {
         snaresRow->attach (paramId ("snares"), top);
-        top += kTuneRowStep;
+        top += kDrumRowStep;
+        wireRow->attach (paramId ("wire_tension"), top);
+        top += kDrumRowStep;
     }
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
     {
@@ -1266,13 +1273,13 @@ void Content::layoutTuningRows()
         }
         else
             drumTuneRows[i]->attach (paramId (spec.suffix), top);
-        top += kTuneRowStep;
+        top += kDrumRowStep;
     }
 }
 
 bool Content::drumModified() const
 {
-    if (kDrums[(size_t) drum].engineOff >= 0 && snaresRow->changed())
+    if (kDrums[(size_t) drum].engineOff >= 0 && (snaresRow->changed() || wireRow->changed()))
         return true;
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
         if ((i != 3 || kDrums[(size_t) drum].strikePos) && drumTuneRows[i]->changed())
@@ -1300,7 +1307,10 @@ void Content::resetParams (bool wholeKit)
         if (i != 3 || kDrums[(size_t) drum].strikePos)
             drumTuneRows[i]->reset();
     if (kDrums[(size_t) drum].engineOff >= 0)
+    {
         snaresRow->reset();
+        wireRow->reset();
+    }
 }
 
 // ---------------------------------------------------------------------------------------------

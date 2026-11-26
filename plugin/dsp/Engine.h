@@ -69,6 +69,16 @@ public:
     // Shell depth (plugin only, not in the prototype; Kris, 2026-11-25), inches: the recorded
     // shell's and the one played. Equal: nothing changes. See depthPitch() and depthDecay().
     void setDepth(double recordedIn, double depthIn);
+    // Snare wire tension (plugin only, not in the prototype; Kris, 2026-11-26). A snare's model
+    // was fitted at one strainer setting, the tightest; the wires damp its modes, most of all the
+    // low ones. setWireShares gives each slot the wires' share of its decay rate (wireShares()
+    // below, from the drum's snares-off model); setWireTension(t), 0 tight (as recorded) .. 1
+    // loose, keeps wireDampingKept(t) of that damping (1 at 0: bit-identical) and softens and
+    // lengthens the wire noise: its start x (1 - 0.25 t), its decay rates x (1 - 0.6 t), from the
+    // next hit.
+    void setWireShares(const std::vector<double>& share);
+    void setWireTension(double t);
+    static double wireDampingKept(double t);
 
     double tuneRatio() const { return tune_; }
     double decayMul(double f) const;            // multiplies decay rates (decay parameter)
@@ -130,6 +140,9 @@ private:
     double depthPitch(double f) const;
     double depthDecay(double f) const;
     std::vector<double> tubefac_;
+    std::vector<double> wireShare_, wireFac_; // wire tension: per slot, the share; the decay-rate factor (1: as recorded)
+    double wireT_ = 0;
+    void updateWireFac();
 
     // bank state
     std::vector<C> z_, zrm_;

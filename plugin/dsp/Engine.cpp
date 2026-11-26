@@ -57,7 +57,7 @@ void Drum::init(const DrumData* data, const KitData* kit, bool restrikeDamp, boo
     tubefac_.assign((size_t) K_, 1.0);
     const size_t K = (size_t) K_, S = d_->lug.slots.size(), nb = d_->bands.size();
     z_.assign(K, 0); zrm_.assign(K, 0);
-    F_.assign(K, 0); D_.assign(K, 0); gw_.assign(K, 1); dmul_.assign(K, 1);
+    F_.assign(K, 0); D_.assign(K, 0); gw_.assign(K, 1); dmul_.assign(K, 1); wireFac_.assign(K, 1);
     zt_.assign(S, 0); zrmt_.assign(S, 0);
     pblk_.assign(K, 0); ptw_.assign(S, 0); wblk_.assign(K, 0); mag_.assign(K, 0); act_.assign(K, 0);
     gr_.assign(std::max({ K, S, (size_t) 64 }), 0); gi_ = gr_; hr_ = gr_; hi_ = gr_;
@@ -221,6 +221,35 @@ double Drum::depthDecay(double f) const
 {
     if (depthQ_ == 1 || f >= kLowGroup * d_->fMain) return 1;
     return std::sqrt(depthQ_);   // decay rate: shallower (q > 1) faster
+}
+
+void Drum::setWireShares(const std::vector<double>& share)
+{
+    wireShare_ = share;
+    wireShare_.resize((size_t) K_, 0.0);
+    updateWireFac();
+}
+double Drum::wireDampingKept(double t)
+{
+    // fitted by ear (Kris, 2026-11-26): the Snare's level over today's +1, +2, +3, +4 dB at a
+    // quarter, half, three quarters and fully loose
+    static const double kept[5] = { 1.0, 0.605, 0.366, 0.196, 0.075 };
+    const double x = clampd(t, 0, 1) * 4;
+    const int i = std::min(3, (int) x);
+    return kept[i] + (kept[i + 1] - kept[i]) * (x - i);
+}
+void Drum::setWireTension(double t)
+{
+    t = clampd(t, 0, 1);
+    if (t == wireT_) return;
+    wireT_ = t;
+    updateWireFac();
+}
+void Drum::updateWireFac()
+{
+    const double lost = 1 - wireDampingKept(wireT_);
+    for (size_t k = 0; k < wireFac_.size(); ++k) wireFac_[k] = k < wireShare_.size() ? 1 - wireShare_[k] * lost : 1.0;
+    magDirty_ = polesDirty_ = true;
 }
 
 void Drum::setTubeLen(double x)
@@ -415,8 +444,9 @@ void Drum::strike(double vel, Art art)
     // ---- noise layer
     for (size_t j = 0; j < env_.size(); ++j)
     {
-        env_[j] += gain * std::exp((1 - fr) * std::log(A.noisePeak[j] + 1e-12) + fr * std::log(B.noisePeak[j] + 1e-12)) * noiseMix_;
-        nd_[j] = (1 - fr) * A.noiseDecay[j] + fr * B.noiseDecay[j];
+        env_[j] += gain * std::exp((1 - fr) * std::log(A.noisePeak[j] + 1e-12) + fr * std::log(B.noisePeak[j] + 1e-12)) * noiseMix_
+                   * (1 - 0.25 * wireT_);
+        nd_[j] = ((1 - fr) * A.noiseDecay[j] + fr * B.noiseDecay[j]) * (1 - 0.6 * wireT_);
     }
     noiseActive_ = true;
 
@@ -481,7 +511,7 @@ void Drum::computePoles(bool all, double gam)
     const double twoPiOverSr = 2 * kPi / sr_;
     if (magDirty_)
     {
-        for (int k = 0; k < K_; ++k) mag_[(size_t) k] = std::exp(-D_[(size_t) k] * dmul_[(size_t) k] * sf_ * depthDecay(F_[(size_t) k]) / sr_);
+        for (int k = 0; k < K_; ++k) mag_[(size_t) k] = std::exp(-D_[(size_t) k] * dmul_[(size_t) k] * wireFac_[(size_t) k] * sf_ * depthDecay(F_[(size_t) k]) / sr_);
         magDirty_ = false;
     }
     auto pole = [&](size_t k) {

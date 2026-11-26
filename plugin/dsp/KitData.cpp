@@ -1,4 +1,7 @@
 #include "KitData.h"
+
+#include <algorithm>
+#include <cmath>
 #include "Json.h"
 
 #include <fstream>
@@ -172,6 +175,33 @@ KitData loadKitFromDirectory(const std::string& dir)
     parseKitHeader(readFile(dir + "/kit.bake.json"), kit, keys);
     for (const auto& k : keys) kit.drums.push_back(parseDrum(readFile(dir + "/" + k + ".bake.json")));
     return kit;
+}
+
+std::vector<double> wireShares(const DrumData& on, const DrumData& off)
+{
+    const Layer& L = on.arts[0].back();
+    std::vector<double> share((size_t) on.K, 0.0), f2, d2, near;
+    for (const Layer& l : off.arts[0])
+        for (size_t k = 0; k < l.freq.size(); ++k)
+            if (l.amp[k] > 1e-4)
+            {
+                f2.push_back(l.freq[k]);
+                d2.push_back(l.decay[k]);
+            }
+    for (int k = 0; k < on.K; ++k)
+    {
+        const double f = L.freq[(size_t) k], d = L.decay[(size_t) k];
+        if (f >= 1500 || f <= 0 || d <= 0) continue;
+        near.clear();
+        for (size_t j = 0; j < f2.size(); ++j)
+            if (std::abs(std::log2(f2[j] / f)) < 1.0 / 6) near.push_back(d2[j]);
+        if (near.size() < 2) continue;
+        std::sort(near.begin(), near.end());
+        const size_t n = near.size();
+        const double med = n % 2 ? near[n / 2] : 0.5 * (near[n / 2 - 1] + near[n / 2]);
+        share[(size_t) k] = std::clamp(1 - med / d, 0.0, 0.85);
+    }
+    return share;
 }
 
 } // namespace tympanis

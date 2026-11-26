@@ -79,4 +79,11 @@ void parseKitHeader(const std::string& jsonText, KitData& kit, std::vector<std::
 void parseKitHeader(const json::Value& tree, KitData& kit, std::vector<std::string>& drumKeys);
 KitData loadKitFromDirectory(const std::string& bakeDir);
 
+// Snare wire tension: each slot's share of its decay rate that the wires add, from a snare's
+// snares-on model and its snares-off model (Kris, 2026-11-26). Slots under 1.5 kHz in the
+// snares-on model's last head layer are compared with the snares-off model's head slots within
+// a sixth of an octave (any layer, amplitude over 1e-4; at least two):
+// share = clamp(1 - median(their decay rates) / its decay rate, 0, 0.85). Others: 0.
+std::vector<double> wireShares(const DrumData& on, const DrumData& off);
+
 } // namespace tympanis
