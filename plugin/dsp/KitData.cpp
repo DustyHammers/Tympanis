@@ -1,4 +1,6 @@
 #include "KitData.h"
+#include <algorithm>
+#include <cstdlib>
 #include "Json.h"
 
 #include <fstream>
@@ -125,6 +127,26 @@ DrumData parseDrum(const json::Value& v)
     for (const auto& s : lug.at("m").array()) d.lug.m.push_back((int) s.number());
     d.lug.theta = lug.at("theta").number();
     d.lug.sigma = lug.at("sigma").number();
+    // SCRATCH listening test: TYMPANIS_LUG_FUND=<rel> gives the fundamental's group (slots within
+    // 4 % of f_main, at least a tenth of its strongest) a twin too, split by rel x lug x sigma
+    // either side
+    if (const char* e = std::getenv("TYMPANIS_LUG_FUND"))
+    {
+        const double relF = std::atof(e);
+        const auto& L = d.arts[0].back();
+        double mx = 0;
+        for (int k = 0; k < d.K; ++k)
+            if (std::abs(L.freq[(size_t) k] / d.fMain - 1) < 0.04) mx = std::max(mx, L.amp[(size_t) k]);
+        for (int k = 0; k < d.K; ++k)
+            if (std::abs(L.freq[(size_t) k] / d.fMain - 1) < 0.04 && L.amp[(size_t) k] >= 0.1 * mx
+                && std::find(d.lug.slots.begin(), d.lug.slots.end(), k) == d.lug.slots.end())
+            {
+                d.lug.slots.push_back(k);
+                d.lug.rel.push_back(relF);
+                d.lug.m.push_back(1);
+                d.lug.phi.push_back(d.lug.theta);
+            }
+    }
     if (! v.at("tube_cluster").isNull())
         for (const auto& s : v.at("tube_cluster").array()) d.tubeCluster.push_back((unsigned char) (s.number() != 0));
     d.gridStep = v.at("grid_step").number();

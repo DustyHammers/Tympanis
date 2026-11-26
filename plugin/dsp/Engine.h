@@ -124,6 +124,7 @@ private:
     const std::vector<Layer>* L_ = nullptr;
 
     // parameters
+    double clash_ = 0; std::vector<double> clashR_; // SCRATCH listening test
     double tune_ = 1, lug_ = 0, decay_ = 1, glideAmt_ = 1, clickMix_ = 1, noiseMix_ = 1, velRange_ = 30;
     std::array<double, kNumArts> artTrim_ { 1.0, 1.0, 1.0 };
     double strikePos_ = 0.35, sf_ = 1, sizeIn_ = 14, tubeLen_ = 1, depthQ_ = 1, recDepthIn_ = 10;

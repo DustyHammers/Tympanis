@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <string>
 #include <cstring>
 #include <stdexcept>
 
@@ -168,7 +170,11 @@ void Drum::setTune(double semi)
 void Drum::setLugDetune(double x)
 {
     // 0 .. 2: 1 is the prototype's lug_detune 1 (5 % RMS); the plugin's range reaches 2 (10 %)
-    const double l = clampd(x, 0, 2);
+    const double l = clampd(x, 0, 8); // SCRATCH: past the plugin range for listening tests
+    // SCRATCH listening test: TYMPANIS_LUG_MODE=clash detunes every overtone on its own instead
+    // of splitting pairs (no twins)
+    static const bool clash = [] { const char* e = std::getenv("TYMPANIS_LUG_MODE"); return e && std::string(e) == "clash"; }();
+    if (clash) { if (l != clash_) { clash_ = l; polesDirty_ = true; } return; }
     if (l != lug_) { lug_ = l; polesDirty_ = true; }
 }
 void Drum::setDecay(double x)
@@ -386,7 +392,11 @@ void Drum::strike(double vel, Art art)
         for (size_t s = 0; s < S; ++s)
         {
             const size_t k = (size_t) d_->lug.slots[s];
-            const double dl = d_->lug.m[s] * (th - d_->lug.phi[s]);
+            // SCRATCH listening test: TYMPANIS_LUG_SHARE=uneven gives every pair the same uneven share
+            // (twin 0.4, main 0.92: the pair swells and dips about 8 dB, never cancels); the variation
+            // still wanders it
+            static const bool uneven = [] { const char* e = std::getenv("TYMPANIS_LUG_SHARE"); return e && std::string(e) == "uneven"; }();
+            const double dl = uneven ? std::asin(0.4) + d_->lug.m[s] * (th - d_->lug.theta) : d_->lug.m[s] * (th - d_->lug.phi[s]);
             const C b = cpol(amp[k], ph[k]);
             zt_[s] += b * std::sin(dl);
             amp[k] *= std::cos(dl);
@@ -484,8 +494,25 @@ void Drum::computePoles(bool all, double gam)
         for (int k = 0; k < K_; ++k) mag_[(size_t) k] = std::exp(-D_[(size_t) k] * dmul_[(size_t) k] * sf_ * depthDecay(F_[(size_t) k]) / sr_);
         magDirty_ = false;
     }
+    if (clashR_.empty())
+    {
+        // SCRATCH: each slot's own detune per unit (clash_ x sigma x this): a fixed normal draw per drum
+        // and slot, scaled from 0 at the fundamental to 1 two octaves up; 0.2 makes clash_ 2 (the
+        // plugin's maximum) a 2 % (35 cent) typical shift two octaves up
+        const Layer& Lr = d_->arts[0].back();
+        clashR_.assign((size_t) K_, 0.0);
+        uint64_t h = 1469598103934665603ull;
+        for (char c : d_->key) h = (h ^ (uint64_t) (unsigned char) c) * 1099511628211ull;
+        Noise g(h);
+        for (int k = 0; k < K_; ++k)
+        {
+            const double c = clampd(std::log2(std::max(Lr.freq[(size_t) k] / d_->fMain, 1.0)) / 2.0, 0.0, 1.0);
+            clashR_[(size_t) k] = 0.2 * c * g.normal();
+        }
+    }
     auto pole = [&](size_t k) {
-        const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k]);
+        const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k])
+                         * (1 + clash_ * d_->lug.sigma * clashR_[k]);
         wblk_[k] = w;
         pblk_[k] = std::polar(mag_[k], w);
     };
@@ -499,7 +526,8 @@ void Drum::computePoles(bool all, double gam)
         {
             const size_t k = (size_t) d_->lug.slots[s];
             const double dl = scale * d_->lug.rel[s];
-            const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k]);
+            const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k])
+                             * (1 + clash_ * d_->lug.sigma * clashR_[k]);
             ptw_[s] = std::polar(mag_[k], w * (1 - dl));      // the lower eigenmode
             pblk_[k] = std::polar(mag_[k], w * (1 + dl));     // main slot: the upper eigenmode
         }
