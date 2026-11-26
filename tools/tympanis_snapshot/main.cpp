@@ -20,6 +20,10 @@
 //   drum-tom1-shallow.png   DRUM page, Tom 1 at 6" deep
 //   tuning-tom1-shallow.png TUNING page, the same
 //   drum-snare-hit-2x.png   the DRUM page's hit at twice the pixels (a Retina display)
+//   settings.png            SETTINGS page, the green finish chosen
+//   settings-natural.png    the same, natural maple chosen
+//   drum-tom3-natural.png, kit-natural.png, tuning-tom3-natural.png, drum-kick1-natural.png:
+//                           the pages in natural maple
 // and prints how long the wireframes took to draw: the still drawing, and one moving frame.
 //
 // The plugin is built without JUCE's splash logo (JUCE_DISPLAY_SPLASH_SCREEN=0).
@@ -201,6 +205,22 @@ int main (int argc, char** argv)
         for (int d = drumOf ("tom1"); d <= drumOf ("tom4"); ++d)
             if (auto* p = processor.params.getParameter (juce::String (tympanis::kDrums[(size_t) d].key) + "_size"))
                 p->setValueNotifyingHost (p->getDefaultValue());
+    }
+    {
+        // SETTINGS: the two finishes (green chosen), then natural maple chosen: the pages follow it
+        auto e = open (Content::settingsPage, drumOf ("tom3"));
+        save (*e, dir.getChildFile ("settings.png"));
+        timing ("SETTINGS page", e->content().wireView (Content::settingsPage));
+        processor.setDrumFinish (1);
+        const std::pair<int, const char*> shots[] = { { Content::settingsPage, "settings-natural.png" }, { Content::drumPage, "drum-tom3-natural.png" },
+                                                       { Content::kitPage, "kit-natural.png" }, { Content::tuningPage, "tuning-tom3-natural.png" },
+                                                       { Content::drumPage, "drum-kick1-natural.png" } };
+        for (const auto& [page, name] : shots)
+        {
+            auto en = open (page, juce::String (name).contains ("kick1") ? 0 : drumOf ("tom3"));
+            save (*en, dir.getChildFile (name));
+        }
+        processor.setDrumFinish (0);
     }
     return failures == 0 ? 0 : 1;
 }

@@ -20,7 +20,7 @@ constexpr float kPopupSpacing = 2.5f;
 const juce::Rectangle<int> kDrumBox (61, 371, 277, 62);
 const juce::Rectangle<int> kChannelBox (1404, 30, 110, 36);
 constexpr float kChannelLabelRight = 1384.0f;
-constexpr float kTabTop = 258.0f, kTabLeft = 66.0f, kTabGap = 42.0f, kTabSpacing = 3.3f;
+constexpr float kTabTop = 258.0f, kTabLeft = 66.0f, kTabGap = 30.0f, kTabSpacing = 3.3f;
 constexpr float kLogoSize = 48.0f;
 const juce::Point<float> kLogoCentre (199.5f, 950.0f);
 
@@ -655,6 +655,50 @@ private:
 };
 
 // =====================================================================================
+// A finish on the SETTINGS page: its box (outlined in bronze when chosen) and name; its drum is
+// a WireView over it. A click chooses it.
+class FinishButton final : public juce::Component
+{
+public:
+    FinishButton (const Assets& a, const char* t) : assets (a), text (t)
+    {
+        setMouseCursor (juce::MouseCursor::PointingHandCursor);
+        setTitle (t);
+    }
+    std::function<void()> onClick;
+    void setChosen (bool c)
+    {
+        chosen = c;
+        repaint();
+    }
+    void paint (juce::Graphics& g) override
+    {
+        if (chosen)
+        {
+            g.setColour (palette::bronze);
+            g.drawRect (getLocalBounds(), 2);
+        }
+        else
+            drawBoxOutline (g, getLocalBounds(), isMouseOver() ? palette::bronze.withAlpha (0.6f) : palette::boxOutline, 1);
+        drawAt (g, assets.font (kRowSize, 2.6f), text, (float) getWidth() * 0.5f, (float) getHeight() - 34.0f,
+                chosen ? palette::label : (isMouseOver() ? palette::openOutline.withMultipliedBrightness (0.8f) : palette::secondary),
+                Anchor::centre);
+    }
+    void mouseEnter (const juce::MouseEvent&) override { repaint(); }
+    void mouseExit (const juce::MouseEvent&) override { repaint(); }
+    void mouseUp (const juce::MouseEvent& e) override
+    {
+        if (e.mouseWasClicked() && onClick)
+            onClick();
+    }
+
+private:
+    const Assets& assets;
+    juce::String text;
+    bool chosen = false;
+};
+
+// =====================================================================================
 // RESET DRUM and RESET ALL on the TUNING page.
 class FooterButton final : public juce::Component
 {
@@ -983,8 +1027,28 @@ Content::Content (TympanisProcessor& p)
     smallView->setBounds (WireView::area (WireView::Mode::small));
     kitView->onDrumClicked = [this] (int d) { selectDrum (d); };
 
-    // the tabs, 42 units apart
-    const char* tabNames[] = { "DRUM", "KIT", "TUNING" };
+    // SETTINGS: the finishes, Tom 3 in each
+    const char* finishNames[] = { "GREEN", "NATURAL MAPLE" };
+    int tom3 = 0;
+    for (int d = 0; d < (int) kDrums.size(); ++d)
+        if (juce::String (kDrums[(size_t) d].key) == "tom3")
+            tom3 = d;
+    for (int i = 0; i < 2; ++i)
+    {
+        finishButtons[(size_t) i] = std::make_unique<FinishButton> (assets, finishNames[i]);
+        finishButtons[(size_t) i]->setBounds (460 + i * 530, 160, 500, 430);
+        finishButtons[(size_t) i]->onClick = [this, i] { setFinish (i); };
+        addChildComponent (*finishButtons[(size_t) i]);
+        const juce::Rectangle<int> fa (470 + i * 530, 172, 480, 360);
+        finishViews[(size_t) i] = std::make_unique<WireView> (assets, fa);
+        finishViews[(size_t) i]->setBounds (fa);
+        finishViews[(size_t) i]->setDrum (tom3);
+        finishViews[(size_t) i]->setFinish (i == 1 ? wire::Finish::natural : wire::Finish::green);
+        addChildComponent (*finishViews[(size_t) i]);
+    }
+
+    // the tabs, 30 units apart
+    const char* tabNames[] = { "DRUM", "KIT", "TUNING", "SETTINGS" };
     float x = kTabLeft;
     for (size_t i = 0; i < tabs.size(); ++i)
     {
@@ -1069,6 +1133,8 @@ Content::Content (TympanisProcessor& p)
     page = savedPage;
     drum = -1;
     selectDrum (processor.selectedDrum());
+    finish = -1;
+    setFinish (processor.drumFinish());
     showPage (savedPage);
     refresh();
 }
@@ -1090,13 +1156,13 @@ juce::String Content::paramId (const char* suffix) const
 
 WireView* Content::wireView (int pg) const
 {
-    return pg == drumPage ? drumView.get() : (pg == kitPage ? kitView.get() : smallView.get());
+    return pg == drumPage ? drumView.get() : (pg == kitPage ? kitView.get() : (pg == settingsPage ? finishViews[0].get() : smallView.get()));
 }
 
 void Content::showPage (int pg)
 {
     closePopup();
-    page = juce::jlimit (0, 2, pg);
+    page = juce::jlimit (0, 3, pg);
     processor.setEditorPage (page);
     for (size_t i = 0; i < tabs.size(); ++i)
         tabs[i]->setActive ((int) i == page);
@@ -1104,7 +1170,13 @@ void Content::showPage (int pg)
     drumView->setVisible (drumP);
     kitView->setVisible (kitP);
     smallView->setVisible (tuneP);
-    drumBox->setVisible (! kitP);
+    const bool setP = page == settingsPage;
+    for (size_t i = 0; i < finishViews.size(); ++i)
+    {
+        finishButtons[i]->setVisible (setP);
+        finishViews[i]->setVisible (setP);
+    }
+    drumBox->setVisible (drumP || tuneP);
     for (size_t i = 0; i < knobs.size(); ++i)
         knobs[i]->setVisible (drumP && (juce::String (knobSpecs[i].suffix) != "strike_pos" || kDrums[(size_t) drum].strikePos));
     for (size_t b = 0; b < noteBoxes.size(); ++b)
@@ -1117,6 +1189,20 @@ void Content::showPage (int pg)
     resetDrumButton->setVisible (tuneP);
     resetAllButton->setVisible (tuneP);
     repaint();
+}
+
+void Content::setFinish (int f)
+{
+    f = juce::jlimit (0, 1, f);
+    if (f == finish)
+        return;
+    finish = f;
+    processor.setDrumFinish (f);
+    const auto wf = f == 1 ? wire::Finish::natural : wire::Finish::green;
+    for (auto* v : { drumView.get(), kitView.get(), smallView.get() })
+        v->setFinish (wf);
+    for (size_t i = 0; i < finishButtons.size(); ++i)
+        finishButtons[i]->setChosen ((int) i == f);
 }
 
 void Content::selectDrum (int d)
@@ -1458,8 +1544,28 @@ void Content::paint (juce::Graphics& g)
         paintDrumPage (g);
     else if (page == kitPage)
         paintKitPage (g);
+    else if (page == settingsPage)
+        paintSettingsPage (g);
     else
         paintTuningPage (g);
+}
+
+// The SETTINGS page (mockup approved 2026-11-26): DRUM FINISH, the two finish boxes (their own
+// components); MIDI MAP PRESETS, to come.
+void Content::paintSettingsPage (juce::Graphics& g)
+{
+    const auto band = [this, &g] (int y, const juce::String& title, const char* note) {
+        g.setColour (palette::popup);
+        g.fillRect (440, y, 1060, 34);
+        g.setColour (palette::bronze);
+        g.fillRect (440, y + 33, 1060, 2);
+        const auto f = assets.font (kHeaderSize, 3.3f);
+        drawAt (g, f, title, 458.0f, (float) y + 10.0f, palette::label);
+        drawAt (g, assets.font (14.0f, 1.6f), note, 458.0f + inkBounds (f, title).getWidth() + 22.0f, (float) y + 12.0f, palette::secondary);
+    };
+    band (100, "DRUM FINISH", "how the shells are drawn: a look, not a sound");
+    band (660, "MIDI MAP PRESETS", "later");
+    drawAt (g, assets.font (kRowSize, 2.0f), "Save and recall note maps (General MIDI, your own)", 460.0f, 724.0f, palette::secondary.withAlpha (0.5f));
 }
 
 void Content::paintCommon (juce::Graphics& g)
@@ -1468,7 +1574,7 @@ void Content::paintCommon (juce::Graphics& g)
     const auto ink = inkBounds (header, "MIDI CHANNEL");
     drawInkText (g, header, "MIDI CHANNEL", { kChannelLabelRight - ink.getWidth(), kChannelBox.toFloat().getCentreY() - ink.getHeight() * 0.5f },
                  palette::label);
-    if (page != kitPage)
+    if (page == drumPage || page == tuningPage)
     {
         drawAt (g, assets.font (kHeaderSize, 3.45f), "DRUM", 199.5f, 348.0f, palette::label, Anchor::centre);
         drawAt (g, assets.font (kRowSize, 2.4f), drumSpecLine (drum, kDrums[(size_t) drum].depth ? kDrums[(size_t) drum].depthIn + shownDepthOff[(size_t) drum] : -1.0),

@@ -24,6 +24,7 @@ class NoteBox;
 class TabButton;
 class TuneRow;
 class FooterButton;
+class FinishButton;
 
 class Content final : public juce::Component, private juce::Slider::Listener
 {
@@ -35,16 +36,18 @@ public:
     {
         drumPage = 0,
         kitPage = 1,
-        tuningPage = 2
+        tuningPage = 2,
+        settingsPage = 3
     };
     void showPage (int page);
     void selectDrum (int drum);
+    void setFinish (int finish); // 0 green, 1 natural maple
 
     // Called by the editor's timer: hits, notes learnt on the audio thread, the LEARN pulse.
     void refresh();
 
     // For tools/tympanis_snapshot: a hit on a row as if it had just played (ageSeconds ago), and
-    // the page's wireframe view.
+    // the page's wireframe view (SETTINGS: the green one's).
     void showHit (int row, float velocity, double ageSeconds = 0.0);
     WireView* wireView (int page) const;
 
@@ -83,6 +86,7 @@ private:
     void paintDrumPage (juce::Graphics& g);
     void paintKitPage (juce::Graphics& g);
     void paintTuningPage (juce::Graphics& g);
+    void paintSettingsPage (juce::Graphics& g);
     juce::Rectangle<int> rowLabelArea (int box) const;
 
     TympanisProcessor& processor;
@@ -91,7 +95,7 @@ private:
     int drum = 8;
 
     std::unique_ptr<WireView> drumView, kitView, smallView;
-    std::array<std::unique_ptr<TabButton>, 3> tabs;
+    std::array<std::unique_ptr<TabButton>, 4> tabs;
     std::unique_ptr<DropdownBox> drumBox, channelBox;
     juce::Path logoPath;
 
@@ -104,6 +108,11 @@ private:
     std::array<std::unique_ptr<NoteBox>, kMaxRows> noteBoxes;
     std::vector<int> drumRows; // the selected drum's rows (kRows indices), shown in this order
     std::array<int, kMaxRows> shownNotes {};
+
+    // SETTINGS page: the two finishes, each a box with Tom 3 drawn in it; a click chooses
+    int finish = 0;
+    std::array<std::unique_ptr<FinishButton>, 2> finishButtons;
+    std::array<std::unique_ptr<WireView>, 2> finishViews;
 
     // TUNING page
     std::vector<std::unique_ptr<TuneRow>> drumTuneRows;

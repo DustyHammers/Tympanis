@@ -1,9 +1,11 @@
 #include "DrumModel.h"
 
+#include <memory>
 #include <mutex>
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace tympanis::ui::wire
 {
@@ -18,15 +20,254 @@ namespace
 constexpr double kPi = 3.14159265358979323846;
 
 // Colours: the mockup's BGR values as RGB.
-constexpr Rgb kAmber { 64, 158, 80 };      // British racing green lacquer, the body
-constexpr Rgb kAmberHi { 128, 232, 150 };  // emerald where the light catches it
-constexpr Rgb kBurstD { 30, 60, 28 };      // near-black green at the edges
+// The shells' finishes (Kris, 2026-11-26): the body, where the light catches it, the edges.
+struct Palette
+{
+    Rgb body, hi, dark;
+};
+constexpr Palette kGreen { { 64, 158, 80 }, { 128, 232, 150 }, { 30, 60, 28 } };     // British racing green lacquer
+constexpr Palette kNatural { { 244, 214, 162 }, { 255, 246, 226 }, { 150, 112, 64 } }; // natural lacquered maple
+const Palette& paletteOf (Finish f) { return f == Finish::natural ? kNatural : kGreen; }
 constexpr Rgb kChrome { 220, 216, 214 };   // hoops, lugs, claws
 constexpr Rgb kChromeD { 156, 152, 150 };
 constexpr Rgb kHead { 222, 204, 178 };     // coated head, pale cream
 constexpr Rgb kHot { 255, 238, 215 };
 
 const V3 kLight = normalised ({ 0.2, -0.5, 0.85 });
+
+// ---- The maple's grain on a shell (Kris's brochure photos, mockups approved 2026-11-26).
+// Growth rings are levels of a field q on the shell (S around, H down from the batter edge,
+// inches): level bands with gentle waves and lens-shaped "eyes" where the rings bulge. Each ring
+// gets 3 lines, light in the early wood and darker into the late wood; the ring's edge is left
+// black. The outer ply's two ends meet on a diagonal seam from the top of a top lug down to the
+// bottom of the next bottom lug; the grain is laid out from the seam (u = S - seam) and does not
+// line up across it: one cell of black, the cells either side 45 % bright.
+struct GrainRng
+{
+    uint64_t x;
+    double next()
+    {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        return (double) (x >> 11) * (1.0 / 9007199254740992.0);
+    }
+    double uni (double lo, double hi) { return lo + (hi - lo) * next(); }
+};
+struct Wave
+{
+    int kx;
+    double ky, ph, amp;
+};
+std::vector<Wave> waves (GrainRng& g, int n, int kmax, double kyMax, double amp, double slope)
+{
+    std::vector<Wave> w;
+    for (int i = 0; i < n; ++i)
+    {
+        const int kx = 1 + (int) (g.next() * kmax);
+        w.push_back ({ kx, g.uni (-kyMax, kyMax), g.uni (0, 2 * kPi), amp * g.uni (0.4, 1.0) / std::pow ((double) kx, slope) });
+    }
+    return w;
+}
+
+// One line piece of the grain: its ends on the shell (cos and sin of the angle around, H inches
+// down from the batter edge) and its brightness in the ring (the seam's fade included).
+struct GrainSeg
+{
+    float c0, s0, h0, c1, s1, h1, k;
+};
+
+// What the grain depends on: the shell, where its lines start and stop (x0, x1: fractions of d),
+// and the seam (the angles of its top and bottom ends, the heights of the lug ends it joins).
+struct GrainKey
+{
+    int kind;
+    double r, d, x0, x1, tTop, tBot, hTop, hBot;
+    bool operator== (const GrainKey& o) const
+    {
+        return kind == o.kind && r == o.r && d == o.d && x0 == o.x0 && x1 == o.x1 && tTop == o.tTop && tBot == o.tBot && hTop == o.hTop
+               && hBot == o.hBot;
+    }
+};
+
+std::vector<GrainSeg> makeGrain (const GrainKey& key)
+{
+    // grain_rings.py preset q (the approved mockups), in inches on the shell
+    const double r = key.r, d = key.d, x0 = key.x0, x1 = key.x1;
+    const double ring = 0.9, early = 0.3, wave = 0.3;
+    const int eyes = 7, nLines = 3;
+    const double kb = 0.75; // the grain's brightness against the old mesh
+    const double Ls = 2 * kPi * r;
+    GrainRng g { (uint64_t) 0x9E3779B97F4A7C15u ^ (uint64_t) (r * 1000) * (uint64_t) 2654435761u ^ (uint64_t) (d * 100) * (uint64_t) 40503u ^ (uint64_t) key.kind };
+    for (int i = 0; i < 8; ++i)
+        g.next();
+    auto w12 = waves (g, 8, 4, 0.12, wave, 1.1);
+    const auto w2 = waves (g, 14, 12, 0.3, 0.2 * wave, 0.8);
+    w12.insert (w12.end(), w2.begin(), w2.end());
+    struct Eye
+    {
+        double s0, h0, len, hw, amp;
+    };
+    std::vector<Eye> ey;
+    for (int e = 0; e < eyes; ++e)
+        ey.push_back ({ (e + g.uni (0.25, 0.75)) * Ls / eyes, g.uni (0.2 * d, 0.8 * d), g.uni (2.5, 4.5), g.uni (1.0, 1.8),
+                        (g.next() < 0.5 ? -1 : 1) * g.uni (1.6, 2.6) });
+    const auto wq = waves (g, 6, 3, 0.3, 0.3, 1.0);
+    const double drift = g.uni (0.35, 0.65) * ring;
+
+    // the grid: u (from the seam) across the columns, H down the rows, a cell about 0.08" square
+    const int NSg = std::max (64, (int) (Ls / 0.08)), NH = std::max (16, (int) ((x1 - x0) * d / 0.08));
+    const size_t nc = (size_t) NSg + 1, nr = (size_t) NH + 1;
+    std::vector<double> uC (nc), hR (nr), seamR (nr);
+    for (size_t i = 0; i < nc; ++i)
+        uC[i] = Ls * (double) i / NSg;
+    for (size_t k = 0; k < nr; ++k)
+    {
+        hR[k] = d * (x0 + (x1 - x0) * (double) k / NH);
+        seamR[k] = key.r * (key.tTop + (key.tBot - key.tTop) * (hR[k] - key.hTop) / (key.hBot - key.hTop));
+    }
+    // phi = H + the waves + the drift + the eyes. A wave's phase 2 pi kx S / Ls + ky H + ph with
+    // S = seam(H) + u is a column part plus a row part, so each wave is cos A cos B - sin A sin B
+    // from tables.
+    std::vector<double> phi (nc * nr);
+    for (size_t k = 0; k < nr; ++k)
+        for (size_t i = 0; i < nc; ++i)
+            phi[k * nc + i] = hR[k] + drift * uC[i] / Ls;
+    {
+        std::vector<double> cA (nc), sA (nc);
+        for (const auto& w : w12)
+        {
+            for (size_t i = 0; i < nc; ++i)
+            {
+                const double A = 2 * kPi * w.kx * uC[i] / Ls;
+                cA[i] = w.amp * std::cos (A);
+                sA[i] = w.amp * std::sin (A);
+            }
+            for (size_t k = 0; k < nr; ++k)
+            {
+                const double B = 2 * kPi * w.kx * seamR[k] / Ls + w.ky * hR[k] + w.ph;
+                const double cB = std::cos (B), sB = std::sin (B);
+                double* row = &phi[k * nc];
+                for (size_t i = 0; i < nc; ++i)
+                    row[i] += cA[i] * cB - sA[i] * sB;
+            }
+        }
+    }
+    for (const auto& e : ey)
+        for (size_t k = 0; k < nr; ++k)
+        {
+            const double across0 = 1 - std::abs (hR[k] - e.h0) / e.hw;
+            if (across0 <= 0)
+                continue;
+            const double across = std::pow (across0, 1.2);
+            for (size_t i = 0; i < nc; ++i)
+            {
+                const double ds = std::fmod (seamR[k] + uC[i] - e.s0 + 1.5 * Ls, Ls) - 0.5 * Ls;
+                if (std::abs (ds) > 5 * e.len)
+                    continue;
+                phi[k * nc + i] += e.amp * std::exp (-(ds / e.len) * (ds / e.len)) * across;
+            }
+        }
+    // q = phi / ring + slow waves along the rings themselves
+    std::vector<double> q (nc * nr);
+    for (size_t k = 0; k < nr; ++k)
+        for (size_t i = 0; i < nc; ++i)
+        {
+            const double S = seamR[k] + uC[i], p = phi[k * nc + i];
+            double z = p / ring;
+            for (const auto& w : wq)
+                z += w.amp * std::cos (2 * kPi * w.kx * S / Ls + w.ky * p + w.ph);
+            q[k * nc + i] = z;
+        }
+
+    // the lines: places in each ring (0 at its start, 1 at its dark edge) and their brightness
+    double mf[nLines], mk[nLines];
+    for (int j = 0; j < nLines; ++j)
+    {
+        mf[j] = (j + 0.5) / nLines * 0.92; // the edge (f near 1) stays black
+        const double late = std::clamp ((mf[j] - early) / (1 - early), 0.0, 1.0);
+        mk[j] = kb * (1.0 - 0.62 * std::pow (late, 1.4)); // light wood 1, deep in the band 0.38
+    }
+    // marching squares; a point in grid units (fi, fk) to the shell
+    std::vector<GrainSeg> out;
+    out.reserve ((size_t) (nc * (d / ring) * nLines * 1.3));
+    auto put = [&] (double fi, double fk, float& c, float& sn, float& h) {
+        const double H = d * (x0 + (x1 - x0) * fk / NH);
+        const double t = (key.r * (key.tTop + (key.tBot - key.tTop) * (H - key.hTop) / (key.hBot - key.hTop)) + Ls * fi / NSg) / r;
+        c = (float) std::cos (t);
+        sn = (float) std::sin (t);
+        h = (float) H;
+    };
+    for (int i = 1; i < NSg; ++i) // column 0 is the seam: black
+    {
+        const double fade = i == 1 || i == NSg - 1 ? 0.45 : 1.0;
+        for (int k = 0; k < NH; ++k)
+        {
+            const double c00 = q[(size_t) k * nc + (size_t) i], c10 = q[(size_t) k * nc + (size_t) i + 1];
+            const double c01 = q[(size_t) (k + 1) * nc + (size_t) i], c11 = q[(size_t) (k + 1) * nc + (size_t) i + 1];
+            const double lo = std::min ({ c00, c10, c01, c11 }), hi = std::max ({ c00, c10, c01, c11 });
+            for (double ring0 = std::floor (lo); ring0 <= hi; ring0 += 1)
+                for (int j = 0; j < nLines; ++j)
+                {
+                    const double L = ring0 + mf[j];
+                    if (L < lo || L > hi)
+                        continue;
+                    // the cell's edges the level crosses: (i,k)-(i+1,k), (i+1,k)-(i+1,k+1), (i+1,k+1)-(i,k+1), (i,k+1)-(i,k)
+                    const double cs[4][2][3] = { { { (double) i, (double) k, c00 }, { (double) i + 1, (double) k, c10 } },
+                                                 { { (double) i + 1, (double) k, c10 }, { (double) i + 1, (double) k + 1, c11 } },
+                                                 { { (double) i + 1, (double) k + 1, c11 }, { (double) i, (double) k + 1, c01 } },
+                                                 { { (double) i, (double) k + 1, c01 }, { (double) i, (double) k, c00 } } };
+                    double pts[4][2];
+                    int np = 0;
+                    for (const auto& e : cs)
+                    {
+                        const double a0 = e[0][2], a1 = e[1][2];
+                        if ((a0 < L) == (a1 < L) || a0 == a1)
+                            continue;
+                        const double tt = (L - a0) / (a1 - a0);
+                        pts[np][0] = e[0][0] + tt * (e[1][0] - e[0][0]);
+                        pts[np][1] = e[0][1] + tt * (e[1][1] - e[0][1]);
+                        ++np;
+                    }
+                    for (int pp = 0; pp + 1 < np; pp += 2)
+                    {
+                        GrainSeg sg;
+                        put (pts[pp][0], pts[pp][1], sg.c0, sg.s0, sg.h0);
+                        put (pts[pp + 1][0], pts[pp + 1][1], sg.c1, sg.s1, sg.h1);
+                        sg.k = (float) (mk[j] * fade);
+                        out.push_back (sg);
+                    }
+                }
+        }
+    }
+    return out;
+}
+
+// The grain of the shells drawn lately (a drum's grain is worked out once per shell and seam,
+// then only projected and lit): the newest last, at most kGrainCacheSize.
+std::shared_ptr<const std::vector<GrainSeg>> grainFor (const GrainKey& key)
+{
+    constexpr size_t kGrainCacheSize = 24;
+    static std::mutex lock;
+    static std::vector<std::pair<GrainKey, std::shared_ptr<const std::vector<GrainSeg>>>> cache;
+    {
+        std::lock_guard<std::mutex> gl (lock);
+        for (size_t i = 0; i < cache.size(); ++i)
+            if (cache[i].first == key)
+            {
+                auto hit = cache[i];
+                cache.erase (cache.begin() + (std::ptrdiff_t) i);
+                cache.push_back (hit);
+                return hit.second;
+            }
+    }
+    auto made = std::make_shared<const std::vector<GrainSeg>> (makeGrain (key));
+    std::lock_guard<std::mutex> gl (lock);
+    cache.emplace_back (key, made);
+    if (cache.size() > kGrainCacheSize)
+        cache.erase (cache.begin());
+    return made;
+}
 
 // J_m(x) = (1/pi) * integral over 0..pi of cos(m t - x sin t): a 64-point midpoint sum.
 double besselJ (int m, double x)
@@ -162,13 +403,16 @@ struct DrumBuilder
     const DrumSpec& s;
     const Camera& cam;
     double bright;
+    const Palette& pal;
+    bool withGrain;
     V3 C, a, u, v;
     double r, d;
     // the gong drum: its head's radius and the height of its bearing edge above the shell's
     double rh, hh;
     DrumDrawing out;
 
-    DrumBuilder (const DrumSpec& spec, const Camera& camera, double sel) : s (spec), cam (camera), bright (1.0 + 0.35 * sel)
+    DrumBuilder (const DrumSpec& spec, const Camera& camera, double sel, Finish finish, bool grain)
+        : s (spec), cam (camera), bright (1.0 + 0.35 * sel), pal (paletteOf (finish)), withGrain (grain)
     {
         C = s.C;
         basis (s.axis, a, u, v);
@@ -205,54 +449,89 @@ struct DrumBuilder
 
     Rgb chromeCol (V3 n) const { return kChrome * (0.75 + 0.35 * std::max (0.0, dot (n, kLight))); }
 
+    // The grain's seam: from the top of a top lug diagonally down to the bottom of the next bottom
+    // lug (single-headed drums: to the bottom edge under the next lug), on the camera's side,
+    // leaning down to the left on screen as on the brochure's shell (Kris, 2026-11-26).
+    void seam (double& tTop, double& tBot, double& hTop, double& hBot) const
+    {
+        const int nl = std::max (3, s.lugs);
+        double y0 = 0.45, Lg = std::min (1.7, 0.9 + 0.1 * d);
+        if (s.kind == Kind::kick)
+        {
+            y0 = 1.7;
+            Lg = 1.9;
+        }
+        if (s.kind == Kind::octo)
+            Lg = 1.6;
+        if (s.kind == Kind::gong)
+        {
+            y0 = kGongLugY0;
+            Lg = 1.6;
+        }
+        (void) Lg;
+        const bool twoEnds = s.kind != Kind::octo && s.kind != Kind::gong;
+        // the top lug's top end (its flat end, by the hoop) and the bottom lug's bottom end
+        hTop = 0.45 + y0;
+        hBot = twoEnds ? d - (0.45 + y0) : d;
+        int best = 0, dir = 1;
+        double bestF = -2;
+        for (int k = 0; k < nl; ++k)
+            for (int sg : { -1, 1 })
+            {
+                const double tk = 2 * kPi * (k + 0.5) / nl, tn = tk + sg * 2 * kPi / nl;
+                const Pt sTop = cam.project (C - hTop * a + r * normalAt (tk)), sBot = cam.project (C - hBot * a + r * normalAt (tn));
+                if (sBot.x >= sTop.x)
+                    continue; // down to the left
+                const V3 mid = normalAt (0.5 * (tk + tn));
+                const V3 vd = cam.pos - (C - 0.5 * d * a + r * mid);
+                const double f = dot (vd, mid) / length (vd);
+                if (f > bestF)
+                {
+                    bestF = f;
+                    best = k;
+                    dir = sg;
+                }
+            }
+        tTop = 2 * kPi * (best + 0.5) / nl;
+        tBot = tTop + dir * 2 * kPi / nl;
+    }
+
     void shell()
     {
-        const int NS = s.kind == Kind::octo ? 36 : 72;
-        const int nseg = std::max (6, (int) (d * 1.2));
         // the hoops cover the shell's ends (not the gong drum's: its hoop stands off the shell)
         const double cov = s.kind != Kind::kick && s.kind != Kind::gong ? 0.45 : 0.0;
         const bool two = s.kind != Kind::octo && s.kind != Kind::gong;
         const double x0 = cov / d, x1 = 1 - (two ? cov / d : 0.0);
-        std::vector<Pt> sp ((size_t) ((NS + 1) * (nseg + 1)));
-        std::vector<char> facing ((size_t) NS + 1);
-        std::vector<double> lam ((size_t) NS + 1), side ((size_t) NS + 1);
-        for (int i = 0; i <= NS; ++i)
+        if (withGrain)
         {
-            const double t = 2 * kPi * i / NS;
-            const V3 n = normalAt (t);
-            for (int k = 0; k <= nseg; ++k)
+            GrainKey key { (int) s.kind, r, d, x0, x1, 0, 0, 0, 0 };
+            seam (key.tTop, key.tBot, key.hTop, key.hBot);
+            const auto grain = grainFor (key);
+            // the shell's centre seen from the camera, for the facing test: a point at angle t
+            // faces the camera if (cam - centre) . n > r
+            const V3 toCam = cam.pos - (C - 0.5 * d * a);
+            const double cu = dot (toCam, u), cv = dot (toCam, v);
+            const double lu = dot (kLight, u), lv = dot (kLight, v), ru = dot (cam.r, u), rv = dot (cam.r, v);
+            for (const auto& g : *grain)
             {
-                const double x = x0 + (x1 - x0) * k / nseg;
-                sp[(size_t) (i * (nseg + 1) + k)] = cam.project (C - (d * x) * a + r * n);
-            }
-            facing[(size_t) i] = vis (C - 0.5 * d * a + r * n, n);
-            lam[(size_t) i] = std::clamp (dot (n, kLight), 0.0, 1.0);
-            side[(size_t) i] = std::abs (dot (n, cam.r));
-        }
-        auto shellCol = [&] (int i, double x) {
-            const double burst = std::pow (std::max (0.0, 1 - std::abs (x - 0.45) / 0.75), 0.8);
-            Rgb c = kBurstD + (kAmber - kBurstD) * burst;
-            const double l = lam[(size_t) i];
-            c = c + (kAmberHi - c) * (std::max (0.0, l - 0.55) * 1.4 * burst);
-            return c * ((0.7 + 0.65 * l) * (1 - 0.35 * std::pow (side[(size_t) i], 4)) * bright);
-        };
-        auto at = [&] (int i, int k) { return sp[(size_t) (i * (nseg + 1) + k)]; };
-        for (int i = 0; i < NS; ++i)
-        {
-            if (! (facing[(size_t) i] && facing[(size_t) i + 1]))
-                continue;
-            for (int k = 0; k < nseg; ++k)
-            {
-                line2 (at (i, k), at (i, k + 1), shellCol (i, (k + 0.5) / nseg));
-                if (k > 0)
-                    line2 (at (i, k), at (i + 1, k), shellCol (i, (double) k / nseg) * 0.7);
+                if (cu * g.c0 + cv * g.s0 <= r || cu * g.c1 + cv * g.s1 <= r)
+                    continue;
+                const double mc = 0.5 * (g.c0 + g.c1), ms = 0.5 * (g.s0 + g.s1), x = 0.5 * (g.h0 + g.h1) / d;
+                const double l = std::clamp (mc * lu + ms * lv, 0.0, 1.0), sd = std::abs (mc * ru + ms * rv);
+                const double burst = std::pow (std::max (0.0, 1 - std::abs (x - 0.45) / 0.75), 0.8);
+                Rgb c = pal.dark + (pal.body - pal.dark) * burst;
+                c = c + (pal.hi - c) * (std::max (0.0, l - 0.55) * 1.4 * burst);
+                const double sd2 = sd * sd;
+                c = c * ((0.7 + 0.65 * l) * (1 - 0.35 * sd2 * sd2) * bright * g.k);
+                line2 (cam.project (C - (double) g.h0 * a + r * ((double) g.c0 * u + (double) g.s0 * v)),
+                       cam.project (C - (double) g.h1 * a + r * ((double) g.c1 * u + (double) g.s1 * v)), c);
             }
         }
         // the shell's two end edges (the batter edge all round when the head faces the camera)
         for (int e = 0; e < 2; ++e)
         {
             const double off = e == 0 ? 0.0 : -d, kcol = e == 0 ? 0.8 : 0.55;
-            const Rgb c = (kBurstD * (1.4 * kcol) + kAmber * 0.35) * bright;
+            const Rgb c = (pal.dark * (1.4 * kcol) + pal.body * 0.35) * bright;
             for (int i = 0; i < 96; ++i)
             {
                 const double t0 = 2 * kPi * i / 96, t1 = 2 * kPi * (i + 1) / 96;
@@ -360,7 +639,7 @@ struct DrumBuilder
 
         if (s.kind == Kind::kick)
         {
-            const Rgb wood = kBurstD * 0.9 + kAmber * 0.75;
+            const Rgb wood = pal.dark * 0.9 + pal.body * 0.75;
             for (auto [off, sgn] : ends)
             {
                 const bool face = vis (C + off * a, sgn * a);
@@ -487,7 +766,7 @@ struct DrumBuilder
             }
         }
         if (s.kind == Kind::octo)
-            ring (0.0, 0.0, -d, 1, kBurstD * 1.5 + kAmber * 0.4, 1, vis (C - d * a, -1.0 * a));
+            ring (0.0, 0.0, -d, 1, pal.dark * 1.5 + pal.body * 0.4, 1, vis (C - d * a, -1.0 * a));
     }
 
     // The gong drum (TAMA's, Kris's photo, 2026-11-24): a 22" head mounted timpani style on a
@@ -675,10 +954,19 @@ struct DrumBuilder
     }
 };
 
-DrumDrawing drawDrum (const DrumSpec& spec, const Camera& cam, double sel)
+DrumDrawing drawDrum (const DrumSpec& spec, const Camera& cam, double sel, Finish finish)
 {
-    return DrumBuilder (spec, cam, sel).build();
+    return DrumBuilder (spec, cam, sel, finish, true).build();
 }
+
+namespace
+{
+// Without the grain: for measuring (the grain lies inside the shell's edges and hoops).
+DrumDrawing drawOutline (const DrumSpec& spec, const Camera& cam)
+{
+    return DrumBuilder (spec, cam, 0.0, Finish::green, false).build();
+}
+} // namespace
 
 // =====================================================================================
 // The bass drum pedal. Its frame: O on the floor just in front of the batter hoop, F toward the
@@ -1078,7 +1366,7 @@ double fitScale (int drum, double maxW, double maxH)
     DrumSpec s;
     Camera c;
     pageDrum (drum, s, c, deepestOffIn (drum));
-    const DrumDrawing p = drawDrum (s, c);
+    const DrumDrawing p = drawOutline (s, c);
     return std::min (maxW / std::max (1.0, (double) (p.x1 - p.x0)), maxH / std::max (1.0, (double) (p.y1 - p.y0)));
 }
 } // namespace
@@ -1089,7 +1377,7 @@ Framed frameDrum (int drum, Pt centre, double maxW, double maxH, double depthOff
     Camera cam;
     pageDrum (drum, fr.spec, cam, depthOffIn);
     // measure at F = 1000, then scale and centre (the projection is linear in F, cx and cy)
-    const DrumDrawing probe = drawDrum (fr.spec, cam);
+    const DrumDrawing probe = drawOutline (fr.spec, cam);
     double k = 0;
     if (scale == Scale::kit)
     {

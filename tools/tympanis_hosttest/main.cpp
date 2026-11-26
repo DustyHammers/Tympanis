@@ -14,6 +14,7 @@
 //                         [--raw OUT.f32]  also the float samples, L then R (md5sum)
 //                         [--threads N]    the drums through a pool of N threads (test only)
 #include "PluginProcessor.h"
+#include "PluginEditor.h"
 #include "ui/EditorSize.h"
 #include "dsp/Json.h"
 
@@ -424,6 +425,42 @@ int runChecks()
         b.p->setStateInformation(mb.getData(), (int) mb.getSize());
         check(b.p->editorPage() == 2 && b.p->selectedDrum() == 11 && b.p->editorSize() == juce::Point<int>(1200, 800),
               "state: the editor's page, drum and size restored");
+        {
+            // SETTINGS (page 3) and the shells' finish: saved with the session, not a parameter
+            Host c(44100, 256);
+            check(c.p->drumFinish() == 0, "the shells' finish starts green");
+            const int nParams = c.p->getParameters().size();
+            c.p->setEditorPage(3);
+            c.p->setDrumFinish(1);
+            juce::MemoryBlock mc;
+            c.p->getStateInformation(mc);
+            Host d(44100, 256);
+            d.p->setStateInformation(mc.getData(), (int) mc.getSize());
+            check(d.p->editorPage() == 3 && d.p->drumFinish() == 1 && d.p->getParameters().size() == nParams,
+                  "state: the SETTINGS page and the natural finish restored (no parameter added)");
+            // a session saved before the finish existed: green
+            auto xml = juce::AudioProcessor::getXmlFromBinary(mc.getData(), (int) mc.getSize());
+            if (auto* ui = xml != nullptr ? xml->getChildByName("Editor") : nullptr) ui->removeAttribute("finish");
+            juce::MemoryBlock old;
+            if (xml != nullptr) juce::AudioProcessor::copyXmlToBinary(*xml, old);
+            b.p->setDrumFinish(1);
+            b.p->setStateInformation(old.getData(), (int) old.getSize());
+            check(b.p->drumFinish() == 0, "state: a session with no finish saved opens green");
+            d.p->setEditorPage(7);
+            d.p->setDrumFinish(5);
+            check(d.p->editorPage() == 3 && d.p->drumFinish() == 1, "editor page and finish are clamped to 0-3 and 0-1");
+            d.p->setEditorPage(3);
+            std::unique_ptr<juce::AudioProcessorEditor> de(d.p->createEditor());
+            auto* te = dynamic_cast<TympanisEditor*>(de.get());
+            using tympanis::ui::Content;
+            check(te != nullptr && te->content().wireView(Content::drumPage)->currentFinish() == tympanis::ui::wire::Finish::natural
+                      && te->content().wireView(Content::kitPage)->currentFinish() == tympanis::ui::wire::Finish::natural
+                      && te->content().wireView(Content::tuningPage)->currentFinish() == tympanis::ui::wire::Finish::natural,
+                  "the editor opens with the saved finish on every page");
+            te->content().setFinish(0);
+            check(d.p->drumFinish() == 0 && te->content().wireView(Content::kitPage)->currentFinish() == tympanis::ui::wire::Finish::green,
+                  "choosing a finish on SETTINGS sets it for the session and the drawings");
+        }
         // the editor opens, on the saved page, and closes
         std::unique_ptr<juce::AudioProcessorEditor> ed(b.p->createEditor());
         check(ed != nullptr && ed->getWidth() == 1200 && ed->getHeight() == 800, "the editor opens at the saved size");

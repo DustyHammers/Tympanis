@@ -68,9 +68,12 @@ public:
     void clearHits() noexcept; // the editor, when it opens: drops what waited without one
 
     // Editor state, saved with the session (not host parameters): the page shown (0 DRUM,
-    // 1 KIT, 2 TUNING), the selected drum (KitMap.h index) and the editor's size (0 x 0: never set).
+    // 1 KIT, 2 TUNING, 3 SETTINGS), the selected drum (KitMap.h index), the shells' finish (0 green,
+    // 1 natural maple: a look, not a sound) and the editor's size (0 x 0: never set).
     int editorPage() const noexcept { return uiPage.load(); }
-    void setEditorPage(int p) noexcept { uiPage.store(juce::jlimit(0, 2, p)); }
+    void setEditorPage(int p) noexcept { uiPage.store(juce::jlimit(0, 3, p)); }
+    int drumFinish() const noexcept { return uiFinish.load(); }
+    void setDrumFinish(int f) noexcept { uiFinish.store(juce::jlimit(0, 1, f)); }
     int selectedDrum() const noexcept { return uiDrum.load(); }
     void setSelectedDrum(int d) noexcept { uiDrum.store(juce::jlimit(0, (int) tympanis::kDrums.size() - 1, d)); }
     juce::Point<int> editorSize() const noexcept { return { editorWidth.load(), editorHeight.load() }; }
@@ -138,6 +141,7 @@ private:
     std::array<HitEvent, hitFifoSize + 1> hitBuffer {};
 
     std::atomic<int> uiPage { 0 }, uiDrum { 8 };    // DRUM page, Tom 3 (as the mockups)
+    std::atomic<int> uiFinish { 0 };                // green
     std::atomic<int> editorWidth { 0 }, editorHeight { 0 };
 
     std::vector<double> left, right;
