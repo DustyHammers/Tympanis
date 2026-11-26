@@ -25,7 +25,7 @@ Strike position applies to head hits and rim shots (the stick's head contact), n
 
 Catalog sizes: kicks 22", snares 1-3 14", Snare 4 10" (Kris, 2026-11-24), toms 10/12/13/14", floor toms 16 x 16" and 18 x 16", gong drum 22", octobans 6". Every head plays at its catalog size: Size no longer scales the head (Kris, 2026-11-25).
 
-Size is the shell's depth (Kris, 2026-11-25), on Toms 1-4: 8, 9, 10 and 11" by default (as drawn), 4" shallower to 2" deeper in 1" steps (`kDepthDownIn`, `kDepthUpIn` in `KitMap.h`). At the default depth the toms sound as modelled. The other drums keep their Size parameter (their drawn depth, same range), greyed out in the editor; it changes nothing. The sound of depth is in `docs/ENGINE.md`; the drawings follow it (`docs/UI.md`).
+Size is the shell's depth (Kris, 2026-11-25), on Toms 1-4: 10, 9, 10 and 11" by default (as drawn; Tom 1 is 10" x 10", Kris, 2026-11-25), 4" shallower to 2" deeper in 1" steps (`kDepthDownIn`, `kDepthUpIn` in `KitMap.h`). At the default depth the toms sound as modelled. The other drums keep their Size parameter (their drawn depth, same range), greyed out in the editor; it changes nothing. The sound of depth is in `docs/ENGINE.md`; the drawings follow it (`docs/UI.md`).
 
 ## MIDI map (session state, not parameters)
 

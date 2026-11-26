@@ -39,12 +39,12 @@ constexpr std::array<DrumInfo, 17> kDrums { {
     { "kick1", "Kick 1", 22, false, 18, false },   { "kick2", "Kick 2", 22, false, 18, false },
     { "snare1", "Snare 1", 14, true, 6.5, false }, { "snare2", "Snare 2", 14, true, 6.5, false },
     { "snare3", "Snare 3", 14, true, 6.5, false }, { "snare4", "Snare 4", 10, true, 5, false },
-    { "tom1", "Tom 1", 10, true, 8, true },        { "tom2", "Tom 2", 12, true, 9, true },
+    { "tom1", "Tom 1", 10, true, 10, true },        { "tom2", "Tom 2", 12, true, 9, true },
     { "tom3", "Tom 3", 13, true, 10, true },       { "tom4", "Tom 4", 14, true, 11, true },
     { "tom5", "Tom 5", 16, true, 16, false },      { "tom6", "Tom 6", 18, true, 16, false },
     { "gong", "Gong Drum", 22, true, 14, false },
-    { "octo1", "Octoban 1", 6, true, 11, false },  { "octo2", "Octoban 2", 6, true, 14.7, false },
-    { "octo3", "Octoban 3", 6, true, 18.3, false }, { "octo4", "Octoban 4", 6, true, 22, false },
+    { "octo1", "Octoban 1", 6, true, 17.5, false }, { "octo2", "Octoban 2", 6, true, 18.5, false },
+    { "octo3", "Octoban 3", 6, true, 21, false },   { "octo4", "Octoban 4", 6, true, 23.5, false },
 } };
 
 struct NoteRow
