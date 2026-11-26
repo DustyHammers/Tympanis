@@ -16,17 +16,20 @@ Everything is in design units of a 1536 x 1024 artwork, scaled with one transfor
 
 ## Pages
 
-Common: the title (in the background), the tabs DRUM / KIT / TUNING (y 258; the active one bright, a bronze line under it), MIDI CHANNEL (a 4 x 4 grid of channels), the DHammers logo. On DRUM and TUNING: the DRUM box (the 15 drums, two columns; a name too wide for its cell, POPCORN SNARE, is drawn with tighter letter spacing) and the spec line under it (`13" × 10"  ·  6 LUGS`).
+Common: the title (in the background), the tabs DRUM / KIT / TUNING / SETTINGS (y 258, 30 units apart; the active one bright, a bronze line under it), MIDI CHANNEL (a 4 x 4 grid of channels), the DHammers logo. On DRUM and TUNING: the DRUM box (the 15 drums, two columns; a name too wide for its cell, POPCORN SNARE, is drawn with tighter letter spacing) and the spec line under it (`13" × 10"  ·  6 LUGS`).
 
 - **DRUM**: the selected drum's wireframe (area 400,40 to 1180,750); the right column's ARTICULATION and MIDI NOTE rows (HEAD, RIM SHOT, SIDE STICK as the drum has them; a row lights while its hit's flash lasts); STRIKE POSITION (1349, 642; hidden on the bass drums, which have none); MAIN VOLUME (1350, 881); the drum's VELOCITY SENSITIVITY (487, 881), LEVEL (787, 881) and PAN (1087, 881). A dragged knob shows its value in place of its label; double-click resets; no mouse wheel.
 - **KIT**: the kit's wireframe in the approved layout (the gong drum and the octobans are not drawn yet but play), with a bass drum pedal on each kick. A click on a drum selects it; the selected drum is drawn 35 % brighter and named top right.
 - **TUNING**: the selected drum's SNARES (the Snares On/Off switch, on the Snare and the Popcorn Snare only, first: a short two-position slide, OFF / ON, the value box reading ON or OFF; Kris, 2026-11-26, mockup approved), TUNE, LUG DETUNE, DECAY, STRIKE POSITION (not on the bass drums), SIZE (the shell's depth: Toms 1-4; greyed out on the others), LEVEL and PAN, and the whole kit's SNARE BUZZ and MAIN VOLUME, as sliders with the value in a box (double-click it to type one) and a reset arrow; a bronze mark at a row whose value is not the default, MODIFIED when any is; RESET DRUM, RESET ALL (every parameter). A small wireframe of the drum in the left column. The WHOLE KIT section sits one row lower than the per-drum rows can reach (band at y 682, rows from 742; RESET DRUM and RESET ALL at y 892), on every drum, so it does not move as drums change; RESET DRUM resets the switch to ON, and the switch OFF counts as MODIFIED.
+- **SETTINGS** (Kris, 2026-11-26, mockup approved): DRUM FINISH, how the shells are drawn (a look, not a sound): two boxes (460,160 and 990,160, 500 x 430), GREEN and NATURAL MAPLE, each with Tom 3 drawn in that finish; a click chooses one, outlined in bronze, and every page's drawings follow it. The finish is saved with the session (not a parameter); a session saved before it existed opens green. MIDI MAP PRESETS: to come (saving and recalling note maps). No DRUM box on this page.
 
 ## Wireframes (`plugin/ui/`)
 
-`DrumModel` is the mockup's geometry ported line for line (no JUCE): shells in British racing green, two-tier die-cast hoops with ears, Starclassic bullet lugs, the kicks' wood hoops and claws, the head mesh (25 rings x 96 points) that flexes in membrane modes J_m after a hit and flashes where the stick lands. Sizes as drawn: `drumLook()` (the Popcorn Snare a 10" snare, Tom 5 a 16" floor tom); the depths agree with `KitMap.h`, and the editor checks the drum counts agree (`kDrumCount`).
+`DrumModel` is the mockup's geometry ported line for line (no JUCE): maple shells drawn as their grain (below), two-tier die-cast hoops with ears, Starclassic bullet lugs, the kicks' wood hoops and claws, the head mesh (25 rings x 96 points) that flexes in membrane modes J_m after a hit and flashes where the stick lands. Sizes as drawn: `drumLook()` (the Popcorn Snare a 10" snare, Tom 5 a 16" floor tom); the depths agree with `KitMap.h`, and the editor checks the drum counts agree (`kDrumCount`).
 
 Size is the shell's depth on Toms 1-4 (Kris, 2026-11-25; mockups approved): the drawings follow it. On the DRUM and TUNING pages the head stays where the camera puts it and the shell grows or shrinks below; on the KIT page a rack tom's bottom stays where it rests on the kick and its head moves along its axis (down and a little back when shallower). The spec line under the DRUM box shows the depth played. Every drum on the DRUM page is drawn at one scale, the one that fits the largest (the bass drum) with the toms at their deepest, so the drums are proportional to each other; the TUNING page's small drum keeps its own scale (at its deepest).
+
+**The shells' grain** (Kris's Starclassic brochure photos, mockups approved 2026-11-26): the outer maple ply's growth rings, drawn as lines in place of the old shell mesh. The rings are levels of a field on the shell: level bands with gentle waves and seven lens-shaped "eyes" where they bulge (about 0.9" a ring). Each ring has 3 lines, bright in the early wood and darker into the late wood, its edge left black, at 0.75 of the old mesh's brightness; the burst toward the shell's ends and the light are the mesh's. The outer ply's seam runs diagonally from the top of a top lug down to the bottom of the next bottom lug (single-headed drums: down to the bottom edge), on the side facing the camera and leaning down to the left as on the brochure's shell: the grain does not line up across it, one cell (about 0.08") of black with the lines either side at 45 %. Two finishes (SETTINGS): green (body 64,158,80; highlight 128,232,150; edges 30,60,28) and natural lacquered maple (244,214,162; 255,246,226; 150,112,64); the kicks' wood hoops and the shells' edges follow the finish. Each drum's grain is the same every time (seeded from its size). It is worked out once per shell, depth and seam (on a grid of separable wave tables, then marching squares) and kept for the last 24 shells drawn; a drawing only projects and lights it. Snapshots: `settings.png`, `settings-natural.png`, `drum-tom3-natural.png`, `kit-natural.png`, `tuning-tom3-natural.png`, `drum-kick1-natural.png`.
 
 The gong drum and the octobans (Kris's TAMA photos, mockups approved 2026-11-24):
 
@@ -39,11 +42,14 @@ The gong drum and the octobans (Kris's TAMA photos, mockups approved 2026-11-24)
 
 | | 1x (1536 x 1024) | 2x (Retina) |
 |---|---|---|
-| DRUM page still (another drum, resizing) | 15 ms | 45 ms |
-| DRUM page moving frame | 4 ms | 8 ms |
-| KIT page still (opening the page, resizing) | 39 ms | 98 ms |
-| KIT page, another drum selected | | 9 ms |
+| DRUM page still (another drum, resizing) | 22 ms | 32 ms |
+| DRUM page moving frame | 2 ms | 4 ms |
+| KIT page still (opening the page, resizing) | 70 ms | 117 ms |
+| KIT page, another drum selected | | 13 ms |
 | KIT page moving frame | 1 ms | 3 ms |
+| SETTINGS page still | 7 ms | |
+
+With the grain (2026-11-26) the stills went from 15 to 22 ms (DRUM) and from 39 to 70 ms (KIT) at 1x; the moving frames did not change.
 
 At 30 Hz, 8 ms a frame is about a quarter of the message thread while a head moves on a Retina display.
 

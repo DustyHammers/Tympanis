@@ -149,8 +149,18 @@ struct DrumDrawing
     float x0 = 0, y0 = 0, x1 = 0, y1 = 0; // screen bounds of everything, design units
 };
 
-// sel: 1 for the selected drum on the KIT page (35 % brighter), else 0.
-DrumDrawing drawDrum (const DrumSpec& spec, const Camera& cam, double sel = 0.0);
+// The shells' finish (the SETTINGS page; a look, not a sound): the green lacquer, or natural
+// lacquered maple. Saved with the session, not a parameter.
+enum class Finish
+{
+    green,
+    natural
+};
+
+// sel: 1 for the selected drum on the KIT page (35 % brighter), else 0. The shell is drawn as
+// the maple's grain (lines along its growth rings, the outer ply's diagonal seam on the
+// camera's side) in the finish's colours.
+DrumDrawing drawDrum (const DrumSpec& spec, const Camera& cam, double sel = 0.0, Finish finish = Finish::green);
 
 // A bass drum pedal (the KIT page; the shape of Kris's photos of Trick Big Foot / Black Widow
 // pedals, 2026-11-25), added to a drawing: clamped to a kick's batter hoop on the floor, the

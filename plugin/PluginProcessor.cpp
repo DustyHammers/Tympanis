@@ -324,6 +324,7 @@ void TympanisProcessor::getStateInformation(juce::MemoryBlock& destData)
     juce::ValueTree ui("Editor");
     ui.setProperty("page", uiPage.load(), nullptr);
     ui.setProperty("drum", kDrums[(size_t) uiDrum.load()].key, nullptr);
+    ui.setProperty("finish", uiFinish.load() == 1 ? "natural" : "green", nullptr);
     ui.setProperty("width", editorWidth.load(), nullptr);
     ui.setProperty("height", editorHeight.load(), nullptr);
     root.appendChild(ui, nullptr);
@@ -360,6 +361,7 @@ void TympanisProcessor::setStateInformation(const void* data, int sizeInBytes)
         const juce::String key = ui.getProperty("drum", "").toString();
         for (size_t d = 0; d < kDrums.size(); ++d)
             if (key == kDrums[d].key) setSelectedDrum((int) d);
+        setDrumFinish(ui.getProperty("finish", "green").toString() == "natural" ? 1 : 0);
         const int w = (int) ui.getProperty("width", 0), h = (int) ui.getProperty("height", 0);
         if (w > 0 && h > 0) setEditorSize(w, h);
     }

@@ -9,6 +9,7 @@
 //   drum:  the DRUM page's drum, in the area above the bottom row and left of the right column
 //   small: the TUNING page's small drum, in the left column
 //   kit:   the KIT page: the kit; a click on a drum selects it
+//   placed: a small view in an area of its own (the SETTINGS page's finishes), its drum framed in it
 
 #include "DrumModel.h"
 #include "UiAssets.h"
@@ -31,6 +32,7 @@ public:
         kit
     };
     WireView (const Assets& assets, Mode mode);
+    WireView (const Assets& assets, juce::Rectangle<int> areaIn); // a small view placed in areaIn
     ~WireView() override;
 
     static juce::Rectangle<int> area (Mode mode);
@@ -38,6 +40,10 @@ public:
     // drum, small: the drum shown; kit: the selected drum (35 % brighter). KitMap.h index.
     void setDrum (int drum);
     int drum() const noexcept { return shownDrum; }
+
+    // The shells' finish (the SETTINGS page); a change redraws the still drawing.
+    void setFinish (wire::Finish f);
+    wire::Finish currentFinish() const noexcept { return finish; }
 
     // Each drum's shell, inches deeper than drawn by default (Size on Toms 1-4; KitMap.h order).
     // A change redraws the still drawing (kit: the whole kit; drum, small: if the drum shown).
@@ -108,6 +114,8 @@ private:
     const Assets& assets;
     const Mode mode;
     const juce::Rectangle<int> designArea;
+    const bool placed = false;
+    wire::Finish finish = wire::Finish::green;
     int shownDrum = 8;
     std::array<double, wire::kDrumCount> depthOff {};
 

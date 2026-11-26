@@ -45,6 +45,12 @@ WireView::WireView (const Assets& a, Mode m) : assets (a), mode (m), designArea 
     setInterceptsMouseClicks (mode == Mode::kit, false);
 }
 
+WireView::WireView (const Assets& a, juce::Rectangle<int> areaIn) : assets (a), mode (Mode::small), designArea (areaIn), placed (true)
+{
+    setOpaque (true);
+    setInterceptsMouseClicks (false, false);
+}
+
 WireView::~WireView()
 {
     stopTimer();
@@ -59,6 +65,15 @@ juce::Rectangle<int> WireView::area (Mode m)
         case Mode::kit: break;
     }
     return { 200, 300, 1180, 640 };
+}
+
+void WireView::setFinish (wire::Finish f)
+{
+    if (f == finish)
+        return;
+    finish = f;
+    needsBuild = true;
+    repaint();
 }
 
 void WireView::setDrum (int d)
@@ -82,7 +97,7 @@ void WireView::setDepths (const std::array<double, wire::kDrumCount>& offsetsIn)
 {
     if (offsetsIn == depthOff)
         return;
-    const bool shownChanged = offsetsIn[(size_t) juce::jlimit (0, 16, shownDrum)] != depthOff[(size_t) juce::jlimit (0, 16, shownDrum)];
+    const bool shownChanged = offsetsIn[(size_t) juce::jlimit (0, wire::kDrumCount - 1, shownDrum)] != depthOff[(size_t) juce::jlimit (0, wire::kDrumCount - 1, shownDrum)];
     depthOff = offsetsIn;
     if (mode != Mode::kit && ! shownChanged)
         return;
@@ -221,7 +236,7 @@ void WireView::build (float scale)
             Item it;
             it.drum = layout[k].drum;
             it.kitIndex = (int) k;
-            it.drawing = wire::drawDrum (wire::kitSpec (layout[k], depthOff[(size_t) layout[k].drum]), cam);
+            it.drawing = wire::drawDrum (wire::kitSpec (layout[k], depthOff[(size_t) layout[k].drum]), cam, 0.0, finish);
             if (layout[k].spec.kind == wire::Kind::kick)
             {
                 // its pedal: the fixed parts with the drum; the moving parts over the frame
@@ -238,11 +253,14 @@ void WireView::build (float scale)
     {
         const bool big = mode == Mode::drum;
         // the DRUM page: every drum at one scale (proportional to each other); the small one: its own
-        const auto fr = wire::frameDrum (shownDrum, big ? kDrumCentre : kSmallCentre, big ? kDrumMaxW : kSmallMaxW, big ? kDrumMaxH : kSmallMaxH,
-                                         depthOff[(size_t) juce::jlimit (0, 16, shownDrum)], big ? wire::Scale::kit : wire::Scale::own);
+        // a view placed elsewhere (the SETTINGS page's) frames its drum in its own area
+        const wire::Pt smallC = placed ? wire::Pt { (float) designArea.getCentreX(), (float) designArea.getCentreY() } : kSmallCentre;
+        const double smallW = placed ? designArea.getWidth() * 0.78 : kSmallMaxW, smallH = placed ? designArea.getHeight() * 0.9 : kSmallMaxH;
+        const auto fr = wire::frameDrum (shownDrum, big ? kDrumCentre : smallC, big ? kDrumMaxW : smallW, big ? kDrumMaxH : smallH,
+                                         depthOff[(size_t) juce::jlimit (0, wire::kDrumCount - 1, shownDrum)], big ? wire::Scale::kit : wire::Scale::own);
         Item it;
         it.drum = shownDrum;
-        it.drawing = wire::drawDrum (fr.spec, fr.cam);
+        it.drawing = wire::drawDrum (fr.spec, fr.cam, 0.0, finish);
         items.push_back (std::move (it));
     }
 
@@ -344,7 +362,7 @@ void WireView::applySelection()
     if (selItem >= 0)
     {
         const auto& kit = wire::kitLayout()[(size_t) k];
-        selDrawing = wire::drawDrum (wire::kitSpec (kit, depthOff[(size_t) kit.drum]), wire::kitCamera(), 1.0);
+        selDrawing = wire::drawDrum (wire::kitSpec (kit, depthOff[(size_t) kit.drum]), wire::kitCamera(), 1.0, finish);
         if (kit.spec.kind == wire::Kind::kick)
             wire::addKickPedal (selDrawing, kit.spec, wire::kitCamera(), 1.0, 0.0, wire::PedalParts::fixed);
         selBox = pixelBox (selDrawing.x0, selDrawing.y0, selDrawing.x1, selDrawing.y1, 14.0f);
