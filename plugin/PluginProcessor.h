@@ -2,9 +2,11 @@
 
 #include "KitMap.h"
 #include "dsp/Engine.h"
+#include "JobPool.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -18,7 +20,7 @@ public:
     ~TympanisProcessor() override = default;
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override {}
+    void releaseResources() override { renderPool.release(); }
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     using AudioProcessor::processBlock;
@@ -90,12 +92,22 @@ public:
     // Level and Main Volume: -60 dB at the bottom of the range means off.
     static constexpr float kLevelMinDb = -60.0f, kLevelMaxDb = 6.0f;
 
+    // Test only (tools/tympanis_hosttest): render the drums through a pool of `threads` threads,
+    // the audio thread included, from the next prepareToPlay; timingSamples > 0 keeps the pool's
+    // wake-up delays and caller waits. Not a parameter, not saved with the session, not in the
+    // editor: the plugin as shipped renders on one thread (threads 1, no pool). Turning threads
+    // on in the plugin is a later step, with Cymbalis's, after tests in hosts.
+    void setRenderThreadsForTesting(int threads, int timingSamples = 0) { testThreads = std::max(1, threads); testTimingSamples = timingSamples; }
+    dhpool::JobPool& renderPoolForTesting() { return renderPool; }
+
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
     void applyParameters();
 
     std::unique_ptr<tympanis::KitData> kitData;
     tympanis::Kit kit;
+    dhpool::JobPool renderPool;       // the drums' pool: only with setRenderThreadsForTesting
+    int testThreads = 1, testTimingSamples = 0;
     bool kitLoaded = false;
     juce::String loadError;
 

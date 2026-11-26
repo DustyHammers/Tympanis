@@ -149,6 +149,21 @@ void TympanisProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     right = left;
     if (! kitLoaded) return;
     kit.prepare(sampleRate);
+    // one thread unless a test asked for more (setRenderThreadsForTesting)
+    if (testThreads > 1)
+    {
+        dhpool::JobPool::Options o;
+        o.threads = testThreads;
+        o.periodMs = 1000.0 * samplesPerBlock / sampleRate;
+        o.timingSamples = testTimingSamples;
+        renderPool.prepare(o);
+        kit.setPool(&renderPool);
+    }
+    else
+    {
+        kit.setPool(nullptr);
+        renderPool.release();
+    }
     lastBuzz = -1;
     for (auto& p : drumParams)
         for (float& v : p.last) v = std::numeric_limits<float>::quiet_NaN();

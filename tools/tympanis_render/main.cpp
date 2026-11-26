@@ -1,8 +1,11 @@
 // tympanis_render — render a sequence of hits through the C++ engine (no JUCE).
 //
 //   tympanis_render --bake resources/bake --seq seq.json --out out.wav [--raw out.f64] [--one-call]
+//                   [--threads N]
 //
 // --one-call renders each stretch between hits in one piece, as the prototype does (port check).
+// --threads N renders the drums through a dhpool pool of N threads (the calling one included);
+// the output is bit-identical at any N (the threaded kit's check, and the ThreadSanitizer run).
 //
 // seq.json:
 //   { "sample_rate": 44100, "duration": 4.0, "variation": true, "noiseless": false,
@@ -13,6 +16,7 @@
 // Events are rendered the way the prototype's Kit.sequence renders them: the kit is rendered up
 // to each event's sample, then the hit is struck.
 #include "Engine.h"
+#include "JobPool.h"
 #include "Json.h"
 
 #include <algorithm>
@@ -61,6 +65,7 @@ int main(int argc, char** argv)
     std::string bake = "resources/bake", seqPath, out, raw;
     double gain = 1.0;
     bool oneCall = false;
+    int threads = 1;
     for (int i = 1; i < argc; ++i)
     {
         std::string a = argv[i];
@@ -71,6 +76,7 @@ int main(int argc, char** argv)
         else if (a == "--raw") raw = next();
         else if (a == "--gain") gain = std::stod(next());
         else if (a == "--one-call") oneCall = true;
+        else if (a == "--threads") threads = std::max(1, std::stoi(next()));
         else { std::cerr << "unknown argument " << a << "\n"; return 2; }
     }
     if (seqPath.empty()) { std::cerr << "usage: tympanis_render --bake DIR --seq SEQ.json [--out X.wav] [--raw X.f64] [--gain G]\n"; return 2; }
@@ -88,6 +94,14 @@ int main(int argc, char** argv)
         kit.prepare(sr);
         kit.setNoiseless(flag("noiseless", false));
         kit.setSnareBuzz(num("snare_buzz", 0.5));
+        dhpool::JobPool pool;
+        if (threads > 1)
+        {
+            dhpool::JobPool::Options o;
+            o.threads = threads;
+            pool.prepare(o);
+            kit.setPool(&pool);
+        }
         std::map<std::string, int> idx;
         for (int i = 0; i < kit.numDrums(); ++i) idx[data.drums[(size_t) i].key] = i;
         if (const json::Value* ds = seq.find("drums"))
@@ -131,7 +145,13 @@ int main(int argc, char** argv)
             if (ei >= ev.size() && cur >= N) break;
         }
         const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-        std::fprintf(stderr, "rendered %.2f s in %.3f s (%.1fx real time)\n", dur, secs, dur / std::max(secs, 1e-9));
+        std::fprintf(stderr, "rendered %.2f s in %.3f s (%.1fx real time), %d thread%s\n", dur, secs, dur / std::max(secs, 1e-9), threads,
+                     threads > 1 ? "s" : "");
+        if (threads > 1)
+        {
+            const auto st = pool.stats();
+            std::fprintf(stderr, "pool: %llu runs, %llu shared\n", (unsigned long long) st.runs, (unsigned long long) st.sharedRuns);
+        }
         for (auto& v : y) v *= gain;
         if (! raw.empty()) { std::ofstream f(raw, std::ios::binary); f.write((const char*) y.data(), (std::streamsize) (y.size() * sizeof(double))); }
         if (! out.empty()) writeWav16(out, y, sr);
