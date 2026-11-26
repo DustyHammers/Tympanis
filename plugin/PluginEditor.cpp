@@ -1353,6 +1353,19 @@ void Content::refresh()
         smallView->setDepths (depthOff);
         repaint (juce::Rectangle<int> (0, 430, 400, 40)); // the spec line
     }
+    // the SNARES switches: the throw-offs' levers follow
+    std::array<bool, kDrums.size()> snaresOff {};
+    for (size_t d = 0; d < kDrums.size(); ++d)
+        if (kDrums[d].engineOff >= 0)
+            if (auto* v = processor.params.getRawParameterValue (juce::String (kDrums[d].key) + "_snares"))
+                snaresOff[d] = v->load() < 0.5f;
+    if (snaresOff != shownSnaresOff)
+    {
+        shownSnaresOff = snaresOff;
+        drumView->setSnaresOff (snaresOff);
+        kitView->setSnaresOff (snaresOff);
+        smallView->setSnaresOff (snaresOff);
+    }
 
     const double now = juce::Time::getMillisecondCounterHiRes();
     for (size_t b = 0; b < noteBoxes.size(); ++b)

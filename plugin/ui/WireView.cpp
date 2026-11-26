@@ -64,7 +64,7 @@ juce::Rectangle<int> WireView::area (Mode m)
         case Mode::small: return { 40, 476, 320, 250 }; // the left column, under the spec line
         case Mode::kit: break;
     }
-    return { 200, 300, 1180, 640 };
+    return { 200, 300, 1310, 640 }; // out to 1510 for the gong drum on the right
 }
 
 void WireView::setFinish (wire::Finish f)
@@ -102,6 +102,19 @@ void WireView::setDepths (const std::array<double, wire::kDrumCount>& offsetsIn)
     if (mode != Mode::kit && ! shownChanged)
         return;
     numHits = 0;
+    needsBuild = true;
+    repaint();
+}
+
+void WireView::setSnaresOff (const std::array<bool, wire::kDrumCount>& offIn)
+{
+    if (offIn == snaresOff)
+        return;
+    const auto sd = (size_t) juce::jlimit (0, wire::kDrumCount - 1, shownDrum);
+    const bool shownChanged = offIn[sd] != snaresOff[sd];
+    snaresOff = offIn;
+    if (mode != Mode::kit && ! shownChanged)
+        return;
     needsBuild = true;
     repaint();
 }
@@ -236,7 +249,9 @@ void WireView::build (float scale)
             Item it;
             it.drum = layout[k].drum;
             it.kitIndex = (int) k;
-            it.drawing = wire::drawDrum (wire::kitSpec (layout[k], depthOff[(size_t) layout[k].drum]), cam, 0.0, finish);
+            auto spec = wire::kitSpec (layout[k], depthOff[(size_t) layout[k].drum]);
+            spec.snaresOff = snaresOff[(size_t) layout[k].drum];
+            it.drawing = wire::drawDrum (spec, cam, 0.0, finish);
             if (layout[k].spec.kind == wire::Kind::kick)
             {
                 // its pedal: the fixed parts with the drum; the moving parts over the frame
@@ -260,7 +275,9 @@ void WireView::build (float scale)
                                          depthOff[(size_t) juce::jlimit (0, wire::kDrumCount - 1, shownDrum)], big ? wire::Scale::kit : wire::Scale::own);
         Item it;
         it.drum = shownDrum;
-        it.drawing = wire::drawDrum (fr.spec, fr.cam, 0.0, finish);
+        auto spec = fr.spec;
+        spec.snaresOff = snaresOff[(size_t) juce::jlimit (0, wire::kDrumCount - 1, shownDrum)];
+        it.drawing = wire::drawDrum (spec, fr.cam, 0.0, finish);
         items.push_back (std::move (it));
     }
 
@@ -362,7 +379,9 @@ void WireView::applySelection()
     if (selItem >= 0)
     {
         const auto& kit = wire::kitLayout()[(size_t) k];
-        selDrawing = wire::drawDrum (wire::kitSpec (kit, depthOff[(size_t) kit.drum]), wire::kitCamera(), 1.0, finish);
+        auto spec = wire::kitSpec (kit, depthOff[(size_t) kit.drum]);
+        spec.snaresOff = snaresOff[(size_t) kit.drum];
+        selDrawing = wire::drawDrum (spec, wire::kitCamera(), 1.0, finish);
         if (kit.spec.kind == wire::Kind::kick)
             wire::addKickPedal (selDrawing, kit.spec, wire::kitCamera(), 1.0, 0.0, wire::PedalParts::fixed);
         selBox = pixelBox (selDrawing.x0, selDrawing.y0, selDrawing.x1, selDrawing.y1, 14.0f);
