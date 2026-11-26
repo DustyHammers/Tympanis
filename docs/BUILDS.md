@@ -8,11 +8,28 @@
 |---|---|
 | A pull request (any branch) | Build, checks, zips as the run's artifact |
 | A push to `main` | The same, for `main` |
-| Run workflow (Actions tab, any branch) | The same, by hand |
+| Run workflow (Actions tab, any branch) | The same, by hand; tick "full tests" for the on-request steps too |
 
 Changes to `docs/` or Markdown files alone do not start a build.
 
-Each run: configures and builds (Ninja, ccache, JUCE cached), runs the processor checks (`tympanis_hosttest checks`) and the CPU benchmark, prints the editor's drawing times, checks both architectures, macOS 11.0 minimum and no AVX in the x86_64 slice, signs ad hoc, validates the VST3 with pluginval and the AU with auval (native and under Rosetta), and uploads `Tympanis-VST3-macOS-<commit>.zip` and `Tympanis-AU-macOS-<commit>.zip` as the artifact `Tympanis-macOS-<commit>` (kept 30 days). A Linux job checks the locked files (`docs/locked.md5`), that the committed bake matches `tools/bake_kit.py`, and that the C++ engine matches the Python prototype (`tools/ref_check.py`).
+Each run: configures and builds (Ninja, ccache, JUCE cached), runs the processor checks (`tympanis_hosttest checks`) and the CPU benchmark, checks both architectures, macOS 11.0 minimum and no AVX in the x86_64 slice, signs ad hoc, validates the VST3 with pluginval and the AU with auval (native and under Rosetta), and uploads `Tympanis-VST3-macOS-<commit>.zip` and `Tympanis-AU-macOS-<commit>.zip` as the artifact `Tympanis-macOS-<commit>` (kept 30 days). A Linux job checks the locked files (`docs/locked.md5`), that the committed bake matches `tools/bake_kit.py`, that the C++ engine matches the Python prototype (`tools/ref_check.py`) and the contact bursts (the burst check).
+
+## What runs: every time, and on request
+
+While the kit is being developed (Kris, 2026-11-26), CI is lean: the multi-core tests and the editor's drawing times run only when asked for.
+
+| Job | Every push to `main` and every pull request | Only with "full tests" |
+|---|---|---|
+| macOS | build; processor checks; CPU benchmark, one thread (`bench --one-thread`: the real-time figure, CLAUDE.md's 3x rule); architectures, macOS 11.0, no AVX; ad-hoc sign; pluginval; auval (native and Rosetta); package and upload | job pool self-test; the CPU benchmark's paced cases at 1-3 threads (the full `bench`); editor drawing times |
+| Linux | locked files; bake is current; build the engine; port check against `prototype/engine.py`; burst check | job pool self-test; threads give the same bits; ThreadSanitizer |
+
+The test tools (`dhpool_selftest`, the host test, the snapshot tool) are still built every time, so a broken one shows up as a build error; only the ThreadSanitizer build waits for full tests.
+
+**Running the full tests:** Actions → "Build macOS (VST3 + AU)" → Run workflow → pick the branch → tick "full tests" → Run workflow. Run them when a change touches threads, the pool or the processor's threading.
+
+**Before threads go on in the plugin** (step 3 of the kit plan with Cymbalis), the full tests must run, and pass, on every pull request again: the job pool self-test, the paced bench, the same bits at 1-3 threads and ThreadSanitizer are the multi-core checks the merged kit relies on. They are on request for now, not removed.
+
+Typical times (macOS 15 runner, M1): before this change both jobs took about 7.5-8 minutes; now about TIMES_AFTER.
 
 ## Getting a build
 
@@ -74,6 +91,6 @@ The plugin is built with `JUCE_DISPLAY_SPLASH_SCREEN=0` (Kris, 2026-11-25, as Cy
 
 ## dhpool (the shared job pool)
 
-`third_party/dhpool/` is a copy of Cymbalis's `shared/dhpool/` (github.com/DustyHammers/Cymbalis), the job pool both plugins, and the kit that merges them, render through. `third_party/dhpool/SOURCE.md` records the commit it was copied at (`cf9aad1`, 2026-11-25) and its version (1). The build adds it as its own target (`dhpool`, linked by the engine) with its self-test `dhpool_selftest`, which CI runs on the Mac and on Linux.
+`third_party/dhpool/` is a copy of Cymbalis's `shared/dhpool/` (github.com/DustyHammers/Cymbalis), the job pool both plugins, and the kit that merges them, render through. `third_party/dhpool/SOURCE.md` records the commit it was copied at (`cf9aad1`, 2026-11-25) and its version (1). The build adds it as its own target (`dhpool`, linked by the engine) with its self-test `dhpool_selftest`, which CI builds every time and runs on the Mac and on Linux with full tests ("What runs").
 
-**It is never edited here.** A change is made in Cymbalis; then the whole folder is copied again at the new Cymbalis commit (byte for byte, nothing else from Cymbalis) and `SOURCE.md` updated, in a pull request of its own, and the checks (the same bits at 1-3 threads, ThreadSanitizer) run on it.
+**It is never edited here.** A change is made in Cymbalis; then the whole folder is copied again at the new Cymbalis commit (byte for byte, nothing else from Cymbalis) and `SOURCE.md` updated, in a pull request of its own, and the full tests (the self-test, the same bits at 1-3 threads, ThreadSanitizer) run on it.

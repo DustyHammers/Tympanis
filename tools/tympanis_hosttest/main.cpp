@@ -1,8 +1,10 @@
 // tympanis_hosttest — drives the plugin's processor the way a host does (no audio device).
 //
 //   tympanis_hosttest checks           run the processor checks (exit code 1 on failure)
-//   tympanis_hosttest bench [--seconds S]  CPU use with every drum ringing: the one-thread table,
-//                                      then per block, paced, at 1-3 threads (S s per case, 4)
+//   tympanis_hosttest bench [--seconds S] [--one-thread]
+//                                      CPU use with every drum ringing: the one-thread table,
+//                                      then per block, paced, at 1-3 threads (S s per case, 4);
+//                                      --one-thread: the one-thread table only
 //   tympanis_hosttest render SEQ OUT   play SEQ (JSON: sample_rate, duration, block,
 //                                      events [[time_s, row_id, velocity 1..127], ...])
 //                                      through processBlock and write a 24-bit stereo WAV
@@ -464,7 +466,7 @@ double quantile(std::vector<float> v, double q)
     return v[(size_t) std::min<double>((double) v.size() - 1, q * (double) (v.size() - 1) + 0.5)];
 }
 
-int runBench(double pacedSeconds)
+int runBench(double pacedSeconds, bool oneThread)
 {
     const auto benchStart = std::chrono::steady_clock::now();
     std::cout << "CPU on one thread: every 250 ms alternate halves of the rows are struck (all 17 drums ringing), snare buzz 0.5,\n"
@@ -481,6 +483,11 @@ int runBench(double pacedSeconds)
             const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
             std::printf("%8.0f   %5d   %10.1f   %11.1f\n", sr, blk, 20.0 / secs, 100.0 * secs / 20.0);
         }
+    if (oneThread)
+    {
+        std::printf("\nbench time: %.0f s\n", std::chrono::duration<double>(std::chrono::steady_clock::now() - benchStart).count());
+        return 0;
+    }
 
     // Per block, paced: the same hits, each block started at its deadline (one block's duration
     // after the last) on a real-time thread, as a host does, and timed. The drums through the
@@ -625,7 +632,17 @@ int main(int argc, char** argv)
     juce::ScopedJuceInitialiser_GUI init;
     const std::string mode = argc > 1 ? argv[1] : "checks";
     if (mode == "checks") return runChecks();
-    if (mode == "bench") return runBench(argc > 3 && std::string(argv[2]) == "--seconds" ? std::atof(argv[3]) : 4.0);
+    if (mode == "bench")
+    {
+        double seconds = 4.0;
+        bool oneThread = false;
+        for (int i = 2; i < argc; ++i)
+        {
+            if (std::string(argv[i]) == "--seconds" && i + 1 < argc) seconds = std::atof(argv[++i]);
+            else if (std::string(argv[i]) == "--one-thread") oneThread = true;
+        }
+        return runBench(seconds, oneThread);
+    }
     if (mode == "render" && argc > 3)
     {
         std::string raw;
