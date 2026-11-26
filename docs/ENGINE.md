@@ -22,7 +22,7 @@ On each hit (`Drum::strike`):
 
 ## Kit
 
-`Kit` renders the 17 drums (mono at unity, or stereo with per-drum gains for the plugin's level and pan) and the **snare buzz** (kit parameter, 0..1): the rest of the kit drives each snare's head modes below 1.5 kHz; when the head motion passes the wires' seating level, the snare's own wire noise rattles.
+`Kit` renders the 17 engine drums (`resources/bake/kit.bake.json`; `plugin/KitMap.h` `kEngineDrums`): the plugin's 15 drums, with the Snare and the Popcorn Snare as two models each, wires on and wires off ("Snares on and off" below). It renders them (mono at unity, or stereo with per-drum gains for the plugin's level and pan) and the **snare buzz** (kit parameter, 0..1): the rest of the kit drives each snare's head modes below 1.5 kHz; when the head motion passes the wires' seating level, the snare's own wire noise rattles.
 
 **Parallel drums, serial kit** (Kris, 2026-11-25; a step of "Cymbalis + Tympanis: one physically modelled kit"). `Kit::renderChunk` works in four stages:
 
@@ -33,7 +33,7 @@ On each hit (`Drum::strike`):
 
 Why 2-4 stay serial: float addition is not associative, so the sum has to be in a fixed order to give the same bits at any thread count; the snare pass is serial by nature (each snare hears the earlier snares' buzz); the gain stage needs the snares' buffers after that pass. They are cheap next to stage 1.
 
-**The same bits at any thread count**, and as before this change: `tympanis_hosttest checks` compares 2 and 3 threads with 1 over a busy sequence (buzz up, uneven lug tension, levels and pans moving); CI renders `tools/seq/kit_busy_mono.json` at 1, 2 and 3 threads and requires one md5. On 2026-11-25 (Linux, GCC 13.3, Release) `tools/seq/kit_busy_mono.json` gave md5 `b5dcf03d5c187d6c4f682501665c6be0` (`tympanis_render --raw`) and `tools/seq/kit_busy_stereo.json` `0f4cc91ba982eac9a6a6c9bc044933b9` (`tympanis_hosttest render --raw`) on `main` before the change and at 1, 2, 3 (and 4) threads after it. ThreadSanitizer (GCC 13, Linux) on the busy render at 2, 3 and 4 threads and on the pool's self-test: no data race (CI runs it at 4).
+**The same bits at any thread count** (2026-11-25), and as before that change: `tympanis_hosttest checks` compares 2 and 3 threads with 1 over a busy sequence (buzz up, uneven lug tension, levels and pans moving); CI renders `tools/seq/kit_busy_mono.json` at 1, 2 and 3 threads and requires one md5. On 2026-11-25 (Linux, GCC 13.3, Release) `tools/seq/kit_busy_mono.json` gave md5 `b5dcf03d5c187d6c4f682501665c6be0` (`tympanis_render --raw`) and `tools/seq/kit_busy_stereo.json` `0f4cc91ba982eac9a6a6c9bc044933b9` (`tympanis_hosttest render --raw`) on `main` before the change and at 1, 2, 3 (and 4) threads after it. ThreadSanitizer (GCC 13, Linux) on the busy render at 2, 3 and 4 threads and on the pool's self-test: no data race (CI runs it at 4, with full tests). The busy sequences were remade on 2026-11-26 for the Snare and Popcorn Snare switches (the mono one strikes all 17 engine drums; the stereo one flips both switches): `kit_busy_mono.json` md5 `276a98639bb4291dea3e2cac2ae61da7`, `kit_busy_stereo.json` `3d7b644e87b648d5750a2f9348ad4438`, the same at 1, 2 and 3 threads.
 
 **Shared state.** Nothing is shared between drums while they render: no static or global state in the engine (`ringBlock` is a pure function); each drum has its own variation generator (seeded from its model's name), noise banks, transient, pulse and burst pools and glide state; the baked kit data is read-only; each snare's wire noise belongs to the serial snare pass. The pool hands each job the caller's floating-point control (flush to zero). The analysis is in Cymbalis's `docs/PORT_MAP.md`, "Multi-cymbal rendering (step 2)", "Driving Tympanis's `Kit` with dhpool"; this change follows it.
 
@@ -51,14 +51,14 @@ Why 2-4 stay serial: float addition is not associative, so the sum has to be in 
 - per-band level corrections: the prototype measures each band filter's noise gain on a fixed random sequence; the ratio to the exact gain is kept so the levels match at any sample rate
 - the snare-head bank for the snare buzz
 
-The JSON bake stays the source. The plugin embeds it packed (docs/BUILDS.md, "The packed kit"): every number keeps its exact bits, so the plugin loads the same values as the JSON gives and sounds the same. `python3 tools/bake_kit.py --check` fails if the committed bake differs from what the tool makes.
+The JSON bake stays the source. The plugin embeds it packed (docs/BUILDS.md, "The packed kit"): every number keeps its exact bits, so the plugin loads the same values as the JSON gives and sounds the same. `python3 tools/bake_kit.py --check` fails if the committed bake differs from what the tool makes. Its `KIT` list is the engine's drum order (and the snare-buzz order); `RESERVED` drums are baked and checked but not in the kit or the plugin (Snare 3, since 2026-11-26); `NO_SYM` snares get no sympathetic bank (the Popcorn Snare's wires-off model). `python3 tools/snares_off.py --check` fails if the derived wires-off model differs from what that tool makes.
 
 ## Port notes (deliberate differences from the prototype)
 
 - Noise uses different random sequences (same spectra and levels).
 - Hit-to-hit variation uses its own generator, seeded per drum.
 - Strike-position gain and mode shapes come from the baked grids, interpolated between grid points (exact at them; the native radius 0.35 and the contact radii are grid points).
-- Snare 4's reference size is 10" (the bake's `native_in`, `CATALOG_IN` in `tools/bake_kit.py`; Kris, 2026-11-24), where the prototype's NATIVE_IN has 14" for every snare. The model is unchanged: at its catalog size it sounds as before; a Size of S" in the plugin is the prototype's size_in = 1.4 x S.
+- Snare 4's (the Popcorn Snare's, and its wires-off model's) reference size is 10" (the bake's `native_in`, `CATALOG_IN` in `tools/bake_kit.py`; Kris, 2026-11-24), where the prototype's NATIVE_IN has 14" for every snare. The model is unchanged: at its catalog size it sounds as before; a Size of S" in the plugin is the prototype's size_in = 1.4 x S.
 - A size change keeps the noise bands' baked level corrections (the prototype re-measures the moved bands on its random sequence). The band filters are re-designed live, with the exact noise gain from the filters' state-space Gramian (cheap, allocation-free).
 - A slot that has decayed 140 dB below a full hit is cleared and skipped; glide below 1e-12 counts as ended and the poles stop being recomputed (CPU).
 - With `lug_detune` turned to 0 while twins still ring, the twins ring on at even tension (the prototype froze them and resumed them later).
@@ -72,11 +72,23 @@ The JSON bake stays the source. The plugin embeds it packed (docs/BUILDS.md, "Th
 - `tympanis_hosttest checks`: the processor (see `docs/PLUGIN.md`), and the drums through a pool bit-identical to one thread ("Kit").
 - `dhpool_selftest`: the pool's own self-test (Mac and Linux CI).
 
+## Snares on and off
+
+(Kris, 2026-11-26.) The Snare and the Popcorn Snare each have two models, wires on and wires off, behind their Snares On/Off switch (`docs/PLUGIN.md`). The switch picks the engine drum a new hit goes to; the ringing one rings on. The processor sends every other setting to both models, at the same moment.
+
+**The Snare** is Snare 1's model (wires on) and Snare 2's (wires off), unchanged. The two are the same body: the same mode clusters (about 200-225 Hz and near 505 Hz), the wires-off modes ringing 3-8x longer, the 2-16 kHz wire noise 10-30 dB lower and short; Snare 2 sits about 2/3 semitone lower (two tunings, kept: Kris wants Snare 2 exactly as it was).
+
+**Snare 2 plays the same bits as before** (proved 2026-11-26, raw floats through `processBlock`, `main` a8a8496 against this change, at 64- and 256-sample blocks, all eight equal): Snare 2 alone with the buzz off; alone with the buzz on (Snare 1 rings along); a busy kit sequence with its hits and the buzz on; the same with Snare 1's hits. On `main` Snare 3 and Snare 4 were muted in the buzz cases (Snare 3 is gone, and the Popcorn Snare's ring along changed: below). The Popcorn Snare's wires-on model alone also plays Snare 4's bits. It holds because Snare 1 and 2 keep their engine places (2 and 3) and every setting reaches them as before.
+
+**The Popcorn Snare's wires-off model** is derived (`tools/snares_off.py`, written to `resources/models/SNRE_725_SPsnare4_off_derived.json`, `--check` in a pull request that changes it): the Snare's on/off change, measured per articulation and velocity layer (the ratio of the energy-weighted mean decay rate in bins of f / f_main; the noise bands' level and decay ratios, below 1 kHz at the same place relative to the main mode, above by absolute band), applied to Snare 4's model; amplitudes, phases, glide and transients unchanged. As a check, the same transform takes Snare 1 to within about 5 dB of the real Snare 2 (rms over octave bands and time windows; 23 dB before), the wire bands within 2-3 dB; what is left is the two takes' tuning and low-end balance. Kris approved the Popcorn's sound by ear (render 46b).
+
+**The buzz.** Snare Buzz works as before. Both Snare models ring along when other drums play (as Snare 1 and 2 did). The Popcorn Snare's wires-off model has no sympathetic bank (`tools/bake_kit.py` NO_SYM): it plays only when hit, so nothing new joins the kit's ring along. What changed: Snare 3's ring along is gone (Kris, 2026-11-26), and the Popcorn Snare's sympathetic wire noise draws a different random sequence (it is seeded by the engine drum's place, which moved from 5 to 4; the same sound, another draw).
+
 ## CPU
 
-`tympanis_hosttest bench [--seconds S]`. The hits: every 250 ms, alternate halves of the 31 rows are struck (row r when r + k is even, k the step; velocities 64-127), so all 17 drums keep ringing; snare buzz on. Two tables:
+`tympanis_hosttest bench [--seconds S] [--one-thread]`. The hits: every 250 ms, alternate halves of the 25 rows are struck (row r when r + k is even, k the step; velocities 64-127), so all 15 drums keep ringing (the snares' wires-on models: the switches at their default; a snare switched while it rings has both models sounding for a while, one drum more); snare buzz on. Two tables (`--one-thread`: the first only, as CI runs it unless full tests are asked for):
 
-1. **One thread, back to back** (unchanged, the plugin's real-time figure): 20 s at 44.1, 48 and 96 kHz, 64- and 256-sample blocks. On a 2.1 GHz Xeon (Linux, one core): about 4x real time at 44.1 and 48 kHz, 2.2x at 96 kHz.
+1. **One thread, back to back** (unchanged, the plugin's real-time figure): 20 s at 44.1, 48 and 96 kHz, 64- and 256-sample blocks. On a 2.1 GHz Xeon (Linux, one core): about 6x real time at 44.1 kHz, 5.5x at 48 kHz and 2.7x at 96 kHz (2026-11-26, 15 drums; about 4.7x, 4.2x and 2.2x with the 17 before).
 2. **Per block, paced** (2026-11-25): after a 1 s lead, each block starts at its deadline on a real-time thread, as in a host, and is timed (S s per case, 4 in CI), at 1, 2 and 3 threads (the drums through the pool). Per case: the block time as a % of the block (mean, p99, worst, blocks over 100 %); pool runs per block; the caller's wait in shared runs (median / p99 / max); the workers' wake-up delay (median / p99, the share that found them asleep); the workers' CPU (% of one core, spinning included). Then the bench's own time.
 
 The CI job prints both for the macOS runner (Apple M1, virtual) in its summary. First CI figures (run 45681418531, 2026-11-25, 4 s per paced case; the bench step took 115 s, the pool's self-test 15 s):

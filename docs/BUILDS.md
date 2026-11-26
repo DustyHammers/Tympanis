@@ -21,7 +21,7 @@ While the kit is being developed (Kris, 2026-11-26), CI is lean: the multi-core 
 | Job | Every push to `main` and every pull request | Only with "full tests" |
 |---|---|---|
 | macOS | build; processor checks; CPU benchmark, one thread (`bench --one-thread`: the real-time figure, CLAUDE.md's 3x rule); architectures, macOS 11.0, no AVX; ad-hoc sign; pluginval; auval (native and Rosetta); package and upload | job pool self-test; the CPU benchmark's paced cases at 1-3 threads (the full `bench`); editor drawing times |
-| Linux | locked files; bake is current; build the engine; port check against `prototype/engine.py`; burst check | job pool self-test; threads give the same bits; ThreadSanitizer |
+| Linux | locked files; bake is current; the derived snares-off model is current; build the engine; port check against `prototype/engine.py`; burst check | job pool self-test; threads give the same bits; ThreadSanitizer |
 
 The test tools (`dhpool_selftest`, the host test, the snapshot tool) are still built every time, so a broken one shows up as a build error; only the ThreadSanitizer build waits for full tests.
 
@@ -64,7 +64,7 @@ The JSON bakes in `resources/bake/` are the source (`tools/bake_kit.py` writes t
 
 Same sound: renders through the processor give the same samples, bit for bit, as with the gzipped JSON (2026-11-25: md5s of the raw floats of the busy stereo sequence at 64 and 256-sample blocks).
 
-| Kit (17 drums and the header) | Bytes |
+| Kit (17 engine drums and the header; 2026-11-25, before Snare 3 left and the Popcorn wires-off model came) | Bytes |
 |---|---|
 | JSON | 14.0 MB |
 | gzipped JSON (before) | 4.55 MB |

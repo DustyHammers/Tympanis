@@ -21,7 +21,7 @@ Tympanis (working name) is a physically modelled drum instrument (macOS VST3 + A
 | Path | Contents |
 |---|---|
 | `prototype/engine.py` | Python engine (md5 735fd0ea), the reference the C++ engine was ported from |
-| `resources/models/` | The 17 locked kit models (modal data per articulation and velocity layer) |
+| `resources/models/` | The 17 locked kit models (modal data per articulation and velocity layer), and the Popcorn Snare's wires-off model derived from them (`tools/snares_off.py`) |
 | `resources/bake/` | Baked kit for the C++ engine (`tools/bake_kit.py`), packed into the plugin (`tools/pack_bake`) |
 | `plugin/dsp/` | C++ engine, no JUCE (`Engine.h`, `KitData.h`, `Filters.h`, `Json.h`) |
 | `plugin/` | JUCE processor (`PluginProcessor.*`), editor (`PluginEditor.*`), drums and note rows (`KitMap.h`), packed bake format (`PackedBake.*`, from Cymbalis) |
@@ -33,6 +33,7 @@ Tympanis (working name) is a physically modelled drum instrument (macOS VST3 + A
 | `tools/seq/` | Busy kit sequences for the same-bits checks at any thread count |
 | `tools/tympanis_hosttest/` | Drives the processor like a host: checks, CPU bench, renders through processBlock |
 | `tools/tympanis_snapshot/` | Renders the editor's pages to PNG, prints the wireframe drawing times |
+| `tools/snares_off.py` | Derives the Popcorn Snare's wires-off model from the Snare's wires-on / wires-off pair (`--check`) |
 | `tools/ui/make_background.py` | Makes `resources/ui/TYMPANIS_Background.png` |
 | `tools/ref_check.py` | C++ vs Python port check (numbers only) |
 | `docs/ENGINE.md` | Engine, bake, port notes, checks |

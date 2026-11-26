@@ -54,6 +54,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout TympanisProcessor::createLay
     {
         const juce::String name(kDrums[d].name);
         auto group = std::make_unique<juce::AudioProcessorParameterGroup>(kDrums[d].key, name, " | ");
+        // Snares On/Off (Kris, 2026-11-26): which of the drum's two models a new hit plays, wires
+        // on (default) or off; the Snare and the Popcorn Snare only
+        if (kDrums[d].engineOff >= 0)
+            group->addChild(std::make_unique<juce::AudioParameterBool>(juce::ParameterID { pid(d, "snares"), 1 }, name + " Snares", true,
+                juce::AudioParameterBoolAttributes().withStringFromValueFunction([](bool on, int) { return juce::String(on ? "On" : "Off"); })));
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "tune"), 1 }, name + " Tune",
             juce::NormalisableRange<float>(-2.0f, 2.0f, 0.01f), 0.0f, A().withLabel("st")));
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "lug_detune"), 1 }, name + " Lug Detune",
@@ -102,6 +107,7 @@ TympanisProcessor::TympanisProcessor()
         p.level = params.getRawParameterValue(pid(d, "level"));
         p.pan = params.getRawParameterValue(pid(d, "pan"));
         p.velSens = params.getRawParameterValue(pid(d, "vel_sens"));
+        p.snares = kDrums[d].engineOff >= 0 ? params.getRawParameterValue(pid(d, "snares")) : nullptr;
     }
     buzzParam = params.getRawParameterValue("snare_buzz");
     mainParam = params.getRawParameterValue("main_volume");
@@ -112,20 +118,24 @@ TympanisProcessor::TympanisProcessor()
         kitData = std::make_unique<KitData>();
         std::vector<std::string> keys;
         parseKitHeader(bakeTree("kit"), *kitData, keys);
-        if (keys.size() != kDrums.size()) throw std::runtime_error("baked kit has the wrong number of drums");
-        for (size_t d = 0; d < kDrums.size(); ++d)
+        if (keys.size() != kEngineDrums.size()) throw std::runtime_error("baked kit has the wrong number of drums");
+        for (size_t e = 0; e < kEngineDrums.size(); ++e)
         {
-            if (keys[d] != kDrums[d].key) throw std::runtime_error("baked kit order differs from KitMap.h");
-            kitData->drums.push_back(parseDrum(bakeTree(kDrums[d].key)));
-            if (std::abs(kitData->drums.back().nativeIn - kDrums[d].sizeIn) > 1e-9)
-                throw std::runtime_error("baked size differs from KitMap.h for " + std::string(kDrums[d].key));
+            if (keys[e] != kEngineDrums[e].key) throw std::runtime_error("baked kit order differs from KitMap.h");
+            kitData->drums.push_back(parseDrum(bakeTree(kEngineDrums[e].key)));
+            if (std::abs(kitData->drums.back().nativeIn - kEngineDrums[e].sizeIn) > 1e-9)
+                throw std::runtime_error("baked size differs from KitMap.h for " + std::string(kEngineDrums[e].key));
         }
+        for (const auto& info : kDrums)
+            if (std::string(kEngineDrums[(size_t) info.engine].key) != info.key
+                || std::abs(kEngineDrums[(size_t) info.engine].sizeIn - info.sizeIn) > 1e-9)
+                throw std::runtime_error("KitMap.h: drum and engine drum differ for " + std::string(info.key));
         kit.init(kitData.get());
         for (int d = 0; d < kit.numDrums(); ++d) kit.drum(d).setVelRangeDb(kVelRangeDb);
         for (const auto& t : kRowTrims)
             for (const auto& r : kRows)
                 if (juce::String(r.id) == t.row)
-                    kit.drum(r.drum).setArtTrim(r.art, std::pow(10.0, t.db / 20.0));
+                    kit.drum(kDrums[(size_t) r.drum].engine).setArtTrim(r.art, std::pow(10.0, t.db / 20.0));
         kitLoaded = true;
     }
     catch (const std::exception& e)
@@ -175,25 +185,32 @@ void TympanisProcessor::applyParameters()
     for (size_t d = 0; d < kDrums.size(); ++d)
     {
         auto& p = drumParams[d];
-        Drum& dr = kit.drum((int) d);
+        // the drum's engine drums: one, or the wires-on and wires-off models, which share every
+        // setting (Kris, 2026-11-26)
+        const int engines[2] = { kDrums[d].engine, kDrums[d].engineOff };
+        auto each = [&](auto&& f) {
+            for (const int e : engines)
+                if (e >= 0) f(kit.drum(e));
+        };
         auto changed = [&](int i, float v) {
             if (juce::exactlyEqual(v, p.last[i])) return false;
             p.last[i] = v;
             return true;
         };
-        if (const float v = p.tune->load(); changed(0, v)) dr.setTune(v);
+        if (const float v = p.tune->load(); changed(0, v)) each([&](Drum& dr) { dr.setTune(v); });
         // Lug Detune 1 = 10 % RMS tension error between lugs (Kris, 2026-11-25: 5 % more than the
         // prototype's 5 %), the engine's 2
-        if (const float v = p.lug->load(); changed(1, v)) dr.setLugDetune(kLugDetuneScale * v);
-        if (const float v = p.decay->load(); changed(2, v)) dr.setDecay(v);
+        if (const float v = p.lug->load(); changed(1, v)) each([&](Drum& dr) { dr.setLugDetune(kLugDetuneScale * v); });
+        if (const float v = p.decay->load(); changed(2, v)) each([&](Drum& dr) { dr.setDecay(v); });
         if (p.strike != nullptr)
-            if (const float v = p.strike->load(); changed(3, v)) dr.setStrikePos(v);
+            if (const float v = p.strike->load(); changed(3, v)) each([&](Drum& dr) { dr.setStrikePos(v); });
         // the head's size is the recorded one (Size no longer scales it); Size is the shell's depth
-        if (const float v = p.size->load(); changed(4, v) && kDrums[d].depth) dr.setDepth(kDrums[d].depthIn, v);
+        if (const float v = p.size->load(); changed(4, v) && kDrums[d].depth) each([&](Drum& dr) { dr.setDepth(kDrums[d].depthIn, v); });
         // level, and pan with the -3 dB compensated constant-power law (0 dB in the centre)
         const double g = dbGain(p.level->load()) * main;
         const double th = juce::MathConstants<double>::pi * 0.25 * (juce::jlimit(-1.0f, 1.0f, p.pan->load()) + 1.0);
-        kit.setDrumGains((int) d, g * std::sqrt(2.0) * std::cos(th), g * std::sqrt(2.0) * std::sin(th));
+        for (const int e : engines)
+            if (e >= 0) kit.setDrumGains(e, g * std::sqrt(2.0) * std::cos(th), g * std::sqrt(2.0) * std::sin(th));
     }
     const float b = buzzParam->load();
     if (! juce::exactlyEqual(b, lastBuzz)) { kit.setSnareBuzz(b); lastBuzz = b; }
@@ -254,9 +271,13 @@ void TympanisProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         for (size_t r = 0; r < kRows.size(); ++r)
             if (rowNotes[r].load() == note)
             {
-                const float s = drumParams[(size_t) kRows[r].drum].velSens->load();
+                const auto& dp = drumParams[(size_t) kRows[r].drum];
+                const auto& info = kDrums[(size_t) kRows[r].drum];
+                const float s = dp.velSens->load();
                 const float v = kVelocityFloor + s * (msg.getFloatVelocity() - kVelocityFloor);
-                kit.strike(kRows[r].drum, v, kRows[r].art);
+                // the Snares switch picks the model a new hit plays; what rings keeps ringing
+                const bool off = dp.snares != nullptr && dp.snares->load() < 0.5f;
+                kit.strike(off ? info.engineOff : info.engine, v, kRows[r].art);
                 pushHit((int) r, v);
                 break;                                                        // a note has at most one row
             }

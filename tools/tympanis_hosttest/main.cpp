@@ -89,6 +89,16 @@ struct Host
     }
 };
 
+// A row's index in kRows by its ID.
+int rowIndex(const char* id)
+{
+    for (size_t r = 0; r < kRows.size(); ++r)
+        if (std::string(kRows[r].id) == id) return (int) r;
+    std::cout << "  FAIL  no row " << id << "\n";
+    ++failures;
+    return 0;
+}
+
 double peak(const std::vector<float>& x, size_t a = 0, size_t b = SIZE_MAX)
 {
     double m = 0;
@@ -107,8 +117,9 @@ int runChecks()
     {
         Host h(44100, 256);
         check(h.p->isKitLoaded(), "baked kit loads" + (h.p->isKitLoaded() ? juce::String() : ": " + h.p->getLoadError()));
-        check(h.p->getParameters().size() == 136,
-              "136 host parameters (17 x tune, lug detune, decay, size, level, pan, velocity sensitivity; 15 x strike position; snare buzz; main volume): "
+        check(h.p->getParameters().size() == 122,
+              "122 host parameters (15 x tune, lug detune, decay, size, level, pan, velocity sensitivity; 13 x strike position; "
+              "2 x snares on/off; snare buzz; main volume): "
                   + juce::String(h.p->getParameters().size()));
         check(h.p->params.getParameter("kick1_strike_pos") == nullptr && h.p->params.getParameter("tom1_strike_pos") != nullptr,
               "no strike position on the bass drums");
@@ -128,7 +139,21 @@ int runChecks()
             auto* o4 = h.p->params.getParameter("octo4_size");
             check(std::abs(o4->convertFrom0to1(o4->getDefaultValue()) - 23.5f) < 1e-3f, "Octoban 4 Size: its 23.5\" length");
             auto* s4 = h.p->params.getParameter("snare4_size");
-            check(std::abs(s4->convertFrom0to1(s4->getDefaultValue()) - 5.0f) < 1e-3f, "Snare 4 Size: its 5\" depth");
+            check(std::abs(s4->convertFrom0to1(s4->getDefaultValue()) - 5.0f) < 1e-3f, "Popcorn Snare Size: its 5\" depth");
+        }
+        {
+            // Snares On/Off (Kris, 2026-11-26): on the Snare and the Popcorn Snare only, default on;
+            // Snare 2 and Snare 3 are no longer drums of the plugin
+            int switches = 0;
+            for (const auto& d : kDrums)
+                switches += h.p->params.getParameter(juce::String(d.key) + "_snares") != nullptr ? 1 : 0;
+            auto* sn = h.p->params.getParameter("snare1_snares");
+            auto* pc = h.p->params.getParameter("snare4_snares");
+            check(switches == 2 && sn != nullptr && pc != nullptr && sn->getDefaultValue() > 0.5f && pc->getDefaultValue() > 0.5f
+                      && sn->getName(64) == "Snare Snares" && pc->getName(64) == "Popcorn Snare Snares",
+                  "Snares On/Off on the Snare and the Popcorn Snare only, default on");
+            check(h.p->params.getParameter("snare2_tune") == nullptr && h.p->params.getParameter("snare3_tune") == nullptr,
+                  "no Snare 2 or Snare 3 parameters");
         }
         // every row plays on its default note
         for (size_t r = 0; r < kRows.size(); ++r)
@@ -136,6 +161,24 @@ int runChecks()
             Host one(44100, 256);
             const auto y = one.play({ { 100, kRows[r].defaultNote, 127 } }, 22050, 256);
             check(finite(y) && peak(y) > 0.01, juce::String("row ") + kRows[r].name + " plays (peak " + juce::String(peak(y), 3) + ")");
+        }
+        // Snares Off: the Snare and the Popcorn Snare play their wires-off models; a hit that rings
+        // keeps ringing when the switch flips (it picks the model of the next hit only)
+        for (const char* key : { "snare1", "snare4" })
+        {
+            int note = 0;
+            for (const auto& r : kRows)
+                if (juce::String(r.id) == key) note = r.defaultNote;
+            Host on(44100, 256), off(44100, 256), flip(44100, 256);
+            const juce::String sw = juce::String(key) + "_snares";
+            off.set(sw.toRawUTF8(), 0.0f);
+            const auto yOn = on.play({ { 100, note, 110 } }, 22050, 256);
+            const auto yOff = off.play({ { 100, note, 110 } }, 22050, 256);
+            const auto yFlip = flip.play({ { 100, note, 110 } }, 22050, 256, 10, [&](int64_t s) {
+                if (s == 2560) flip.set(sw.toRawUTF8(), 0.0f);
+            });
+            check(peak(yOff) > 0.01 && yOn != yOff, juce::String(key) + " with its snares off plays its wires-off model");
+            check(yFlip == yOn, juce::String(key) + ": flipping the switch leaves a ringing hit as it is");
         }
         // other channels are ignored
         Host other(44100, 256);
@@ -186,7 +229,7 @@ int runChecks()
         check(b.p->getMidiChannel() == 3, "state: MIDI channel restored");
         check(b.p->getRowNote(0) == 70 && b.p->getRowNote(5) == kNoteNone && b.p->getRowNote(2) == kRows[2].defaultNote, "state: notes restored (incl. NONE)");
         check(std::abs(b.p->params.getRawParameterValue("tom2_tune")->load() + 1.25f) < 1e-3f, "state: tom 2 tune restored");
-        check(std::abs(b.p->params.getRawParameterValue("snare1_lug_detune")->load() - 0.75f) < 1e-3f, "state: snare 1 lug detune restored");
+        check(std::abs(b.p->params.getRawParameterValue("snare1_lug_detune")->load() - 0.75f) < 1e-3f, "state: the Snare's lug detune restored");
         check(std::abs(b.p->params.getRawParameterValue("snare_buzz")->load() - 0.2f) < 1e-3f, "state: snare buzz restored");
         const auto y = b.play({ { 10, 70, 127 } }, 4410, 256, 3);
         check(peak(y) > 0.01, "state: kick 1 plays on its new note and channel");
@@ -198,7 +241,7 @@ int runChecks()
     {
         // a note belongs to one row
         Host h(44100, 256);
-        h.p->setRowNote(3, 38);                      // snare 1 rim shot takes snare 1's note
+        h.p->setRowNote(3, 38);                      // the Snare's rim shot takes the Snare's note
         check(h.p->getRowNote(3) == 38 && h.p->getRowNote(2) == kNoteNone, "a note given to another row moves (the old row is set to none)");
         const auto y = h.play({ { 10, 38, 127 } }, 8820, 256);
         check(peak(y) > 0.01, "the moved note plays its new row");
@@ -214,11 +257,11 @@ int runChecks()
         h.p->copyXmlToBinary(*root.createXml(), mb);
         Host b(44100, 256);
         b.p->setStateInformation(mb.getData(), (int) mb.getSize());
-        check(b.p->getRowNote(14) == 50 && b.p->getRowNote(16) == kNoteNone, "a saved state with a shared note: the first row keeps it");
+        check(b.p->getRowNote(rowIndex("tom1")) == 50 && b.p->getRowNote(rowIndex("tom2")) == kNoteNone, "a saved state with a shared note: the first row keeps it");
     }
     {
         // Velocity Sensitivity (as Cymbalis): v = vf + s (v_in - vf), vf = 100/127
-        const int note = kRows[2].defaultNote;    // snare 1
+        const int note = kRows[2].defaultNote;    // the Snare
         auto hit = [note](float sens, int vel) {
             Host h(44100, 256);
             h.set("snare_buzz", 0.0f);
@@ -253,7 +296,7 @@ int runChecks()
     }
     {
         // mixer: level, pan, main volume
-        const int note = kRows[2].defaultNote;    // snare 1
+        const int note = kRows[2].defaultNote;    // the Snare
         Host ref(44100, 256);
         ref.set("snare_buzz", 0.0f);
         const auto y0 = ref.play({ { 10, note, 127 } }, 22050, 256);
@@ -261,7 +304,7 @@ int runChecks()
         check(std::abs(peak(y0) - peak(ref.lastRight)) < 1e-6 * p0, "centre pan: left = right");
         Host off(44100, 256);
         off.set("snare1_level", -60.0f);
-        off.set("snare_buzz", 0.0f);                 // else snares 2..4 buzz along, on their own channels
+        off.set("snare_buzz", 0.0f);                 // else the other snare models buzz along, on their own channels
         check(peak(off.play({ { 10, note, 127 } }, 22050, 256)) < 1e-30, "level at the bottom (-inf): the drum is silent");
         Host left(44100, 256);
         left.set("snare1_pan", -1.0f);
@@ -288,7 +331,7 @@ int runChecks()
             for (size_t i = a; i < b; ++i) e += (double) x[i] * x[i];
             return e;
         };
-        const int tom3 = kRows[18].defaultNote;
+        const int tom3 = kRows[(size_t) rowIndex("tom3")].defaultNote;
         Host a(44100, 256), big(44100, 256), longd(44100, 256), centre(44100, 256), rim(44100, 256), shallow(44100, 256), sn(44100, 256), snSize(44100, 256);
         big.set("tom3_size", 12.0f);
         shallow.set("tom3_size", 6.0f);
@@ -311,7 +354,7 @@ int runChecks()
             const int s1 = kRows[2].defaultNote;
             const auto y0 = sn.play({ { 0, s1, 110 } }, 22050, 256);
             const auto y1 = snSize.play({ { 0, s1, 110 } }, 22050, 256);
-            check(y0 == y1, "snare 1 Size changes nothing (its depth does not play)");
+            check(y0 == y1, "the Snare's Size changes nothing (its depth does not play)");
         }
         check(energy(yd, 22050, 66150) > 2.0 * energy(ya, 22050, 66150), "tom 3 decay 3x: more sound 0.5..1.5 s after the hit");
         check(crossings(yr, 441, 22050) > crossings(yc, 441, 22050),
@@ -344,11 +387,11 @@ int runChecks()
         // the editor's hits: one event per strike, the row and velocity
         Host h(44100, 256);
         h.p->clearHits();
-        h.play({ { 10, kRows[18].defaultNote, 100 }, { 300, kRows[19].defaultNote, 64 }, { 400, 120, 127 } }, 2048, 256);
+        h.play({ { 10, kRows[(size_t) rowIndex("tom3")].defaultNote, 100 }, { 300, kRows[(size_t) rowIndex("tom3_rim")].defaultNote, 64 }, { 400, 120, 127 } }, 2048, 256);
         TympanisProcessor::HitEvent e {};
         std::vector<TympanisProcessor::HitEvent> got;
         while (h.p->popHit(e)) got.push_back(e);
-        check(got.size() == 2 && got[0].row == 18 && got[1].row == 19 && std::abs(got[0].velocity - 100.0f / 127.0f) < 1e-3f,
+        check(got.size() == 2 && got[0].row == rowIndex("tom3") && got[1].row == rowIndex("tom3_rim") && std::abs(got[0].velocity - 100.0f / 127.0f) < 1e-3f,
               "hits for the editor: one per strike, with its row and velocity (" + juce::String((int) got.size()) + " events)");
         // a full FIFO drops events, never blocks
         std::vector<std::tuple<int64_t, int, int>> many;
@@ -397,7 +440,7 @@ int runChecks()
                   "a new editor opens at most 1104 x 736, at 3:2: " + juce::String(fe ? fe->getWidth() : 0) + " x " + juce::String(fe ? fe->getHeight() : 0));
         }
         ed.reset();
-        check(b.p->getParameters().size() == 136, "the editor adds no parameters (136)");
+        check(b.p->getParameters().size() == 122, "the editor adds no parameters (122)");
     }
     {
         // The drums through a pool (test-only thread count): the same bits as one thread, over a busy
@@ -449,7 +492,8 @@ int runChecks()
 }
 
 // The bench's hits: every 250 ms, alternate halves of the rows (row r when r + k is even, k the
-// 250 ms step), velocities 64-127, so all 17 drums keep ringing.
+// 250 ms step), velocities 64-127, so all 15 drums keep ringing (the snares' wires-on models:
+// the switches at their default).
 std::vector<std::tuple<int64_t, int, int>> benchHits(double sr, int64_t n)
 {
     std::vector<std::tuple<int64_t, int, int>> ev;
@@ -469,7 +513,7 @@ double quantile(std::vector<float> v, double q)
 int runBench(double pacedSeconds, bool oneThread)
 {
     const auto benchStart = std::chrono::steady_clock::now();
-    std::cout << "CPU on one thread: every 250 ms alternate halves of the rows are struck (all 17 drums ringing), snare buzz 0.5,\n"
+    std::cout << "CPU on one thread: every 250 ms alternate halves of the rows are struck (all 15 drums ringing), snare buzz 0.5,\n"
                  "20 s rendered back to back\n";
     std::cout << "sample rate  block   x real time   % of one core\n";
     for (double sr : { 44100.0, 48000.0, 96000.0 })

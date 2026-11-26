@@ -17,7 +17,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'prototype'))
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 import engine as E  # noqa: E402
-from bake_kit import KIT  # noqa: E402
+from bake_kit import KIT, NO_SYM  # noqa: E402
 
 SR = E.SR
 
@@ -47,7 +47,7 @@ def sequence():
 
 
 DRUM_PARAMS = {
-    'tom2': {'lug_detune': 1.0}, 'snare3': {'lug_detune': 0.6, 'tune_semi': -1.0}, 'kick2': {'tune_semi': 1.5},
+    'tom2': {'lug_detune': 1.0}, 'snare4_off': {'lug_detune': 0.6, 'tune_semi': -1.0}, 'kick2': {'tune_semi': 1.5},
     'octo3': {'lug_detune': 0.8}, 'gong': {'lug_detune': 0.5, 'tune_semi': 0.7},
     'tom4': {'decay': 1.8}, 'tom5': {'strike_pos': 0.7}, 'snare4': {'decay': 0.6, 'strike_pos': 0.15},
     'octo1': {'size_in': 8.0}, 'tom1': {'size_in': 9.0, 'decay': 2.5},
@@ -63,6 +63,8 @@ def python_render(ev, dur, noise):
         if not noise: d.rng = Silent(); d.brng = Silent()
         drums[key] = d
     kit = E.Kit(drums, snare_buzz=0.5)
+    for k in NO_SYM:                 # as baked: no sympathetic bank (tools/bake_kit.py NO_SYM)
+        kit.snares.remove(k); kit.sym.pop(k)
     if not noise:
         for S in kit.sym.values(): S['rng'] = Silent()
     return kit.sequence([tuple(e) for e in ev], dur)
