@@ -1329,15 +1329,23 @@ void Content::showHit (int row, float velocity, double ageSeconds)
     if (page == drumPage)
         drumView->strike (nr.drum, v, rpos, ageSeconds);
     else if (page == kitPage)
+    {
         kitView->strike (nr.drum, v, rpos, ageSeconds);
+        kitHitDrum = nr.drum; // refresh() selects it (Kris, 2026-11-26)
+    }
 }
 
 void Content::refresh()
 {
     TympanisProcessor::HitEvent e;
+    kitHitDrum = -1;
     while (processor.popHit (e))
         if (e.row >= 0 && (size_t) e.row < kRows.size())
             showHit (e.row, e.velocity);
+    // the KIT page: a drum played becomes the selected drum (the last one this tick), so the DRUM
+    // page shows it; not while a menu is open (selecting closes it)
+    if (kitHitDrum >= 0 && popup == nullptr)
+        selectDrum (kitHitDrum);
 
     // Size (the shell's depth) on Toms 1-4: the drawings follow it
     std::array<double, kDrums.size()> depthOff {};
