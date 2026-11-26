@@ -91,7 +91,11 @@ std::string readFile(const std::string& path)
 
 DrumData parseDrum(const std::string& text)
 {
-    const Value v = json::parse(text);
+    return parseDrum(json::parse(text));
+}
+
+DrumData parseDrum(const json::Value& v)
+{
     DrumData d;
     d.key = v.at("key").string();
     d.model = v.at("model").string();
@@ -149,7 +153,11 @@ DrumData parseDrum(const std::string& text)
 
 void parseKitHeader(const std::string& text, KitData& kit, std::vector<std::string>& drumKeys)
 {
-    const Value v = json::parse(text);
+    parseKitHeader(json::parse(text), kit, drumKeys);
+}
+
+void parseKitHeader(const json::Value& v, KitData& kit, std::vector<std::string>& drumKeys)
+{
     drumKeys.clear();
     for (const auto& k : v.at("drums").array()) drumKeys.push_back(k.string());
     kit.burstBands = rows<2>(v.at("burst_bands"));

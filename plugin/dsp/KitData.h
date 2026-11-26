@@ -3,6 +3,8 @@
 // Everything here is read-only after loading. The engine (Engine.h) keeps its own run-time state.
 #pragma once
 
+#include "Json.h"
+
 #include <array>
 #include <string>
 #include <vector>
@@ -69,9 +71,12 @@ struct KitData
     std::vector<double> burstNormCorr;
 };
 
-// Loaders. Throw std::runtime_error (or json::ParseError) on malformed data.
+// Loaders. Throw std::runtime_error (or json::ParseError) on malformed data. The tree forms take
+// a bake's JSON tree as parsed, or as unpacked from the plugin's packed form (plugin/PackedBake.h).
 DrumData parseDrum(const std::string& jsonText);
+DrumData parseDrum(const json::Value& tree);
 void parseKitHeader(const std::string& jsonText, KitData& kit, std::vector<std::string>& drumKeys);
+void parseKitHeader(const json::Value& tree, KitData& kit, std::vector<std::string>& drumKeys);
 KitData loadKitFromDirectory(const std::string& bakeDir);
 
 } // namespace tympanis

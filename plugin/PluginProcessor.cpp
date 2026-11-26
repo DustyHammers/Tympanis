@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 
 #include "BinaryData.h"
+#include "PackedBake.h"
 #include "PluginEditor.h"
 
 using namespace tympanis;
@@ -31,19 +32,16 @@ juce::NormalisableRange<float> levelRange()
     return r;
 }
 
-// The baked kit is embedded gzipped (resources/bake/*.bake.json -> BinaryData).
-std::string bakeText(const juce::String& key)
+// The baked kit is embedded packed (resources/bake/*.bake.json -> tools/pack_bake -> BinaryData;
+// plugin/PackedBake.h): it unpacks to the bake's JSON tree, bit for bit.
+json::Value bakeTree(const juce::String& key)
 {
-    const juce::String res = key + "_bake_json_gz";
+    const juce::String file = key + ".bake.json";
+    const juce::String res = packed::resourceName(file).replaceCharacter('.', '_');
     int size = 0;
     const char* data = BinaryData::getNamedResource(res.toRawUTF8(), size);
     if (data == nullptr) throw std::runtime_error(("missing resource " + res).toStdString());
-    juce::MemoryInputStream raw(data, (size_t) size, false);
-    juce::GZIPDecompressorInputStream gz(&raw, false, juce::GZIPDecompressorInputStream::gzipFormat);
-    juce::MemoryBlock mb;
-    juce::MemoryOutputStream out(mb, false);
-    out.writeFromInputStream(gz, -1);
-    return std::string((const char*) out.getData(), out.getDataSize());
+    return packed::unpack(data, (size_t) size, file.toStdString());
 }
 } // namespace
 
@@ -113,12 +111,12 @@ TympanisProcessor::TympanisProcessor()
     {
         kitData = std::make_unique<KitData>();
         std::vector<std::string> keys;
-        parseKitHeader(bakeText("kit"), *kitData, keys);
+        parseKitHeader(bakeTree("kit"), *kitData, keys);
         if (keys.size() != kDrums.size()) throw std::runtime_error("baked kit has the wrong number of drums");
         for (size_t d = 0; d < kDrums.size(); ++d)
         {
             if (keys[d] != kDrums[d].key) throw std::runtime_error("baked kit order differs from KitMap.h");
-            kitData->drums.push_back(parseDrum(bakeText(kDrums[d].key)));
+            kitData->drums.push_back(parseDrum(bakeTree(kDrums[d].key)));
             if (std::abs(kitData->drums.back().nativeIn - kDrums[d].sizeIn) > 1e-9)
                 throw std::runtime_error("baked size differs from KitMap.h for " + std::string(kDrums[d].key));
         }
