@@ -42,11 +42,14 @@ The gong drum and the octobans (Kris's TAMA photos, mockups approved 2026-11-24)
 
 | | 1x (1536 x 1024) | 2x (Retina) |
 |---|---|---|
-| DRUM page still (another drum, resizing) | 15 ms | 45 ms |
-| DRUM page moving frame | 4 ms | 8 ms |
-| KIT page still (opening the page, resizing) | 39 ms | 98 ms |
-| KIT page, another drum selected | | 9 ms |
+| DRUM page still (another drum, resizing) | 22 ms | 32 ms |
+| DRUM page moving frame | 2 ms | 4 ms |
+| KIT page still (opening the page, resizing) | 70 ms | 117 ms |
+| KIT page, another drum selected | | 13 ms |
 | KIT page moving frame | 1 ms | 3 ms |
+| SETTINGS page still | 7 ms | |
+
+With the grain (2026-11-26) the stills went from 15 to 22 ms (DRUM) and from 39 to 70 ms (KIT) at 1x; the moving frames did not change.
 
 At 30 Hz, 8 ms a frame is about a quarter of the message thread while a head moves on a Retina display.
 
