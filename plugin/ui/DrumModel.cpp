@@ -1028,15 +1028,16 @@ void HeadMesh::draw (const Hit* hits, int numHits, std::vector<Segment>& out, st
 const DrumLook& drumLook (int drum)
 {
     // KitMap.h order. The kit as Kris described it (2026-11-24): Snare 4 is a 10" snare; Tom 5
-    // a 16" floor tom; the gong drum TAMA's 22" head on a 20" x 14" shell; the octobans 11" to
-    // 22" long (2 and 3 evenly between). Depths as drawn in the approved mockup; Snare 3's a guess.
+    // a 16" floor tom; the gong drum TAMA's 22" head on a 20" x 14" shell. Tom 1 is 10" x 10" and
+    // the octobans 17.5", 18.5", 21" and 23.5" long (Kris, 2026-11-25). The other depths as drawn
+    // in the approved mockup; Snare 3's a guess.
     static const std::array<DrumLook, 17> table { {
         { Kind::kick, 22, 18, 10 },  { Kind::kick, 22, 18, 10 },
         { Kind::snare, 14, 6.5, 10 }, { Kind::snare, 14, 6.5, 10 }, { Kind::snare, 14, 6.5, 10 }, { Kind::snare, 10, 5, 8 },
-        { Kind::tom, 10, 8, 6 },     { Kind::tom, 12, 9, 6 },      { Kind::tom, 13, 10, 6 },     { Kind::tom, 14, 11, 6 },
+        { Kind::tom, 10, 10, 6 },    { Kind::tom, 12, 9, 6 },      { Kind::tom, 13, 10, 6 },     { Kind::tom, 14, 11, 6 },
         { Kind::floor, 16, 16, 8 },  { Kind::floor, 18, 16, 8 },
         { Kind::gong, 22, 14, 10, 20 },
-        { Kind::octo, 6, 11, 4 },    { Kind::octo, 6, 14.7, 4 },   { Kind::octo, 6, 18.3, 4 },   { Kind::octo, 6, 22, 4 },
+        { Kind::octo, 6, 17.5, 4 },  { Kind::octo, 6, 18.5, 4 },   { Kind::octo, 6, 21, 4 },     { Kind::octo, 6, 23.5, 4 },
     } };
     return table[(size_t) std::clamp (drum, 0, 16)];
 }
@@ -1127,7 +1128,7 @@ const std::vector<KitItem>& kitLayout()
         it.push_back ({ 1, { Kind::kick, { 13.8, 7, 11.5 }, { -std::sin (vk), -std::cos (vk), 0 }, 11, 18, 10 }, 0 });
         it.push_back ({ 2, { Kind::snare, { 0, -14, 25 }, lean (0.1, 0), 7, 6.5, 10 }, 0 });          // Snare 1 and 2
         it.push_back ({ 5, { Kind::snare, { -27, -12, 25 }, lean (0.12, 0.08), 5, 5.0, 8 }, 0 });     // Snare 4, 10"
-        it.push_back ({ 6, { Kind::tom, { -24.5, 14.5, 33.5 }, lean (0.45, 0.16), 5, 8, 6 }, -25 });
+        it.push_back ({ 6, { Kind::tom, { -24.5, 14.5, 33.5 }, lean (0.45, 0.16), 5, 10, 6 }, -25 }); // head level with the others
         it.push_back ({ 7, { Kind::tom, { -9.5, 16, 34.5 }, lean (0.45, 0.05), 6, 9, 6 }, -25 });
         it.push_back ({ 8, { Kind::tom, { 6.5, 16, 35.5 }, lean (0.45, -0.05), 6.5, 10, 6 }, -25 });
         it.push_back ({ 9, { Kind::tom, { 23, 14.5, 36.5 }, lean (0.45, -0.16), 7, 11, 6 }, -25 });

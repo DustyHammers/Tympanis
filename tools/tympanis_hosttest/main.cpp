@@ -118,6 +118,13 @@ int runChecks()
             check(std::abs(t3->convertFrom0to1(t3->getDefaultValue()) - 10.0f) < 1e-3f && std::abs(r.start - 6.0f) < 1e-3f
                       && std::abs(r.end - 12.0f) < 1e-3f && std::abs(r.interval - 1.0f) < 1e-3f,
                   "Tom 3 Size is its shell depth: 10\" (6\" .. 12\", 1\" steps)");
+            auto* t1 = h.p->params.getParameter("tom1_size");
+            const auto r1 = t1->getNormalisableRange();
+            check(std::abs(t1->convertFrom0to1(t1->getDefaultValue()) - 10.0f) < 1e-3f && std::abs(r1.start - 6.0f) < 1e-3f
+                      && std::abs(r1.end - 12.0f) < 1e-3f,
+                  "Tom 1 Size: 10\" x 10\" (6\" .. 12\")");
+            auto* o4 = h.p->params.getParameter("octo4_size");
+            check(std::abs(o4->convertFrom0to1(o4->getDefaultValue()) - 23.5f) < 1e-3f, "Octoban 4 Size: its 23.5\" length");
             auto* s4 = h.p->params.getParameter("snare4_size");
             check(std::abs(s4->convertFrom0to1(s4->getDefaultValue()) - 5.0f) < 1e-3f, "Snare 4 Size: its 5\" depth");
         }

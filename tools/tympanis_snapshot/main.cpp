@@ -15,7 +15,7 @@
 //   tuning-kick1.png        TUNING page, Kick 1 (no Strike Position)
 //   tuning-snare1.png       TUNING page, Snare 1 (Size greyed out: its depth does not play)
 //   kit-toms-shallow.png    KIT page, Toms 1-4 at their shallowest (Size -4"): lower on the kicks
-//   drum-tom1-shallow.png   DRUM page, Tom 1 at 4" deep
+//   drum-tom1-shallow.png   DRUM page, Tom 1 at 6" deep
 //   tuning-tom1-shallow.png TUNING page, the same
 //   drum-snare2-hit-2x.png  the DRUM page's hit at twice the pixels (a Retina display)
 // and prints how long the wireframes took to draw: the still drawing, and one moving frame.

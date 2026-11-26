@@ -646,7 +646,7 @@ def kit_drums():
     D.append(Drum('Snare 4', 'snare', (-27, -12, 25), lean(0.12, 0.08), 5, 5.0, 8, key='snare4'))
     # rack toms resting low over the kicks, tom 5 angled at the right end, tom 6 the floor tom
     # the upper four toms spread evenly across both kicks (Kris, 2026-11-24)
-    D.append(Drum('Tom 1', 'tom', (-24.5, 14.5, 33.5), lean(0.45, 0.16), 5, 8, 6, key='tom1'))
+    D.append(Drum('Tom 1', 'tom', (-24.5, 14.5, 33.5), lean(0.45, 0.16), 5, 10, 6, key='tom1'))  # 10" x 10" (Kris, 2026-11-25), head level with the others
     D.append(Drum('Tom 2', 'tom', (-9.5, 16, 34.5), lean(0.45, 0.05), 6, 9, 6, key='tom2'))
     D.append(Drum('Tom 3', 'tom', (6.5, 16, 35.5), lean(0.45, -0.05), 6.5, 10, 6, key='tom3'))
     D.append(Drum('Tom 4', 'tom', (23, 14.5, 36.5), lean(0.45, -0.16), 7, 11, 6, key='tom4'))
