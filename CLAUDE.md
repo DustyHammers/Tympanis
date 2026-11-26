@@ -14,6 +14,7 @@ Tympanis (working name) is a physically modelled drum instrument (macOS VST3 + A
 - Real-time requirement: the plugin stays at least 3x faster than real time at 44.1/48 kHz in `tympanis_hosttest bench`.
 - Report anything in the engine or models that looks wrong; don't change sound behaviour unless the task asks for it.
 - There is no `README.md` for now. Put documentation in `docs/`.
+- The multi-core tests (dhpool self-test, the paced bench at 1–3 threads, threads give the same bits, ThreadSanitizer) and the editor drawing times run only on request (`full_tests`). Run them when a change touches threads, the pool or the processor's threading.
 
 ## Repo map
 
