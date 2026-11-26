@@ -74,7 +74,7 @@ The JSON bake stays the source. The plugin embeds it packed (docs/BUILDS.md, "Th
 
 ## Snares on and off
 
-(Kris, 2026-11-26.) The Snare and the Popcorn Snare each have two models, wires on and wires off, behind their Snares On/Off switch (`docs/PLUGIN.md`). The switch picks the engine drum a new hit goes to; the ringing one rings on. The processor sends every other setting to both models, at the same moment.
+(Kris, 2026-11-26.) The Snare and the Popcorn Snare each have two models, wires on and wires off, behind their Snares On/Off switch (`docs/PLUGIN.md`). The switch picks the engine drum a new hit goes to; the ringing one rings on. The processor sends every other setting to both models, at the same moment, except Snare Wire Tension (below), which only the wires-on model has.
 
 **The Snare** is Snare 1's model (wires on) and Snare 2's (wires off), unchanged. The two are the same body: the same mode clusters (about 200-225 Hz and near 505 Hz), the wires-off modes ringing 3-8x longer, the 2-16 kHz wire noise 10-30 dB lower and short; Snare 2 sits about 2/3 semitone lower (two tunings, kept: Kris wants Snare 2 exactly as it was).
 
@@ -83,6 +83,15 @@ The JSON bake stays the source. The plugin embeds it packed (docs/BUILDS.md, "Th
 **The Popcorn Snare's wires-off model** is derived (`tools/snares_off.py`, written to `resources/models/SNRE_725_SPsnare4_off_derived.json`, `--check` in a pull request that changes it): the Snare's on/off change, measured per articulation and velocity layer (the ratio of the energy-weighted mean decay rate in bins of f / f_main; the noise bands' level and decay ratios, below 1 kHz at the same place relative to the main mode, above by absolute band), applied to Snare 4's model; amplitudes, phases, glide and transients unchanged. As a check, the same transform takes Snare 1 to within about 5 dB of the real Snare 2 (rms over octave bands and time windows; 23 dB before), the wire bands within 2-3 dB; what is left is the two takes' tuning and low-end balance. Kris approved the Popcorn's sound by ear (render 46b) and locked the model (2026-11-26, `docs/locked.md5`; its `locked` field says so).
 
 **The buzz.** Snare Buzz works as before. Both Snare models ring along when other drums play (as Snare 1 and 2 did). The Popcorn Snare's wires-off model has no sympathetic bank (`tools/bake_kit.py` NO_SYM): it plays only when hit, so nothing new joins the kit's ring along. What changed: Snare 3's ring along is gone (Kris, 2026-11-26), and the Popcorn Snare's sympathetic wire noise draws a different random sequence (it is seeded by the engine drum's place, which moved from 5 to 4; the same sound, another draw).
+
+## Snare wire tension
+
+(Kris, 2026-11-26, by ear over five rounds.) Each snare's wires-on model was fitted at one strainer setting, and the wires damp its modes, most of all the low ones where the bottom head moves most: with the snares on the Snare's low head modes die about three times faster (median T60 near 214 Hz 0.30 s, against 0.87 s with them off). **Snare Wire Tension** (`Drum::setWireTension`, 0 tight .. 1 loose, plugin only) backs the strainer off from that setting, which is its tightest point:
+
+- **The wires' share of each mode's damping** (`wireShares()` in `KitData`, worked out when the plugin loads, from the drum's wires-on and wires-off models): for each slot under 1.5 kHz in the wires-on model's last head layer, share = clamp(1 - median decay rate of the wires-off model's head slots within a sixth of an octave / its decay rate, 0, 0.85). On the Snare the median share is about 0.74 under 180 Hz, 0.59 at 180-260 Hz, 0.41 at 260-450, 0.37 at 450-800 and 0.18 at 800-1500 Hz.
+- **Damping kept**: each slot's decay rate is x (1 - share x (1 - kept(t))), kept = 1, 0.605, 0.366, 0.196, 0.075 at t = 0, 0.25, 0.5, 0.75, 1 (linear between): the Snare 1.0, 2.1, 3.2 and 4.2 dB louder than tight at those points through the plugin (Kris asked for +1, +2, +3, +4), its fundamental's ring from 0.30 s to about 0.86 s; the Popcorn Snare 0.9 to 3.5 dB. Live, as the decay is.
+- **Wire noise**: its start x (1 - 0.25 t), its decay rates x (1 - 0.6 t), from the next hit: looser starts softer and lasts longer.
+- **At 0 (the default) the output is bit-identical**: every factor is exactly 1.
 
 ## CPU
 

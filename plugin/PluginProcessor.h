@@ -125,7 +125,8 @@ private:
         std::atomic<float>* pan = nullptr;
         std::atomic<float>* velSens = nullptr;     // read at each strike
         std::atomic<float>* snares = nullptr;      // the Snares On/Off switch, read at each strike; null without one
-        float last[5] {};                          // tune, lug, decay, strike, size as last applied
+        std::atomic<float>* wire = nullptr;        // Snare Wire Tension; null without snares
+        float last[6] {};                          // tune, lug, decay, strike, size, wire tension as last applied
     };
     std::array<DrumParams, tympanis::kDrums.size()> drumParams {};
     std::atomic<float>* buzzParam = nullptr;

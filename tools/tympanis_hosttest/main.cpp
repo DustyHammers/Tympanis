@@ -118,9 +118,9 @@ int runChecks()
     {
         Host h(44100, 256);
         check(h.p->isKitLoaded(), "baked kit loads" + (h.p->isKitLoaded() ? juce::String() : ": " + h.p->getLoadError()));
-        check(h.p->getParameters().size() == 122,
-              "122 host parameters (15 x tune, lug detune, decay, size, level, pan, velocity sensitivity; 13 x strike position; "
-              "2 x snares on/off; snare buzz; main volume): "
+        check(h.p->getParameters().size() == 124,
+              "124 host parameters (15 x tune, lug detune, decay, size, level, pan, velocity sensitivity; 13 x strike position; "
+              "2 x snares on/off, wire tension; snare buzz; main volume): "
                   + juce::String(h.p->getParameters().size()));
         check(h.p->params.getParameter("kick1_strike_pos") == nullptr && h.p->params.getParameter("tom1_strike_pos") != nullptr,
               "no strike position on the bass drums");
@@ -155,6 +155,15 @@ int runChecks()
                   "Snares On/Off on the Snare and the Popcorn Snare only, default on");
             check(h.p->params.getParameter("snare2_tune") == nullptr && h.p->params.getParameter("snare3_tune") == nullptr,
                   "no Snare 2 or Snare 3 parameters");
+            // Snare Wire Tension (Kris, 2026-11-26): the same two drums, 0 tight (as recorded, default) .. 1 loose
+            int wires = 0;
+            for (const auto& d : kDrums)
+                wires += h.p->params.getParameter(juce::String(d.key) + "_wire_tension") != nullptr ? 1 : 0;
+            auto* wn = h.p->params.getParameter("snare1_wire_tension");
+            auto* wp = h.p->params.getParameter("snare4_wire_tension");
+            check(wires == 2 && wn != nullptr && wp != nullptr && wn->getDefaultValue() == 0.0f && wp->getDefaultValue() == 0.0f
+                      && wn->getName(64) == "Snare Snare Wire Tension" && wp->getName(64) == "Popcorn Snare Snare Wire Tension",
+                  "Snare Wire Tension on the Snare and the Popcorn Snare only, default tight (0)");
         }
         // every row plays on its default note
         for (size_t r = 0; r < kRows.size(); ++r)
@@ -180,6 +189,27 @@ int runChecks()
             });
             check(peak(yOff) > 0.01 && yOn != yOff, juce::String(key) + " with its snares off plays its wires-off model");
             check(yFlip == yOn, juce::String(key) + ": flipping the switch leaves a ringing hit as it is");
+            // Snare Wire Tension: looser rings longer with the snares on (the tail 0.2 .. 1 s up);
+            // with them off it changes nothing (the wires-off model has no wires)
+            Host loose(44100, 256), looseOff(44100, 256);
+            const juce::String wt = juce::String(key) + "_wire_tension";
+            loose.set(wt.toRawUTF8(), 1.0f);
+            looseOff.set(wt.toRawUTF8(), 1.0f);
+            looseOff.set(sw.toRawUTF8(), 0.0f);
+            const auto yLoose = loose.play({ { 100, note, 110 } }, 44100, 256);
+            Host tight(44100, 256);
+            const auto yTight = tight.play({ { 100, note, 110 } }, 44100, 256);
+            Host off2(44100, 256);
+            off2.set(sw.toRawUTF8(), 0.0f);
+            auto tailDb = [](const std::vector<float>& x) {
+                double e = 0;
+                for (size_t i = 8820; i < std::min<size_t>(x.size(), 44100); ++i) e += (double) x[i] * x[i];
+                return 10 * std::log10(e + 1e-30);
+            };
+            const double gain = tailDb(yLoose) - tailDb(yTight);
+            check(gain > 3.0, juce::String(key) + ": Wire Tension loose rings longer (tail +" + juce::String(gain, 1) + " dB)");
+            check(looseOff.play({ { 100, note, 110 } }, 44100, 256) == off2.play({ { 100, note, 110 } }, 44100, 256),
+                  juce::String(key) + ": Wire Tension leaves the snares-off model as it is");
         }
         // other channels are ignored
         Host other(44100, 256);
@@ -494,7 +524,7 @@ int runChecks()
                   "a new editor opens at most 1104 x 736, at 3:2: " + juce::String(fe ? fe->getWidth() : 0) + " x " + juce::String(fe ? fe->getHeight() : 0));
         }
         ed.reset();
-        check(b.p->getParameters().size() == 122, "the editor adds no parameters (122)");
+        check(b.p->getParameters().size() == 124, "the editor adds no parameters (124)");
     }
     {
         // The drums through a pool (test-only thread count): the same bits as one thread, over a busy

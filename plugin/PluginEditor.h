@@ -116,7 +116,7 @@ private:
 
     // TUNING page
     std::vector<std::unique_ptr<TuneRow>> drumTuneRows;
-    std::unique_ptr<TuneRow> snaresRow;
+    std::unique_ptr<TuneRow> snaresRow, wireRow; // the Snares switch and Wire Tension (snares only)
     std::array<std::unique_ptr<TuneRow>, 2> kitTuneRows;
     std::unique_ptr<FooterButton> resetDrumButton, resetAllButton;
     bool shownModified = false;
