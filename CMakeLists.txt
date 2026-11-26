@@ -52,16 +52,34 @@ juce_add_plugin(Tympanis
     AU_MAIN_TYPE                kAudioUnitType_MusicDevice
 )
 
-# The baked kit (tools/bake_kit.py -> resources/bake/*.bake.json), gzipped into the binary.
+# The baked kit. The JSON bakes in resources/bake/ (tools/bake_kit.py) are the source; at build
+# time tools/pack_bake packs each into the compact form the plugin embeds (plugin/PackedBake.h,
+# docs/BUILDS.md), as Cymbalis does with its presets.
+juce_add_console_app(TympanisPackBake PRODUCT_NAME "tympanis_pack_bake")
+target_sources(TympanisPackBake PRIVATE tools/pack_bake/main.cpp plugin/PackedBake.cpp)
+target_include_directories(TympanisPackBake PRIVATE plugin)
+target_compile_definitions(TympanisPackBake PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+target_link_libraries(TympanisPackBake
+    PRIVATE
+        tympanis_engine
+        juce::juce_core
+    PUBLIC
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags
+)
+
 set(TYMPANIS_BAKE_KEYS kit kick1 kick2 snare1 snare2 snare3 snare4 tom1 tom2 tom3 tom4 tom5 tom6 gong octo1 octo2 octo3 octo4)
 set(TYMPANIS_RESOURCES)
-file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bake")
 foreach(key ${TYMPANIS_BAKE_KEYS})
     set(json "${CMAKE_CURRENT_SOURCE_DIR}/resources/bake/${key}.bake.json")
-    set(gz "${CMAKE_CURRENT_BINARY_DIR}/bake/${key}.bake.json.gz")
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${json}")
-    file(ARCHIVE_CREATE OUTPUT "${gz}" PATHS "${json}" FORMAT raw COMPRESSION GZip)
-    list(APPEND TYMPANIS_RESOURCES "${gz}")
+    set(packed "${CMAKE_CURRENT_BINARY_DIR}/bake/${key}.bake.pack")
+    add_custom_command(OUTPUT "${packed}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/bake"
+        COMMAND TympanisPackBake "${json}" "${packed}"
+        DEPENDS TympanisPackBake "${json}"
+        COMMENT "Packing ${key}.bake.json"
+        VERBATIM)
+    list(APPEND TYMPANIS_RESOURCES "${packed}")
 endforeach()
 
 # The editor's artwork and fonts (docs/UI.md).
@@ -80,6 +98,7 @@ set_target_properties(TympanisBinaryData PROPERTIES POSITION_INDEPENDENT_CODE ON
 
 target_sources(Tympanis PRIVATE
     plugin/PluginProcessor.cpp
+    plugin/PackedBake.cpp
     plugin/PluginEditor.cpp
     plugin/ui/UiAssets.cpp
     plugin/ui/DrumModel.cpp

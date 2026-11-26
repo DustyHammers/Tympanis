@@ -41,6 +41,20 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="ar
 cmake --build build --target Tympanis_VST3 Tympanis_AU
 ```
 
+## The packed kit
+
+The JSON bakes in `resources/bake/` are the source (`tools/bake_kit.py` writes them). The plugin embeds each one in a packed form instead (in its binary, through BinaryData): when CMake builds the plugin's binary data, `tools/pack_bake` packs every bake into `<build>/bake/<key>.bake.pack`. A packed bake (`plugin/PackedBake.h`) is Cymbalis's packed bake, format 1, with Tympanis's own magic (`TYMPPACK`): the bake's JSON tree in binary, compressed with zlib, every number as its exact double (or int32 where it is exactly one). It carries a format version and an FNV-1a checksum; a packed bake that does not match them fails to load with a message. The tool checks each packed bake before writing it: it must unpack to the same JSON, bit for bit, and load (the kit header, or a drum), or the build stops.
+
+Same sound: renders through the processor give the same samples, bit for bit, as with the gzipped JSON (2026-11-25: md5s of the raw floats of the busy stereo sequence at 64 and 256-sample blocks).
+
+| Kit (17 drums and the header) | Bytes |
+|---|---|
+| JSON | 14.0 MB |
+| gzipped JSON (before) | 4.55 MB |
+| packed | 3.80 MB |
+
+Every copy of the plugin's code carries the kit once: the universal VST3 and AU have two each (arm64 and x86_64), so packing saves about 3 MB over the two. Loading the kit when the plugin opens went from about 200 ms to about 65 ms (Linux build, `tympanis_hosttest`). Most of the rest is the baked strike-position and mode-shape grids (about 3.0 of the 3.8 MB), which could be computed when the plugin loads instead.
+
 ## Plugin identity
 
 | Field | Value |

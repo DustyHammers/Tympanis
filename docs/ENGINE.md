@@ -51,7 +51,7 @@ Why 2-4 stay serial: float addition is not associative, so the sum has to be in 
 - per-band level corrections: the prototype measures each band filter's noise gain on a fixed random sequence; the ratio to the exact gain is kept so the levels match at any sample rate
 - the snare-head bank for the snare buzz
 
-The CMake build gzips the bake into the plugin. `python3 tools/bake_kit.py --check` fails if the committed bake differs from what the tool makes.
+The JSON bake stays the source. The plugin embeds it packed (docs/BUILDS.md, "The packed kit"): every number keeps its exact bits, so the plugin loads the same values as the JSON gives and sounds the same. `python3 tools/bake_kit.py --check` fails if the committed bake differs from what the tool makes.
 
 ## Port notes (deliberate differences from the prototype)
 
