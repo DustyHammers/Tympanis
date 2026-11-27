@@ -86,7 +86,7 @@ The JSON bake stays the source. The plugin embeds it packed (docs/BUILDS.md, "Th
 
 ## Lug Detune's character
 
-(Kris, 2026-11-27, by ear, after research: quantum.pauken.org "Listening between the lugs"; a Univ. Barcelona thesis measuring a 14" snare's (1,1) split 2 % tuned, 4 % at a quarter turn, 6 % at quarter turns each way.) The models carry almost no energy in the modes uneven tension splits (Tom 3 3 %, Floor Tom 5 3 %, the snares-off Snare 5 %; the fundamental's group the rest), so splits alone are inaudible on the toms and snares. Lug Detune (u = the knob x the drum's share: toms and snares 1, octobans and gong drum 0.5, bass drums 0) sets `setLugDetune(8 u)` (the splits, to 40 % RMS: Tom 3's strongest pair about 90 cents apart at full) and `Drum::setLugCharacter(u)` (plugin only, not in the prototype):
+(Kris, 2026-11-27, by ear, after research: quantum.pauken.org "Listening between the lugs"; a Univ. Barcelona thesis measuring a 14" snare's (1,1) split 2 % tuned, 4 % at a quarter turn, 6 % at quarter turns each way.) The models carry almost no energy in the modes uneven tension splits (Tom 3 3 %, Floor Tom 1 3 %, the snares-off Snare 5 %; the fundamental's group the rest), so splits alone are inaudible on the toms and snares. Lug Detune (u = the knob x the drum's share: toms and snares 1, octobans and gong drum 0.5, bass drums 0) sets `setLugDetune(8 u)` (the splits, to 40 % RMS: Tom 3's strongest pair about 90 cents apart at full) and `Drum::setLugCharacter(u)` (plugin only, not in the prototype):
 
 - **Louder split overtones**: the lug twins' slots x 10^(6u/20) at each strike (an uneven head is no longer symmetric; a hit puts more into those modes): Tom 3's overtones near 250 Hz from 22 to 17 dB under the fundamental.
 - **The fundamental off its overtones**: the fundamental's group (slots within 6 % of the main frequency) x (1 + 1.5 % x u x the drum's own sign and size, 0.5 .. 1, from its key): Tom 3 143.2 -> 141.5 Hz at full, the toms' shifts -45 .. +49 cents.
@@ -140,4 +140,4 @@ The bank, noise bands, bursts and transients run SIMD across modes/bands (`#prag
 
 ## Model note
 
-Tom 6 has one slot at 134.8 Hz with almost no decay (0.028 /s, T60 about 4 minutes) at a low level: the drum is still at -79 dB of its peak 29 s after a hit. Inaudible, but it keeps that slot running; the model is locked, so it is left as is.
+Floor Tom 2 has one slot at 134.8 Hz with almost no decay (0.028 /s, T60 about 4 minutes) at a low level: the drum is still at -79 dB of its peak 29 s after a hit. Inaudible, but it keeps that slot running; the model is locked, so it is left as is.

@@ -36,6 +36,8 @@ Strike position applies to head hits and rim shots (the stick's head contact), n
 
 Catalog sizes: kicks 22", the Snare 14", the Popcorn Snare 10" (Kris, 2026-11-24), toms 10/12/13/14", floor toms 16 x 16" and 18 x 16", gong drum 22", octobans 6". Every head plays at its catalog size: Size no longer scales the head (Kris, 2026-11-25).
 
+The floor toms are named Floor Tom 1 (16") and Floor Tom 2 (18") (Kris, 2026-11-27; were Tom 5 and Tom 6). Their IDs stay `tom5` and `tom6` (parameters `tom5_*`, `tom6_*`, rows `tom5`, `tom5_rim`, ...), so sessions, automation and MIDI maps saved before keep working; hosts show the new names.
+
 Size is the shell's depth (Kris, 2026-11-25), on Toms 1-4: 10, 9, 10 and 11" by default (as drawn; Tom 1 is 10" x 10", Kris, 2026-11-25), 4" shallower to 2" deeper in 1" steps (`kDepthDownIn`, `kDepthUpIn` in `KitMap.h`). At the default depth the toms sound as modelled. The other drums keep their Size parameter (their drawn depth, same range), greyed out in the editor; it changes nothing. The sound of depth is in `docs/ENGINE.md`; the drawings follow it (`docs/UI.md`).
 
 ## MIDI map (session state, not parameters)
@@ -64,8 +66,8 @@ Maps are saved and loaded wherever Kris chooses, with the Mac's own save and ope
 | Kick 2 | 35 | Tom 2 / rim shot | 48 / 73 |
 | Snare / rim shot / side stick | 38 / 40 / 37 | Tom 3 / rim shot | 47 / 74 |
 | Popcorn Snare / rim shot / side stick | 30 / 31 / 32 | Tom 4 / rim shot | 45 / 75 |
-| Gong Drum | 64 | Tom 5 / rim shot | 43 / 76 |
-| Octoban 1..4 | 60..63 | Tom 6 / rim shot | 41 / 77 |
+| Gong Drum | 64 | Floor Tom 1 / rim shot | 43 / 76 |
+| Octoban 1..4 | 60..63 | Floor Tom 2 / rim shot | 41 / 77 |
 
 The Snare's and the Popcorn Snare's rows play whichever model their Snares switch picks. Notes 24..29 (Snare 2's and Snare 3's rows) play nothing now; a saved session's notes for those rows are ignored.
 
@@ -79,7 +81,7 @@ Four pages in Cymbalis's look (docs/UI.md): DRUM, KIT, TUNING and SETTINGS. The 
 
 Stereo out (mono out: (L + R) / 2). Under Main Volume a fixed gain of 0.4 (Kris, 2026-11-24: about Cymbalis's loudness; it was 0.2). At 0 dB level, centre pan, full-velocity head hits peak around -8 dBFS and measure -20 to -30 LUFS momentary (Cymbalis's Nova Ride, a full bow hit: -25); a kick and snare groove at velocity 100 measures -26.5 LUFS integrated (Cymbalis's ride pattern at velocity 100: -28.5).
 
-Four tom rim shots peaked far above everything else (Tom 3's at -1.4 dBFS before the raise), so they have fixed level trims (`kRowTrims` in `KitMap.h`, applied in the engine to everything those strikes make): Tom 2 rim -5.5 dB, Tom 3 rim -8.0, Tom 5 rim -2.5, Tom 6 rim -3.5. The four octobans are trimmed 4 dB the same way (Kris, 2026-11-27), so their Level at 0 dB, the default, is 4 dB under their level before and has room to come up (+4 dB plays them as before). With them no velocity-127 hit peaks above -3 dBFS (host check); a rim-shot roll on those toms and a busy groove with rim shots peak at -3.1 dBFS. Individual outputs come later.
+Four tom rim shots peaked far above everything else (Tom 3's at -1.4 dBFS before the raise), so they have fixed level trims (`kRowTrims` in `KitMap.h`, applied in the engine to everything those strikes make): Tom 2 rim -5.5 dB, Tom 3 rim -8.0, Floor Tom 1 rim -2.5, Floor Tom 2 rim -3.5. The four octobans are trimmed 4 dB the same way (Kris, 2026-11-27), so their Level at 0 dB, the default, is 4 dB under their level before and has room to come up (+4 dB plays them as before). With them no velocity-127 hit peaks above -3 dBFS (host check); a rim-shot roll on those toms and a busy groove with rim shots peak at -3.1 dBFS. Individual outputs come later.
 
 ## Open decisions (Kris)
 
