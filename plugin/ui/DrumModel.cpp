@@ -1661,7 +1661,9 @@ DrumSpec kitSpec (const KitItem& item, double depthOffIn)
 
 Camera kitCamera()
 {
-    return Camera ({ 11, -128, 58 }, { 11, 4, 22 }, 1480, 680, 575); // centred on the page (Kris, 2026-11-27: was 800)
+    // Kris, 2026-11-27: 95 % of the approved size (focal length 1480), 70 right and 30 down of the
+    // page's centre (centre 680, 575), so the kit sits right of the title and clear of the logo
+    return Camera ({ 11, -128, 58 }, { 11, 4, 22 }, 1480 * 0.95, 750, 605);
 }
 
 int kitItemForDrum (int drum)

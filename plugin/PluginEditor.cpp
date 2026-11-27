@@ -19,13 +19,14 @@ constexpr float kPopupSpacing = 2.5f;
 // The pages' common parts (as the approved mockups).
 const juce::Rectangle<int> kDrumBox (61, 371, 277, 62);
 // The TUNING page's left column (Kris, 2026-11-27): the DRUM box (with its label), the spec line and
-// the small drum spaced evenly between the tabs (ink to y 282) and the logo (ink from y 935), about
-// 85 apart; the DRUM page keeps the column as it was.
-constexpr int kTuneDrumDy = 19;          // the label and the box, down from the DRUM page's
-constexpr float kTuneSpecY = 536.0f;     // the spec line (452 on the DRUM page)
+// the small drum spaced evenly between the tabs (their line at y 234) and the logo (ink from y 935),
+// about 97 apart; the DRUM page keeps the column as it was.
+constexpr int kTuneDrumDy = -17;         // the label and the box, up from the DRUM page's
+constexpr float kTuneSpecY = 512.0f;     // the spec line (452 on the DRUM page)
 const juce::Rectangle<int> kChannelBox (1404, 30, 110, 36);
 constexpr float kChannelLabelRight = 1384.0f;
-constexpr float kTabTop = 258.0f, kTabLeft = 66.0f, kTabGap = 30.0f, kTabSpacing = 3.3f;
+constexpr float kTabTop = 208.0f,   // 258 until 2026-11-27 (Kris: the header higher, a little tighter)
+                kTabLeft = 66.0f, kTabGap = 30.0f, kTabSpacing = 3.3f;
 constexpr float kLogoSize = 43.2f;                  // 10 % under the mockup's 48 (Kris, 2026-11-27)
 constexpr float kLogoLeft = 66.0f, kLogoMidY = 950.0f; // left-aligned with the title and the tabs
 
