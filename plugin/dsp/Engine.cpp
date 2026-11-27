@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 
@@ -168,7 +169,7 @@ void Drum::setTune(double semi)
 void Drum::setLugDetune(double x)
 {
     // 0 .. 2: 1 is the prototype's lug_detune 1 (5 % RMS); the plugin's range reaches 2 (10 %)
-    const double l = clampd(x, 0, 2);
+    const double l = clampd(x, 0, 8); // SCRATCH: past the plugin range for listening tests
     if (l != lug_) { lug_ = l; polesDirty_ = true; }
 }
 void Drum::setDecay(double x)
@@ -411,11 +412,18 @@ void Drum::strike(double vel, Art art)
     // new hit's mode amplitudes; with uneven lug tension the split pairs share them by strike angle
     if (lug_ > 0 && S > 0)
     {
-        const double th = d_->lug.theta + (variation_ ? 0.15 * vrng_.normal() : 0.0);
+        // SCRATCH listening test: TYMPANIS_LUG_WANDER=<rad> (default 0.15): how far the stick wanders
+        // around the head, hit to hit, relative to the lugs
+        static const double wander = [] { const char* e = std::getenv("TYMPANIS_LUG_WANDER"); return e ? std::atof(e) : 0.15; }();
+        const double th = d_->lug.theta + (variation_ ? wander * vrng_.normal() : 0.0);
         for (size_t s = 0; s < S; ++s)
         {
             const size_t k = (size_t) d_->lug.slots[s];
             const double dl = d_->lug.m[s] * (th - d_->lug.phi[s]);
+            // SCRATCH listening test: TYMPANIS_LUG_BOOST=<dB at full> raises the split overtones with the
+            // detune (an uneven head is no longer symmetric: a hit puts more into these modes)
+            static const double boostDb = [] { const char* e = std::getenv("TYMPANIS_LUG_BOOST"); return e ? std::atof(e) : 0.0; }();
+            amp[k] *= std::pow(10.0, boostDb * std::min(1.0, lug_ / 8.0) / 20.0);
             const C b = cpol(amp[k], ph[k]);
             zt_[s] += b * std::sin(dl);
             amp[k] *= std::cos(dl);
@@ -514,8 +522,27 @@ void Drum::computePoles(bool all, double gam)
         for (int k = 0; k < K_; ++k) mag_[(size_t) k] = std::exp(-D_[(size_t) k] * dmul_[(size_t) k] * wireFac_[(size_t) k] * sf_ * depthDecay(F_[(size_t) k]) / sr_);
         magDirty_ = false;
     }
+    if (fshift_.empty())
+    {
+        // SCRATCH listening test: TYMPANIS_LUG_FSHIFT=<fraction at full> moves the fundamental's group
+        // (slots within 6 % of f_main; not the kicks) by a fixed amount per drum, up or down (0.5 .. 1
+        // of the full amount, the sign and size from the drum's key), so it leaves its overtones
+        fshift_.assign((size_t) K_, 0.0);
+        const char* e = std::getenv("TYMPANIS_LUG_FSHIFT");
+        if (e && d_->key.rfind("kick", 0) != 0)
+        {
+            uint64_t h = 1469598103934665603ull;
+            for (char c : d_->key) h = (h ^ (uint64_t) (unsigned char) c) * 1099511628211ull;
+            Noise g(h);
+            const double u = g.uniform(), sd = (g.uniform() < 0.5 ? -1.0 : 1.0) * (0.5 + 0.5 * u);
+            const Layer& Lr = d_->arts[0].back();
+            for (int k = 0; k < K_; ++k)
+                if (std::abs(Lr.freq[(size_t) k] / d_->fMain - 1) < 0.06) fshift_[(size_t) k] = std::atof(e) * sd;
+        }
+    }
     auto pole = [&](size_t k) {
-        const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k]);
+        const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k])
+                         * (1 + lug_ / 8.0 * fshift_[k]);
         wblk_[k] = w;
         pblk_[k] = std::polar(mag_[k], w);
     };
@@ -529,7 +556,8 @@ void Drum::computePoles(bool all, double gam)
         {
             const size_t k = (size_t) d_->lug.slots[s];
             const double dl = scale * d_->lug.rel[s];
-            const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k]);
+            const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k])
+                             * (1 + lug_ / 8.0 * fshift_[k]);
             ptw_[s] = std::polar(mag_[k], w * (1 - dl));      // the lower eigenmode
             pblk_[k] = std::polar(mag_[k], w * (1 + dl));     // main slot: the upper eigenmode
         }
