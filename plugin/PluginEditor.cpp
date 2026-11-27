@@ -26,9 +26,9 @@ constexpr float kTuneSpecY = 512.0f;     // the spec line (452 on the DRUM page)
 const juce::Rectangle<int> kChannelBox (1404, 30, 110, 36);
 constexpr float kChannelLabelRight = 1384.0f;
 constexpr float kTabTop = 208.0f,   // 258 until 2026-11-27 (Kris: the header higher, a little tighter)
-                kTabLeft = 66.0f, kTabGap = 30.0f, kTabSpacing = 3.3f;
+                kTabLeft = 36.0f, kTabGap = 30.0f, kTabSpacing = 3.3f;
 constexpr float kLogoSize = 43.2f;                  // 10 % under the mockup's 48 (Kris, 2026-11-27)
-constexpr float kLogoLeft = 66.0f, kLogoMidY = 950.0f; // left-aligned with the title and the tabs
+constexpr float kLogoLeft = 36.0f, kLogoMidY = 950.0f; // left-aligned with the title and the tabs
 
 // DRUM page: the note rows' tops, the note boxes.
 constexpr std::array<int, 3> kRowTop { 140, 220, 300 };
