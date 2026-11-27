@@ -61,7 +61,7 @@ void Drum::init(const DrumData* data, const KitData* kit, bool restrikeDamp, boo
     zt_.assign(S, 0); zrmt_.assign(S, 0);
     pblk_.assign(K, 0); ptw_.assign(S, 0); wblk_.assign(K, 0); mag_.assign(K, 0); act_.assign(K, 0);
     gr_.assign(std::max({ K, S, (size_t) 64 }), 0); gi_ = gr_; hr_ = gr_; hi_ = gr_;
-    scratchA_.assign(K, 0); scratchB_.assign(K, 0); scratchC_.assign(K, 0);
+    scratchA_.assign(K, 0); scratchB_.assign(K, 0); scratchC_.assign(K, 0); scratchPh_.assign(K, 0);
     bp_.assign(nb, BandPass {});
     bnorm_.assign(nb, 0); env_.assign(nb, 0); nd_.assign(nb, 0); bandfc_.assign(nb, 0); bmul_.assign(nb, 1);
     effEnv_.assign(nb, 0); effR_.assign(nb, 0);
@@ -422,10 +422,28 @@ void Drum::strike(double vel, Art art)
     if (art != Art::Side) strikeGain(pos, art, sg);
     else std::fill(sg.begin(), sg.end(), 1.0);
     std::vector<double>& amp = scratchC_;
-    const std::vector<double>& ph = fr < 0.5 ? A.phase : B.phase;
+    // each mode's start: the prototype's (log amplitude, the nearer layer's phase) or, with the
+    // layer blend on, the straight blend of the two layers' start states
+    std::vector<double>& ph = scratchPh_;
+    if (layerBlend_)
+        for (size_t k = 0; k < K; ++k)
+        {
+            const C z0 = (1 - fr) * cpol(A.amp[k], A.phase[k]) + fr * cpol(B.amp[k], B.phase[k]);
+            amp[k] = std::abs(z0);
+            ph[k] = amp[k] > 0 ? std::arg(z0) : A.phase[k];
+        }
+    else
+    {
+        const std::vector<double>& near = fr < 0.5 ? A.phase : B.phase;
+        for (size_t k = 0; k < K; ++k)
+        {
+            amp[k] = std::exp((1 - fr) * std::log(A.amp[k] + 1e-9) + fr * std::log(B.amp[k] + 1e-9));
+            ph[k] = near[k];
+        }
+    }
     for (size_t k = 0; k < K; ++k)
     {
-        double a = std::exp((1 - fr) * std::log(A.amp[k] + 1e-9) + fr * std::log(B.amp[k] + 1e-9));
+        double a = amp[k];
         if (tilt != 0)
             a *= std::pow(10.0, tilt * std::log2(std::max(A.freq[k] / (2 * d_->fMain), 1.0)) / 20.0);
         amp[k] = gain * a * sg[k];

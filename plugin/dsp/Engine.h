@@ -62,6 +62,14 @@ public:
     // (1 - 0.85 (1 - (1 - u)^2.37)); the strike angle's wander 0.15 + 0.45 u rad. At 0 every factor
     // is exactly 1: bit-identical.
     void setLugCharacter(double u);
+    // Blending between velocity layers (plugin only, not in the prototype; Kris, 2026-11-27). Off,
+    // as the prototype: each mode's amplitude is blended in log between the two layers and its
+    // phase is the nearer layer's. On: each mode's start state is the straight blend of the two
+    // layers' (amplitude and phase together), as the contact transient already is, so each
+    // layer's modes and the transient fitted against them stay matched between layers (the
+    // attack no longer jumps by up to 15 dB at the layers' midpoints and edges: the octobans'
+    // clicks). Off is bit-identical to before.
+    void setLayerBlend(bool on) { layerBlend_ = on; }
     void setDecay(double x);
     void setGlideAmt(double x) { glideAmt_ = x; }
     void setClickMix(double x) { clickMix_ = x; }
@@ -134,7 +142,7 @@ private:
     const DrumData* d_ = nullptr;
     const KitData* kit_ = nullptr;
     double sr_ = 44100;
-    bool restrike_ = true, variation_ = true, noiseless_ = false;
+    bool restrike_ = true, variation_ = true, noiseless_ = false, layerBlend_ = false;
     bool isKick_ = false, isOctoban_ = false;
     int K_ = 0;
     Art art_ = Art::Head;
@@ -168,7 +176,7 @@ private:
     std::vector<int> act_;
     int nAct_ = 0;
     bool polesDirty_ = true, magDirty_ = true;
-    std::vector<double> scratchA_, scratchB_, scratchC_;
+    std::vector<double> scratchA_, scratchB_, scratchC_, scratchPh_;
 
     // noise bands
     std::vector<BandPass> bp_;
