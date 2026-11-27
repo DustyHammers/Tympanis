@@ -18,7 +18,7 @@ Per drum (`<drum>` = `kick1 kick2 snare1 snare4 tom1..tom6 gong octo1..octo4`; `
 | ID | Name | Range | Default |
 |---|---|---|---|
 | `<drum>_tune` | `<Drum> Tune` | -2 .. +2 semitones | 0 |
-| `<drum>_lug_detune` | `<Drum> Lug Detune` | 0 .. 1 (1 = 10 % RMS tension error between lugs; Kris, 2026-11-25, was 5 %) | 0 |
+| `<drum>_lug_detune` | `<Drum> Lug Detune` | 0 .. 1: an unevenly tuned head (Kris, 2026-11-27; `docs/ENGINE.md`, "Lug Detune's character"). On the toms and snares 1 = 40 % RMS tension error between lugs with the full character; the octobans and the gong drum get half; the bass drums none (greyed out) | 0 |
 | `<drum>_decay` | `<Drum> Decay` | 0.25 .. 4 x ring time (highs change less) | 1 |
 | `<drum>_strike_pos` | `<Drum> Strike Position` | 0 (centre) .. 0.95 (near the rim); not on the bass drums | 0.35 |
 | `<drum>_size` | `<Drum> Size` | the shell's depth, inches: -4 .. +2 in 1" steps; plays on Toms 1-4 only (greyed out on the others) | the depth as drawn |

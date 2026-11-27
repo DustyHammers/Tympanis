@@ -167,9 +167,31 @@ void Drum::setTune(double semi)
 }
 void Drum::setLugDetune(double x)
 {
-    // 0 .. 2: 1 is the prototype's lug_detune 1 (5 % RMS); the plugin's range reaches 2 (10 %)
-    const double l = clampd(x, 0, 2);
+    // 0 .. 8: 1 is the prototype's lug_detune 1 (5 % RMS); the plugin's range reaches 8 (40 %)
+    const double l = clampd(x, 0, 8);
     if (l != lug_) { lug_ = l; polesDirty_ = true; }
+}
+void Drum::setLugCharacter(double u)
+{
+    u = clampd(u, 0, 1);
+    if (u == lugU_) return;
+    lugU_ = u;
+    lugBoost_ = std::pow(10.0, 6.0 * u / 20.0);
+    lugGlide_ = 1 - 0.85 * (1 - std::pow(1 - u, 2.37));
+    lugWander_ = 0.15 + 0.45 * u;
+    if (lugShift_.empty())
+    {
+        // this drum's own shift of its fundamental's group: a sign and a size 0.5 .. 1 from its key
+        lugShift_.assign((size_t) K_, 0.0);
+        uint64_t h = 1469598103934665603ull;
+        for (char c : d_->key) h = (h ^ (uint64_t) (unsigned char) c) * 1099511628211ull;
+        Noise g(h);
+        const double size = 0.5 + 0.5 * g.uniform(), sd = (g.uniform() < 0.5 ? -1.0 : 1.0) * size;
+        const Layer& Lr = d_->arts[0].back();
+        for (int k = 0; k < K_; ++k)
+            if (std::abs(Lr.freq[(size_t) k] / d_->fMain - 1) < 0.06) lugShift_[(size_t) k] = 0.015 * sd;
+    }
+    polesDirty_ = true;
 }
 void Drum::setDecay(double x)
 {
@@ -411,11 +433,12 @@ void Drum::strike(double vel, Art art)
     // new hit's mode amplitudes; with uneven lug tension the split pairs share them by strike angle
     if (lug_ > 0 && S > 0)
     {
-        const double th = d_->lug.theta + (variation_ ? 0.15 * vrng_.normal() : 0.0);
+        const double th = d_->lug.theta + (variation_ ? lugWander_ * vrng_.normal() : 0.0);
         for (size_t s = 0; s < S; ++s)
         {
             const size_t k = (size_t) d_->lug.slots[s];
             const double dl = d_->lug.m[s] * (th - d_->lug.phi[s]);
+            amp[k] *= lugBoost_;                                     // Lug Detune's character: louder split overtones
             const C b = cpol(amp[k], ph[k]);
             zt_[s] += b * std::sin(dl);
             amp[k] *= std::cos(dl);
@@ -434,12 +457,13 @@ void Drum::strike(double vel, Art art)
     magDirty_ = polesDirty_ = true;
 
     // ---- tension-modulation glide (accumulates in rolls, capped)
-    const double gt = ((1 - fr) * A.glideG + fr * B.glideG) * glideAmt_;
+    const double gAmt = glideAmt_ * lugGlide_;                     // Lug Detune's character: less glide
+    const double gt = ((1 - fr) * A.glideG + fr * B.glideG) * gAmt;
     tau_ = (1 - fr) * A.glideTau + fr * B.glideTau;
-    if (gt > 0) gam_ = std::min(gam_ + gt, d_->glideGmax * glideAmt_);
-    const double gt2 = ((1 - fr) * A.glideG2 + fr * B.glideG2) * glideAmt_;
+    if (gt > 0) gam_ = std::min(gam_ + gt, d_->glideGmax * gAmt);
+    const double gt2 = ((1 - fr) * A.glideG2 + fr * B.glideG2) * gAmt;
     tau2_ = (1 - fr) * A.glideTau2 + fr * B.glideTau2;
-    if (gt2 > 0) gam2_ = std::min(gam2_ + gt2, 1.3 * std::max(L[0].glideG2, 1e-6) * glideAmt_);
+    if (gt2 > 0) gam2_ = std::min(gam2_ + gt2, 1.3 * std::max(L[0].glideG2, 1e-6) * gAmt);
 
     // ---- noise layer
     for (size_t j = 0; j < env_.size(); ++j)
@@ -514,8 +538,10 @@ void Drum::computePoles(bool all, double gam)
         for (int k = 0; k < K_; ++k) mag_[(size_t) k] = std::exp(-D_[(size_t) k] * dmul_[(size_t) k] * wireFac_[(size_t) k] * sf_ * depthDecay(F_[(size_t) k]) / sr_);
         magDirty_ = false;
     }
+    // Lug Detune's character: the fundamental's group moved off its overtones (exactly 1 at u = 0)
+    auto lugShift = [&](size_t k) { return lugShift_.empty() ? 1.0 : 1 + lugU_ * lugShift_[k]; };
     auto pole = [&](size_t k) {
-        const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k]);
+        const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k]) * lugShift(k);
         wblk_[k] = w;
         pblk_[k] = std::polar(mag_[k], w);
     };
@@ -529,7 +555,7 @@ void Drum::computePoles(bool all, double gam)
         {
             const size_t k = (size_t) d_->lug.slots[s];
             const double dl = scale * d_->lug.rel[s];
-            const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k]);
+            const double w = twoPiOverSr * F_[k] * depthPitch(F_[k]) * tune_ * sf_ * tubefac_[k] * (1 + gam * gw_[k]) * lugShift(k);
             ptw_[s] = std::polar(mag_[k], w * (1 - dl));      // the lower eigenmode
             pblk_[k] = std::polar(mag_[k], w * (1 + dl));     // main slot: the upper eigenmode
         }

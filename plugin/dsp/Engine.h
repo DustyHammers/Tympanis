@@ -55,6 +55,13 @@ public:
 
     void setTune(double semi);
     void setLugDetune(double x);
+    // Lug Detune's character (plugin only, not in the prototype; Kris, 2026-11-27, by ear). u, 0 ..
+    // 1, goes with setLugDetune(8 u): the split overtones (the lug twins' slots) x 10^(6u/20) at
+    // each strike; the fundamental's group (slots within 6 % of the main frequency) moved off them by
+    // 1.5 % x u x this drum's own sign and size (0.5 .. 1, from its key); the tension glide x
+    // (1 - 0.85 (1 - (1 - u)^2.37)); the strike angle's wander 0.15 + 0.45 u rad. At 0 every factor
+    // is exactly 1: bit-identical.
+    void setLugCharacter(double u);
     void setDecay(double x);
     void setGlideAmt(double x) { glideAmt_ = x; }
     void setClickMix(double x) { clickMix_ = x; }
@@ -134,6 +141,8 @@ private:
     const std::vector<Layer>* L_ = nullptr;
 
     // parameters
+    double lugU_ = 0, lugBoost_ = 1, lugGlide_ = 1, lugWander_ = 0.15; // Lug Detune's character
+    std::vector<double> lugShift_;                                      // per slot: the fundamental group's shift at u = 1
     double tune_ = 1, lug_ = 0, decay_ = 1, glideAmt_ = 1, clickMix_ = 1, noiseMix_ = 1, velRange_ = 30;
     std::array<double, kNumArts> artTrim_ { 1.0, 1.0, 1.0 };
     double strikePos_ = 0.35, sf_ = 1, sizeIn_ = 14, tubeLen_ = 1, depthQ_ = 1, recDepthIn_ = 10;

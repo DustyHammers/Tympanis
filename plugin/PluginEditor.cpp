@@ -1188,7 +1188,7 @@ namespace
 // The TUNING page's rows: this drum's, then the whole kit's (Kris, 2026-11-24).
 const std::array<TuneRow::Spec, 7> kDrumTuneSpecs { {
     { "tune", true, "TUNE", TuneRow::Format::semitones, true, nullptr, nullptr },
-    { "lug_detune", true, "LUG DETUNE", TuneRow::Format::plain, false, "EVEN", "10 % RMS" },
+    { "lug_detune", true, "LUG DETUNE", TuneRow::Format::plain, false, "EVEN", "UNEVEN" },
     { "decay", true, "DECAY", TuneRow::Format::times, false, "SHORT", "LONG" },
     { "strike_pos", true, "STRIKE POSITION", TuneRow::Format::plain, false, "CENTER", "RIM" },
     { "size", true, "SIZE", TuneRow::Format::inches, false, nullptr, nullptr },
@@ -1498,6 +1498,9 @@ void Content::layoutTuningRows()
         }
         else
             drumTuneRows[i]->attach (paramId (spec.suffix), top);
+        // Lug Detune does nothing on the bass drums (Kris, 2026-11-27): greyed out there
+        if (juce::String (spec.suffix) == "lug_detune")
+            drumTuneRows[i]->setGreyed (juce::String (info.key).startsWith ("kick"));
         top += kDrumRowStep;
     }
 }
