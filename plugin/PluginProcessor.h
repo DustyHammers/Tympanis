@@ -43,14 +43,35 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
-    // MIDI map (session state, set from the editor's MIDI CHANNEL box and MIDI NOTE boxes)
+    // MIDI map (session state; Kris, 2026-11-26): a note per row and a channel per drum.
+    // setMidiChannel sets every drum's channel (SETTINGS: it overrides all); getMidiChannel is the
+    // channel last set for all of them. setDrumChannel sets one drum's (the DRUM page). A note on
+    // a channel belongs to at most one row: setting a row's note, or moving a drum to a channel,
+    // sets any other row with that note on that channel to none (when every drum is moved at
+    // once, the first row in kRows order keeps it).
     int getMidiChannel() const { return midiChannel.load(); }
-    void setMidiChannel(int ch) { midiChannel.store(juce::jlimit(1, 16, ch)); }
+    void setMidiChannel(int ch);
+    int getDrumChannel(int drum) const { return drumChannels[(size_t) drum].load(); }
+    void setDrumChannel(int drum, int ch);
     int getRowNote(int row) const { return rowNotes[(size_t) row].load(); }
-    // A note belongs to at most one row: giving a row a note another row has sets that row to none.
     void setRowNote(int row, int note);
 
-    // MIDI learn: the next note-on on the MIDI channel goes to this row (and plays it).
+    // MIDI map files (JSON text; docs/PLUGIN.md "MIDI maps"): the notes, the channel set for all
+    // and each drum's channel. mapToJson is the map now; applyMapJson sets it from such text
+    // (false, nothing changed, when it is not a Tympanis MIDI map). The map's name is shown in the
+    // SETTINGS PRESET box: "General MIDI" or the file's name; mapModified is true when the map now
+    // differs from the one loaded or saved under that name.
+    juce::String mapToJson() const;
+    bool applyMapJson(const juce::String& json);
+    static juce::String generalMidiJson();
+    void useGeneralMidi();                                   // notes and channel 10, named General MIDI
+    bool saveMapFile(const juce::File& f);                   // and names the map after it
+    bool loadMapFile(const juce::File& f);
+    juce::String mapName() const;
+    juce::File mapFile() const;                              // none for General MIDI
+    bool mapModified() const;
+
+    // MIDI learn: the next note-on on the row's drum's channel goes to this row (and plays it).
     void startMidiLearn(int row) noexcept { learnRow.store(row); }
     void cancelMidiLearn() noexcept { learnRow.store(-1); }
     int midiLearnRow() const noexcept { return learnRow.load(); }
@@ -134,6 +155,11 @@ private:
     float lastBuzz = -1;
 
     std::atomic<int> midiChannel { tympanis::kDefaultMidiChannel };
+    std::array<std::atomic<int>, tympanis::kDrums.size()> drumChannels {};
+    void clearClashes(int keepRow);                          // other rows with keepRow's note on its channel: none
+    // the map's name, file and its text when loaded or saved (message thread only)
+    juce::String mapNameNow { "General MIDI" }, mapBase;
+    juce::File mapFileNow;
     std::array<std::atomic<int>, tympanis::kRows.size()> rowNotes {};
     std::atomic<int> learnRow { -1 };
 

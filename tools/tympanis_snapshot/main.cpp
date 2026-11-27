@@ -20,7 +20,10 @@
 //   drum-tom1-shallow.png   DRUM page, Tom 1 at 6" deep
 //   tuning-tom1-shallow.png TUNING page, the same
 //   drum-snare-hit-2x.png   the DRUM page's hit at twice the pixels (a Retina display)
-//   settings.png            SETTINGS page, the green finish chosen
+//   settings.png            SETTINGS page, the green finish chosen, the MIDI MAP (General MIDI)
+//   settings-midimap-note.png    the MIDI MAP with the Snare rim shot's note menu open
+//   settings-midimap-preset.png  the MIDI MAP's PRESET list open
+//   drum-snare1-channel2.png, settings-own-channel.png: the Snare on its own MIDI channel 2
 //   settings-natural.png    the same, natural maple chosen
 //   drum-tom3-natural.png, kit-natural.png, tuning-tom3-natural.png, drum-kick1-natural.png:
 //                           the pages in natural maple
@@ -210,6 +213,13 @@ int main (int argc, char** argv)
         // SETTINGS: the two finishes (green chosen), then natural maple chosen: the pages follow it
         auto e = open (Content::settingsPage, drumOf ("tom3"));
         save (*e, dir.getChildFile ("settings.png"));
+        // the MIDI MAP: a grid note menu open (the Snare's rim shot), the PRESET list
+        for (int r = 0; r < (int) tympanis::kRows.size(); ++r)
+            if (juce::String (tympanis::kRows[(size_t) r].id) == "snare1_rim")
+                e->content().openGridMenu (r);
+        save (*e, dir.getChildFile ("settings-midimap-note.png"));
+        e->content().openPresetMenuForTest();
+        save (*e, dir.getChildFile ("settings-midimap-preset.png"));
         timing ("SETTINGS page", e->content().wireView (Content::settingsPage));
         processor.setDrumFinish (1);
         const std::pair<int, const char*> shots[] = { { Content::settingsPage, "settings-natural.png" }, { Content::drumPage, "drum-tom3-natural.png" },
@@ -221,6 +231,15 @@ int main (int argc, char** argv)
             save (*en, dir.getChildFile (name));
         }
         processor.setDrumFinish (0);
+    }
+    {
+        // the Snare on its own MIDI channel (2): the DRUM page's box, and SETTINGS naming it
+        processor.setDrumChannel (drumOf ("snare1"), 2);
+        auto ed = open (Content::drumPage, drumOf ("snare1"));
+        save (*ed, dir.getChildFile ("drum-snare1-channel2.png"));
+        auto es = open (Content::settingsPage, drumOf ("snare1"));
+        save (*es, dir.getChildFile ("settings-own-channel.png"));
+        processor.setMidiChannel (10);
     }
     return failures == 0 ? 0 : 1;
 }

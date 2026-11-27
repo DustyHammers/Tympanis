@@ -217,6 +217,107 @@ int runChecks()
         check(peak(y) < 1e-30, "a note on channel 1 plays nothing");
     }
     {
+        // the MIDI map (Kris, 2026-11-26): a channel per drum, notes per channel, map files
+        auto drumOf = [](const char* key) {
+            for (size_t d = 0; d < kDrums.size(); ++d)
+                if (juce::String(kDrums[d].key) == key) return (int) d;
+            return -1;
+        };
+        const int snare = drumOf("snare1"), kick = drumOf("kick1"), tom1 = drumOf("tom1");
+        const int snareHead = rowIndex("snare1"), kickHead = rowIndex("kick1"), tom1Head = rowIndex("tom1");
+        Host m(44100, 256);
+        bool all10 = true;
+        for (size_t d = 0; d < kDrums.size(); ++d) all10 = all10 && m.p->getDrumChannel((int) d) == 10;
+        check(all10 && m.p->mapName() == "General MIDI" && ! m.p->mapModified() && m.p->mapFile() == juce::File()
+                  && m.p->mapToJson() == TympanisProcessor::generalMidiJson(),
+              "MIDI map: every drum on channel 10, General MIDI, unchanged");
+        // a drum on its own channel plays there only; the others stay on 10
+        m.p->setDrumChannel(snare, 2);
+        const bool snareOn2 = peak(m.play({ { 100, 38, 110 } }, 4410, 256, 2)) > 0.01;
+        Host m10(44100, 256);
+        m10.p->setDrumChannel(snare, 2);
+        const bool snareOn10 = peak(m10.play({ { 100, 38, 110 } }, 4410, 256, 10)) > 1e-6;
+        const bool kickOn10 = peak(m10.play({ { 100, 36, 110 } }, 4410, 256, 10)) > 0.01;
+        check(snareOn2 && ! snareOn10 && kickOn10 && m.p->mapModified(),
+              "MIDI map: the Snare on channel 2 plays there and not on 10; Kick 1 still on 10; the map shows changed");
+        // the same note on two channels: two drums
+        Host sh(44100, 256);
+        sh.p->setDrumChannel(tom1, 3);
+        sh.p->setRowNote(tom1Head, 36);
+        check(sh.p->getRowNote(kickHead) == 36 && sh.p->getRowNote(tom1Head) == 36,
+              "MIDI map: Tom 1 on channel 3 can share Kick 1's note 36");
+        // moving Tom 1 back to 10: it keeps 36, Kick 1's 36 goes to none (the drum moved keeps its notes)
+        sh.p->setDrumChannel(tom1, 10);
+        check(sh.p->getRowNote(tom1Head) == 36 && sh.p->getRowNote(kickHead) == kNoteNone,
+              "MIDI map: moving a drum onto a channel, its notes win a clash there");
+        // SETTINGS: one channel for all overrides every drum's own; the first row keeps a clashed note
+        Host all(44100, 256);
+        all.p->setDrumChannel(tom1, 3);
+        all.p->setRowNote(tom1Head, 36);
+        all.p->setMidiChannel(5);
+        bool all5 = true;
+        for (size_t d = 0; d < kDrums.size(); ++d) all5 = all5 && all.p->getDrumChannel((int) d) == 5;
+        check(all5 && all.p->getMidiChannel() == 5 && all.p->getRowNote(kickHead) == 36 && all.p->getRowNote(tom1Head) == kNoteNone,
+              "MIDI map: setting the channel for all puts every drum on it; the first row keeps a shared note");
+        // MIDI learn listens on the learning drum's channel
+        Host ln(44100, 256);
+        ln.p->setDrumChannel(snare, 2);
+        ln.p->startMidiLearn(snareHead);
+        ln.play({ { 100, 90, 100 } }, 2048, 256, 10);
+        const bool ignored = ln.p->midiLearnRow() == snareHead;
+        ln.play({ { 100, 91, 100 } }, 2048, 256, 2);
+        check(ignored && ln.p->getRowNote(snareHead) == 91 && ln.p->midiLearnRow() == -1, "MIDI learn: on the drum's own channel");
+        // session state: the drums' channels and the map's name
+        Host sa(44100, 256);
+        sa.p->setDrumChannel(snare, 4);
+        sa.p->setRowNote(snareHead, 40);
+        juce::MemoryBlock mb;
+        sa.p->getStateInformation(mb);
+        Host sb(44100, 256);
+        sb.p->setStateInformation(mb.getData(), (int) mb.getSize());
+        check(sb.p->getDrumChannel(snare) == 4 && sb.p->getDrumChannel(kick) == 10 && sb.p->getRowNote(snareHead) == 40
+                  && sb.p->mapName() == "General MIDI" && sb.p->mapModified(),
+              "state: each drum's channel and the map restored (General MIDI, changed)");
+        // a session from before the drums' own channels: every drum on its saved channel
+        auto xml = juce::AudioProcessor::getXmlFromBinary(mb.getData(), (int) mb.getSize());
+        if (auto* map = xml != nullptr ? xml->getChildByName("MidiMap") : nullptr)
+        {
+            for (const auto& d : kDrums) map->removeAttribute(juce::String("ch_") + d.key);
+            map->setAttribute("channel", 7);
+            for (const char* a : { "name", "file", "base" }) map->removeAttribute(a);
+        }
+        juce::MemoryBlock old;
+        if (xml != nullptr) juce::AudioProcessor::copyXmlToBinary(*xml, old);
+        Host sc(44100, 256);
+        sc.p->setStateInformation(old.getData(), (int) old.getSize());
+        bool all7 = true;
+        for (size_t d = 0; d < kDrums.size(); ++d) all7 = all7 && sc.p->getDrumChannel((int) d) == 7;
+        check(all7 && sc.p->getMidiChannel() == 7 && sc.p->mapName() == "General MIDI",
+              "state: an older session puts every drum on its saved channel");
+        // map files: save, change, load back; a file that is not a map changes nothing
+        const auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("TympanisHostTestMaps");
+        dir.deleteRecursively();
+        dir.createDirectory();
+        const auto f = dir.getChildFile("Studio B.json");
+        Host fm(44100, 256);
+        fm.p->setDrumChannel(snare, 2);
+        fm.p->setRowNote(kickHead, 33);
+        const auto saved = fm.p->mapToJson();
+        const bool wrote = fm.p->saveMapFile(f);
+        const bool clean = wrote && ! fm.p->mapModified() && fm.p->mapName() == "Studio B" && fm.p->mapFile() == f;
+        fm.p->useGeneralMidi();
+        const bool gm = fm.p->mapToJson() == TympanisProcessor::generalMidiJson() && fm.p->mapName() == "General MIDI";
+        const bool loaded = fm.p->loadMapFile(f);
+        check(clean && gm && loaded && fm.p->mapToJson() == saved && fm.p->getDrumChannel(snare) == 2 && fm.p->getRowNote(kickHead) == 33
+                  && ! fm.p->mapModified() && fm.p->mapName() == "Studio B",
+              "MIDI map files: saved, General MIDI, loaded back the same (named after the file)");
+        const auto junk = dir.getChildFile("not a map.json");
+        junk.replaceWithText("{ \"hello\": 1 }");
+        check(! fm.p->loadMapFile(junk) && fm.p->mapToJson() == saved && fm.p->mapName() == "Studio B",
+              "MIDI map files: a file that is not a map is refused and changes nothing");
+        dir.deleteRecursively();
+    }
+    {
         // block sizes: the same hits must give (nearly) the same audio at any host block size
         std::vector<std::tuple<int64_t, int, int>> ev;
         for (int k = 0; k < 24; ++k) ev.emplace_back(1000 + k * 3001, kRows[(size_t) (k * 7) % kRows.size()].defaultNote, 40 + (k * 13) % 88);
