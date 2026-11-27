@@ -260,11 +260,17 @@ public:
         open = o;
         repaint();
     }
+    // the DRUM page's MIDI CHANNEL box: a drum on its own channel, outlined in bronze
+    void setAccent (bool a)
+    {
+        accent = a;
+        repaint();
+    }
     std::function<void()> onClick;
 
     void paint (juce::Graphics& g) override
     {
-        drawBoxOutline (g, getLocalBounds(), open ? palette::openOutline : (isMouseOver() ? palette::bronze : palette::boxOutline));
+        drawBoxOutline (g, getLocalBounds(), open ? palette::openOutline : (isMouseOver() || accent ? palette::bronze : palette::boxOutline), accent ? 2 : 1);
         drawTriangle (g, arrow);
         auto area = getLocalBounds().toFloat();
         auto font = assets.font (kHeaderSize, kBoxValueSpacing);
@@ -291,6 +297,7 @@ public:
     }
 
 private:
+    bool accent = false;
     const Assets& assets;
     juce::Point<float> arrow;
     Align align;
@@ -656,6 +663,198 @@ private:
 };
 
 // =====================================================================================
+// The SETTINGS page's MIDI MAP (Kris, 2026-11-26, mockups approved): the PRESET box (the map's
+// name, " *" when changed since it was loaded or saved) and its list: GENERAL MIDI, the recent
+// maps, LOAD... Maps are files wherever Kris saves them (no fixed folder, as Cymbalis); the
+// recent ones and the last folder are kept in Tympanis's settings file.
+class PresetBox final : public juce::Component
+{
+public:
+    explicit PresetBox (const Assets& a) : assets (a)
+    {
+        setMouseCursor (juce::MouseCursor::PointingHandCursor);
+        setTitle ("Preset");
+    }
+    std::function<void()> onClick;
+    void setText (const juce::String& t)
+    {
+        text = t;
+        repaint();
+    }
+    void setOpen (bool o)
+    {
+        open = o;
+        repaint();
+    }
+    void paint (juce::Graphics& g) override
+    {
+        drawBoxOutline (g, getLocalBounds(), open ? palette::openOutline : (isMouseOver() ? palette::bronze : palette::boxOutline));
+        const auto f = assets.font (kRowSize, 2.4f);
+        auto shown = text.toUpperCase();
+        while (shown.length() > 3 && inkBounds (f, shown).getWidth() > (float) getWidth() - 46.0f)
+            shown = shown.dropLastCharacters (2) + juce::String::charToString (0x2026);
+        drawAt (g, f, shown, 13.0f, 7.0f, palette::label);
+        juce::Path tri;
+        const float tx = (float) getWidth() - 22.0f, ty = (float) getHeight() * 0.5f - 3.0f;
+        tri.addTriangle (tx, ty, tx + 11.0f, ty, tx + 5.5f, ty + 7.0f);
+        g.setColour (palette::arrow);
+        g.fillPath (tri);
+    }
+    void mouseEnter (const juce::MouseEvent&) override { repaint(); }
+    void mouseExit (const juce::MouseEvent&) override { repaint(); }
+    void mouseUp (const juce::MouseEvent& e) override
+    {
+        if (e.mouseWasClicked() && onClick)
+            onClick();
+    }
+
+private:
+    const Assets& assets;
+    juce::String text;
+    bool open = false;
+};
+
+class PresetList final : public juce::Component
+{
+public:
+    enum Kind { map, chosen, separator, heading, action };
+    struct Item
+    {
+        juce::String text;
+        Kind kind;
+        int id; // what onChoose gets: -1 General MIDI, 0.. a recent map, 1000 LOAD...
+    };
+    static constexpr int kItemH = 30;
+    PresetList (const Assets& a, std::vector<Item> it) : assets (a), items (std::move (it)) {}
+    std::function<void (int)> onChoose;
+    int preferredHeight() const
+    {
+        int h = 14;
+        for (const auto& i : items)
+            h += i.kind == separator ? 11 : kItemH;
+        return h;
+    }
+    void paint (juce::Graphics& g) override
+    {
+        g.fillAll (palette::popup);
+        drawBoxOutline (g, getLocalBounds(), palette::boxOutline, 1);
+        int y = 8;
+        for (size_t k = 0; k < items.size(); ++k)
+        {
+            const auto& i = items[k];
+            if (i.kind == separator)
+            {
+                g.setColour (palette::divider);
+                g.fillRect (10, y + 5, getWidth() - 20, 1);
+                y += 11;
+                continue;
+            }
+            const bool hover = (int) k == hovered && i.kind != heading;
+            if (hover)
+            {
+                g.setColour (palette::bronze.withAlpha (0.25f));
+                g.fillRect (4, y, getWidth() - 8, kItemH);
+            }
+            auto shown = i.text.toUpperCase();
+            const auto f = assets.font (kRowSize, i.kind == heading ? 2.0f : 2.4f);
+            while (shown.length() > 3 && inkBounds (f, shown).getWidth() > (float) getWidth() - 60.0f)
+                shown = shown.dropLastCharacters (2) + juce::String::charToString (0x2026);
+            drawAt (g, f, shown, 20.0f, (float) y + 9.0f,
+                    i.kind == chosen || hover ? palette::label : (i.kind == heading ? palette::secondary.withAlpha (0.7f) : palette::secondary));
+            if (i.kind == chosen)
+            {
+                juce::Path tick;
+                tick.startNewSubPath ((float) getWidth() - 30.0f, (float) y + 15.0f);
+                tick.lineTo ((float) getWidth() - 25.0f, (float) y + 20.0f);
+                tick.lineTo ((float) getWidth() - 16.0f, (float) y + 9.0f);
+                g.setColour (palette::bronze);
+                g.strokePath (tick, juce::PathStrokeType (1.6f));
+            }
+            y += kItemH;
+        }
+    }
+    void mouseMove (const juce::MouseEvent& e) override
+    {
+        const int h = itemAt (e.y);
+        if (h != hovered)
+        {
+            hovered = h;
+            repaint();
+        }
+    }
+    void mouseExit (const juce::MouseEvent&) override
+    {
+        hovered = -1;
+        repaint();
+    }
+    void mouseUp (const juce::MouseEvent& e) override
+    {
+        const int k = itemAt (e.y);
+        if (k >= 0 && items[(size_t) k].kind != heading && items[(size_t) k].kind != separator && onChoose)
+            onChoose (items[(size_t) k].id);
+    }
+
+private:
+    int itemAt (int py) const
+    {
+        int y = 8;
+        for (size_t k = 0; k < items.size(); ++k)
+        {
+            const int h = items[k].kind == separator ? 11 : kItemH;
+            if (py >= y && py < y + h)
+                return (int) k;
+            y += h;
+        }
+        return -1;
+    }
+    const Assets& assets;
+    std::vector<Item> items;
+    int hovered = -1;
+};
+
+// The recent maps (up to 8, newest first, files that still exist) and the folder last used, in
+// Tympanis's settings file (Application Support/DHammers/Tympanis on a Mac).
+juce::PropertiesFile& mapSettings()
+{
+    static juce::PropertiesFile file ([] {
+        juce::PropertiesFile::Options o;
+        o.applicationName = "Tympanis";
+        o.folderName = "DHammers/Tympanis";
+        o.filenameSuffix = ".settings";
+        o.osxLibrarySubFolder = "Application Support";
+        return o;
+    }());
+    return file;
+}
+juce::Array<juce::File> recentMaps()
+{
+    juce::Array<juce::File> out;
+    for (const auto& line : juce::StringArray::fromLines (mapSettings().getValue ("recentMaps")))
+        if (line.isNotEmpty() && juce::File::isAbsolutePath (line) && juce::File (line).existsAsFile())
+            out.addIfNotAlreadyThere (juce::File (line));
+    return out;
+}
+void rememberMap (const juce::File& f)
+{
+    auto list = recentMaps();
+    list.removeFirstMatchingValue (f);
+    list.insert (0, f);
+    juce::StringArray lines;
+    for (int i = 0; i < juce::jmin (8, list.size()); ++i)
+        lines.add (list[i].getFullPathName());
+    mapSettings().setValue ("recentMaps", lines.joinIntoString ("\n"));
+    mapSettings().setValue ("lastMapFolder", f.getParentDirectory().getFullPathName());
+    mapSettings().saveIfNeeded();
+}
+juce::File lastMapFolder()
+{
+    const juce::String p = mapSettings().getValue ("lastMapFolder");
+    if (p.isNotEmpty() && juce::File::isAbsolutePath (p) && juce::File (p).isDirectory())
+        return juce::File (p);
+    return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+}
+
+// =====================================================================================
 // A finish on the SETTINGS page: its box (outlined in bronze when chosen) and name; its drum is
 // a WireView over it. A click chooses it.
 class FinishButton final : public juce::Component
@@ -991,7 +1190,7 @@ const std::array<TuneRow::Spec, 7> kDrumTuneSpecs { {
     { "tune", true, "TUNE", TuneRow::Format::semitones, true, nullptr, nullptr },
     { "lug_detune", true, "LUG DETUNE", TuneRow::Format::plain, false, "EVEN", "10 % RMS" },
     { "decay", true, "DECAY", TuneRow::Format::times, false, "SHORT", "LONG" },
-    { "strike_pos", true, "STRIKE POSITION", TuneRow::Format::plain, false, "CENTRE", "RIM" },
+    { "strike_pos", true, "STRIKE POSITION", TuneRow::Format::plain, false, "CENTER", "RIM" },
     { "size", true, "SIZE", TuneRow::Format::inches, false, nullptr, nullptr },
     { "level", true, "LEVEL", TuneRow::Format::decibels, false, nullptr, nullptr },
     { "pan", true, "PAN", TuneRow::Format::pan, true, "L", "R" },
@@ -1011,7 +1210,7 @@ Content::Content (TympanisProcessor& p)
           { "vel_sens", true, { 487.0f, 881.0f }, "VELOCITY SENSITIVITY", "-", "+", false },
           { "level", true, { 787.0f, 881.0f }, "LEVEL", "-", "+", false },
           { "pan", true, { 1087.0f, 881.0f }, "PAN", "L", "R", true },
-          { "strike_pos", true, { 1349.0f, 642.0f }, "STRIKE POSITION", "CENTRE", "RIM", false },
+          { "strike_pos", true, { 1349.0f, 642.0f }, "STRIKE POSITION", "CENTER", "RIM", false },
           { "main_volume", false, { 1350.0f, 881.0f }, "MAIN VOLUME", "-", "+", false },
       } }
 {
@@ -1038,16 +1237,35 @@ Content::Content (TympanisProcessor& p)
     for (int i = 0; i < 2; ++i)
     {
         finishButtons[(size_t) i] = std::make_unique<FinishButton> (assets, finishNames[i]);
-        finishButtons[(size_t) i]->setBounds (460 + i * 530, 160, 500, 430);
+        finishButtons[(size_t) i]->setBounds (460 + i * 270, 150, 250, 214);
         finishButtons[(size_t) i]->onClick = [this, i] { setFinish (i); };
         addChildComponent (*finishButtons[(size_t) i]);
-        const juce::Rectangle<int> fa (470 + i * 530, 172, 480, 360);
+        const juce::Rectangle<int> fa (468 + i * 270, 156, 234, 160);
         finishViews[(size_t) i] = std::make_unique<WireView> (assets, fa);
         finishViews[(size_t) i]->setBounds (fa);
         finishViews[(size_t) i]->setDrum (tom3);
         finishViews[(size_t) i]->setFinish (i == 1 ? wire::Finish::natural : wire::Finish::green);
         addChildComponent (*finishViews[(size_t) i]);
     }
+
+    // SETTINGS: the MIDI MAP grid, the PRESET box and SAVE AS...
+    for (size_t r = 0; r < kRows.size(); ++r)
+    {
+        auto box = std::make_unique<NoteBox> (assets);
+        box->setBounds (gridCell ((int) r));
+        box->onClick = [this, r] { openGridMenu ((int) r); };
+        addChildComponent (*box);
+        gridBoxes.push_back (std::move (box));
+    }
+    shownGridNotes.assign (kRows.size(), -2);
+    presetBox = std::make_unique<PresetBox> (assets);
+    presetBox->setBounds (1124, 396, 224, 26);
+    presetBox->onClick = [this] { openPresetMenu(); };
+    addChildComponent (*presetBox);
+    saveAsButton = std::make_unique<FooterButton> (assets, "SAVE AS...");
+    saveAsButton->setBounds (1358, 396, 132, 26);
+    saveAsButton->onClick = [this] { saveMapAs(); };
+    addChildComponent (*saveAsButton);
 
     // the tabs, 30 units apart
     const char* tabNames[] = { "DRUM", "KIT", "TUNING", "SETTINGS" };
@@ -1180,6 +1398,13 @@ void Content::showPage (int pg)
         finishButtons[i]->setVisible (setP);
         finishViews[i]->setVisible (setP);
     }
+    for (auto& b : gridBoxes)
+        b->setVisible (setP);
+    presetBox->setVisible (setP);
+    saveAsButton->setVisible (setP);
+    // the MIDI CHANNEL box: the drum's own on the DRUM page, every drum's on SETTINGS; none elsewhere
+    channelBox->setVisible (drumP || setP);
+    shownChannel = -1;
     drumBox->setVisible (drumP || tuneP);
     for (size_t i = 0; i < knobs.size(); ++i)
         knobs[i]->setVisible (drumP && (juce::String (knobSpecs[i].suffix) != "strike_pos" || kDrums[(size_t) drum].strikePos));
@@ -1405,11 +1630,38 @@ void Content::refresh()
             noteBoxes[b]->setNote (n);
         }
     }
-    const int ch = processor.getMidiChannel();
-    if (ch != shownChannel)
+    // the MIDI CHANNEL box: the selected drum's own channel on the DRUM page (bronze when it
+    // differs from the channel set for all), the channel set for all on SETTINGS
+    const int all = processor.getMidiChannel();
+    const int ch = page == drumPage ? processor.getDrumChannel (drum) : all;
+    const int shownKey = ch * 2 + (page == drumPage && ch != all ? 1 : 0);
+    if (shownKey != shownChannel)
     {
-        shownChannel = ch;
+        shownChannel = shownKey;
         channelBox->setText (juce::String (ch));
+        channelBox->setAccent (page == drumPage && ch != all);
+    }
+    // SETTINGS: the grid's notes, the map's name, the drums on their own channel
+    if (page == settingsPage)
+    {
+        for (size_t r = 0; r < gridBoxes.size(); ++r)
+            if (const int n = processor.getRowNote ((int) r); n != shownGridNotes[r])
+            {
+                shownGridNotes[r] = n;
+                gridBoxes[r]->setNote (n);
+            }
+        const auto mapText = processor.mapName() + (processor.mapModified() ? " *" : "");
+        if (mapText != shownMapText)
+        {
+            shownMapText = mapText;
+            presetBox->setText (mapText);
+        }
+        const auto own = ownChannelsText();
+        if (own != shownOwnChannels)
+        {
+            shownOwnChannels = own;
+            repaint (440, 392, 600, 34);
+        }
     }
     const int learn = processor.midiLearnRow();
     if (learn != shownLearn)
@@ -1523,9 +1775,15 @@ void Content::openChannelMenu()
     juce::StringArray items;
     for (int c = 1; c <= 16; ++c)
         items.add (juce::String (c));
-    auto panel = std::make_unique<PopupPanel> (assets, items, processor.getMidiChannel() - 1, 4, juce::Point<int> { 61, 40 });
-    panel->onChoose = [this] (int i) {
-        processor.setMidiChannel (i + 1);
+    // the DRUM page: this drum's channel; SETTINGS: every drum's (it overrides their own)
+    const bool one = page == drumPage;
+    auto panel = std::make_unique<PopupPanel> (assets, items, (one ? processor.getDrumChannel (drum) : processor.getMidiChannel()) - 1, 4,
+                                               juce::Point<int> { 61, 40 });
+    panel->onChoose = [this, one] (int i) {
+        if (one)
+            processor.setDrumChannel (drum, i + 1);
+        else
+            processor.setMidiChannel (i + 1);
         closePopup();
         refresh();
     };
@@ -1581,30 +1839,176 @@ void Content::paint (juce::Graphics& g)
         paintTuningPage (g);
 }
 
-// The SETTINGS page (mockup approved 2026-11-26): DRUM FINISH, the two finish boxes (their own
-// components); MIDI MAP PRESETS, to come.
+// The SETTINGS page (mockups approved 2026-11-26): DRUM FINISH, the two finish boxes (their own
+// components); MIDI MAP: the drums on their own channel, PRESET and SAVE AS... (components), and
+// the grid's labels (the note boxes are components).
 void Content::paintSettingsPage (juce::Graphics& g)
 {
-    const auto band = [this, &g] (int y, const juce::String& title, const char* note) {
+    const auto band = [this, &g] (int y, const juce::String& title, const juce::String& note) {
         g.setColour (palette::popup);
         g.fillRect (440, y, 1060, 34);
         g.setColour (palette::bronze);
         g.fillRect (440, y + 33, 1060, 2);
         const auto f = assets.font (kHeaderSize, 3.3f);
         drawAt (g, f, title, 458.0f, (float) y + 10.0f, palette::label);
-        drawAt (g, assets.font (14.0f, 1.6f), note, 458.0f + inkBounds (f, title).getWidth() + 22.0f, (float) y + 12.0f, palette::secondary);
+        // the note stops short of PRESET (x 1020): a long one ends in "..."
+        const auto nf = assets.font (14.0f, 1.6f);
+        const float x = 458.0f + inkBounds (f, title).getWidth() + 22.0f;
+        auto shown = note;
+        while (shown.length() > 3 && x + inkBounds (nf, shown).getWidth() > 1020.0f)
+            shown = shown.dropLastCharacters (2) + juce::String::charToString (0x2026);
+        drawAt (g, nf, shown, x, (float) y + 12.0f, palette::secondary);
     };
     band (100, "DRUM FINISH", "how the shells are drawn: a look, not a sound");
-    band (660, "MIDI MAP PRESETS", "later");
-    drawAt (g, assets.font (kRowSize, 2.0f), "Save and recall note maps (General MIDI, your own)", 460.0f, 724.0f, palette::secondary.withAlpha (0.5f));
+    band (392, "MIDI MAP", ownChannelsText());
+    drawAt (g, assets.font (kRowSize, 3.0f), "PRESET", 1040.0f, 403.0f, palette::secondary);
+    const auto hf = assets.font (kRowSize, 3.0f);
+    drawAt (g, hf, "DRUM", 460.0f, 456.0f, palette::label);
+    const char* cols[] = { "HEAD", "RIM SHOT", "SIDE STICK" };
+    for (int c = 0; c < 3; ++c)
+        drawAt (g, hf, cols[c], (float) gridCellX (c) + 100.0f, 456.0f, palette::label, Anchor::centre);
+    g.setColour (palette::divider);
+    g.fillRect (452, 482, 1036, 1);
+    for (size_t d = 0; d < kDrums.size(); ++d)
+    {
+        const int y = gridRowY ((int) d);
+        drawAt (g, assets.font (kRowSize, 2.6f), juce::String (kDrums[d].name).toUpperCase(), 460.0f, (float) y + 8.0f, palette::secondary);
+        for (int c = 0; c < 3; ++c)
+        {
+            bool has = false;
+            for (const auto& r : kRows)
+                has = has || (r.drum == (int) d && (int) r.art == c);
+            if (! has)
+                drawAt (g, hf, kEmDash, (float) gridCellX (c) + 100.0f, (float) y + 13.0f, palette::secondary.withAlpha (0.4f), Anchor::centre);
+        }
+        if (d + 1 < kDrums.size())
+        {
+            g.setColour (palette::divider.withAlpha (0.5f));
+            g.fillRect (452, y + 29, 1036, 1);
+        }
+    }
+}
+
+// The MIDI MAP grid: a row per drum from y 492, 30 apart; HEAD, RIM SHOT, SIDE STICK columns
+// 240 apart from x 790 (200 wide), a 96 x 25 note box in the middle of each.
+int Content::gridRowY (int d) { return 492 + d * 30; }
+int Content::gridCellX (int c) { return 790 + c * 240; }
+juce::Rectangle<int> Content::gridCell (int row)
+{
+    return { gridCellX ((int) kRows[(size_t) row].art) + 52, gridRowY (kRows[(size_t) row].drum) + 1, 96, 25 };
+}
+
+juce::String Content::ownChannelsText() const
+{
+    juce::StringArray own;
+    for (size_t d = 0; d < kDrums.size(); ++d)
+        if (processor.getDrumChannel ((int) d) != processor.getMidiChannel())
+            own.add (juce::String (kDrums[d].name) + " " + juce::String (processor.getDrumChannel ((int) d)));
+    if (own.isEmpty())
+        return "every drum on the channel set at the top right";
+    return juce::String (own.size()) + (own.size() == 1 ? " drum on its own channel: " : " drums on their own channels: ") + own.joinIntoString (", ");
+}
+
+void Content::openGridMenu (int row)
+{
+    auto menu = std::make_unique<NoteMenu> (assets, processor.getRowNote (row));
+    menu->onAction = [this, row] (int action) {
+        closePopup();
+        if (action == NoteMenu::learn)
+            processor.startMidiLearn (row);
+        else
+            processor.setRowNote (row, action == NoteMenu::resetDefault ? kRows[(size_t) row].defaultNote : kNoteNone);
+        refresh();
+    };
+    menu->onNote = [this, row] (int note) {
+        closePopup();
+        processor.setRowNote (row, note);
+        refresh();
+    };
+    auto* box = gridBoxes[(size_t) row].get();
+    const int w = menu->getWidth(), h = menu->getHeight();
+    const int y = box->getBottom() + 3 + h <= kDesignHeight ? box->getBottom() + 3 : box->getY() - 3 - h; // up near the bottom
+    box->setOpen (true);
+    showPopup (std::move (menu), { box->getRight() - w, y, w, h }, [box] { box->setOpen (false); });
+}
+
+void Content::openPresetMenu()
+{
+    std::vector<PresetList::Item> items;
+    const auto file = processor.mapFile();
+    items.push_back ({ "General MIDI", file == juce::File() ? PresetList::chosen : PresetList::map, -1 });
+    const auto recent = recentMaps();
+    if (! recent.isEmpty())
+    {
+        items.push_back ({ "", PresetList::separator, 0 });
+        items.push_back ({ "Recent", PresetList::heading, 0 });
+        for (int i = 0; i < recent.size(); ++i)
+            items.push_back ({ recent[i].getFileNameWithoutExtension(), recent[i] == file ? PresetList::chosen : PresetList::map, i });
+    }
+    items.push_back ({ "", PresetList::separator, 0 });
+    items.push_back ({ "Load...", PresetList::action, 1000 });
+    auto list = std::make_unique<PresetList> (assets, std::move (items));
+    list->onChoose = [this, recent] (int id) {
+        closePopup();
+        if (id == -1)
+            processor.useGeneralMidi();
+        else if (id == 1000)
+            loadMap();
+        else if (id >= 0 && id < recent.size())
+            loadMapFile (recent[id]);
+        refresh();
+    };
+    const int h = list->preferredHeight();
+    presetBox->setOpen (true);
+    showPopup (std::move (list), { presetBox->getX(), presetBox->getBottom() + 3, 250, h }, [this] { presetBox->setOpen (false); });
+}
+
+void Content::loadMapFile (const juce::File& f)
+{
+    if (processor.loadMapFile (f))
+        rememberMap (f);
+    else
+        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Tympanis", "That file is not a Tympanis MIDI map:\n" + f.getFullPathName());
+    refresh();
+}
+
+void Content::loadMap()
+{
+    chooser = std::make_unique<juce::FileChooser> ("Load a MIDI map", lastMapFolder(), "*.json");
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this] (const juce::FileChooser& fc) {
+        if (fc.getResult() != juce::File())
+            loadMapFile (fc.getResult());
+    });
+}
+
+void Content::saveMapAs()
+{
+    const auto name = processor.mapFile() == juce::File() ? juce::String ("My MIDI map") : processor.mapName();
+    chooser = std::make_unique<juce::FileChooser> ("Save the MIDI map", lastMapFolder().getChildFile (name + ".json"), "*.json");
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [this] (const juce::FileChooser& fc) {
+                              auto f = fc.getResult();
+                              if (f == juce::File())
+                                  return;
+                              if (! f.hasFileExtension ("json"))
+                                  f = f.withFileExtension ("json");
+                              if (processor.saveMapFile (f))
+                                  rememberMap (f);
+                              else
+                                  juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Tympanis",
+                                                                          "Could not save the MIDI map:\n" + f.getFullPathName());
+                              refresh();
+                          });
 }
 
 void Content::paintCommon (juce::Graphics& g)
 {
     const auto header = assets.font (kHeaderSize, 3.11f);
     const auto ink = inkBounds (header, "MIDI CHANNEL");
-    drawInkText (g, header, "MIDI CHANNEL", { kChannelLabelRight - ink.getWidth(), kChannelBox.toFloat().getCentreY() - ink.getHeight() * 0.5f },
-                 palette::label);
+    if (page == drumPage || page == settingsPage) // the MIDI CHANNEL box shows on these two only
+        drawInkText (g, header, "MIDI CHANNEL", { kChannelLabelRight - ink.getWidth(), kChannelBox.toFloat().getCentreY() - ink.getHeight() * 0.5f },
+                     palette::label);
     if (page == drumPage || page == tuningPage)
     {
         drawAt (g, assets.font (kHeaderSize, 3.45f), "DRUM", 199.5f, 348.0f, palette::label, Anchor::centre);

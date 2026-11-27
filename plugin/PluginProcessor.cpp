@@ -118,6 +118,8 @@ TympanisProcessor::TympanisProcessor()
     buzzParam = params.getRawParameterValue("snare_buzz");
     mainParam = params.getRawParameterValue("main_volume");
     for (size_t r = 0; r < kRows.size(); ++r) rowNotes[r].store(kRows[r].defaultNote);
+    for (auto& c : drumChannels) c.store(kDefaultMidiChannel);
+    mapBase = generalMidiJson();
 
     try
     {
@@ -229,14 +231,121 @@ void TympanisProcessor::applyParameters()
     if (! juce::exactlyEqual(b, lastBuzz)) { kit.setSnareBuzz(b); lastBuzz = b; }
 }
 
+void TympanisProcessor::clearClashes(int keepRow)
+{
+    const int note = rowNotes[(size_t) keepRow].load();
+    if (note < 0) return;
+    const int ch = drumChannels[(size_t) kRows[(size_t) keepRow].drum].load();
+    for (size_t r = 0; r < kRows.size(); ++r)
+        if ((int) r != keepRow && rowNotes[r].load() == note && drumChannels[(size_t) kRows[r].drum].load() == ch)
+            rowNotes[r].store(kNoteNone);
+}
+
 void TympanisProcessor::setRowNote(int row, int note)
 {
     if (note < 0) { rowNotes[(size_t) row].store(kNoteNone); return; }
-    note = juce::jlimit(0, 127, note);
-    for (size_t r = 0; r < kRows.size(); ++r)
-        if ((int) r != row && rowNotes[r].load() == note) rowNotes[r].store(kNoteNone);
-    rowNotes[(size_t) row].store(note);
+    rowNotes[(size_t) row].store(juce::jlimit(0, 127, note));
+    clearClashes(row);
 }
+
+void TympanisProcessor::setMidiChannel(int ch)
+{
+    ch = juce::jlimit(1, 16, ch);
+    midiChannel.store(ch);
+    for (auto& c : drumChannels) c.store(ch);
+    for (size_t r = 0; r < kRows.size(); ++r) clearClashes((int) r); // in row order: the first keeps a note
+}
+
+void TympanisProcessor::setDrumChannel(int drum, int ch)
+{
+    drumChannels[(size_t) drum].store(juce::jlimit(1, 16, ch));
+    for (size_t r = 0; r < kRows.size(); ++r)
+        if (kRows[r].drum == drum) clearClashes((int) r);              // the drum moved keeps its notes
+}
+
+juce::String TympanisProcessor::mapToJson() const
+{
+    auto* root = new juce::DynamicObject();
+    root->setProperty("format", "Tympanis MIDI map");
+    root->setProperty("version", 1);
+    root->setProperty("channel", midiChannel.load());
+    auto* chans = new juce::DynamicObject();
+    for (size_t d = 0; d < kDrums.size(); ++d) chans->setProperty(kDrums[d].key, drumChannels[d].load());
+    root->setProperty("drum_channels", juce::var(chans));
+    auto* notes = new juce::DynamicObject();
+    for (size_t r = 0; r < kRows.size(); ++r)
+    {
+        const int n = rowNotes[r].load();
+        notes->setProperty(kRows[r].id, n < 0 ? juce::var() : juce::var(n));
+    }
+    root->setProperty("notes", juce::var(notes));
+    return juce::JSON::toString(juce::var(root));
+}
+
+juce::String TympanisProcessor::generalMidiJson()
+{
+    auto* root = new juce::DynamicObject();
+    root->setProperty("format", "Tympanis MIDI map");
+    root->setProperty("version", 1);
+    root->setProperty("channel", kDefaultMidiChannel);
+    auto* chans = new juce::DynamicObject();
+    for (const auto& d : kDrums) chans->setProperty(d.key, kDefaultMidiChannel);
+    root->setProperty("drum_channels", juce::var(chans));
+    auto* notes = new juce::DynamicObject();
+    for (const auto& r : kRows) notes->setProperty(r.id, r.defaultNote < 0 ? juce::var() : juce::var(r.defaultNote));
+    root->setProperty("notes", juce::var(notes));
+    return juce::JSON::toString(juce::var(root));
+}
+
+bool TympanisProcessor::applyMapJson(const juce::String& json)
+{
+    const auto v = juce::JSON::parse(json);
+    if (v.getProperty("format", "").toString() != "Tympanis MIDI map") return false;
+    const auto notes = v.getProperty("notes", juce::var()), chans = v.getProperty("drum_channels", juce::var());
+    if (! notes.isObject()) return false;
+    const int all = juce::jlimit(1, 16, (int) v.getProperty("channel", kDefaultMidiChannel));
+    midiChannel.store(all);
+    for (size_t d = 0; d < kDrums.size(); ++d)
+        drumChannels[d].store(juce::jlimit(1, 16, (int) chans.getProperty(kDrums[d].key, all)));
+    for (size_t r = 0; r < kRows.size(); ++r)
+    {
+        const auto n = notes.getProperty(kRows[r].id, juce::var());
+        rowNotes[r].store(n.isVoid() || (int) n < 0 ? kNoteNone : juce::jlimit(0, 127, (int) n));
+    }
+    for (size_t r = 0; r < kRows.size(); ++r) clearClashes((int) r);
+    return true;
+}
+
+void TympanisProcessor::useGeneralMidi()
+{
+    applyMapJson(generalMidiJson());
+    mapNameNow = "General MIDI";
+    mapFileNow = juce::File();
+    mapBase = mapToJson();
+}
+
+bool TympanisProcessor::saveMapFile(const juce::File& f)
+{
+    const auto json = mapToJson();
+    if (! f.replaceWithText(json)) return false;
+    mapNameNow = f.getFileNameWithoutExtension();
+    mapFileNow = f;
+    mapBase = json;
+    return true;
+}
+
+bool TympanisProcessor::loadMapFile(const juce::File& f)
+{
+    if (! f.existsAsFile() || ! applyMapJson(f.loadFileAsString())) return false;
+    mapNameNow = f.getFileNameWithoutExtension();
+    mapFileNow = f;
+    mapBase = mapToJson();
+    return true;
+}
+
+juce::String TympanisProcessor::mapName() const { return mapNameNow; }
+juce::File TympanisProcessor::mapFile() const { return mapFileNow; }
+bool TympanisProcessor::mapModified() const { return mapToJson() != mapBase; }
 
 void TympanisProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
@@ -246,7 +355,6 @@ void TympanisProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     if (! kitLoaded || n == 0) return;
     applyParameters();
 
-    const int channel = midiChannel.load();
     const int cap = (int) left.size();
     const int nch = buffer.getNumChannels();
     auto renderTo = [&](int from, int to) {
@@ -274,15 +382,17 @@ void TympanisProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     for (const auto meta : midi)
     {
         const auto msg = meta.getMessage();
-        if (! msg.isNoteOn() || msg.getChannel() != channel) continue;      // note-offs: drums ring on
+        if (! msg.isNoteOn()) continue;                                      // note-offs: drums ring on
+        const int channel = msg.getChannel();
         const int at = juce::jlimit(0, n, meta.samplePosition);
         if (at > pos) { renderTo(pos, at); pos = at; }
         const int note = msg.getNoteNumber();
         int learning = learnRow.load();
-        if (learning >= 0 && learnRow.compare_exchange_strong(learning, -1))
+        if (learning >= 0 && drumChannels[(size_t) kRows[(size_t) learning].drum].load() == channel
+            && learnRow.compare_exchange_strong(learning, -1))
             setRowNote(learning, note);                                       // then it plays
         for (size_t r = 0; r < kRows.size(); ++r)
-            if (rowNotes[r].load() == note)
+            if (rowNotes[r].load() == note && drumChannels[(size_t) kRows[r].drum].load() == channel)
             {
                 const auto& dp = drumParams[(size_t) kRows[r].drum];
                 const auto& info = kDrums[(size_t) kRows[r].drum];
@@ -292,7 +402,7 @@ void TympanisProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
                 const bool off = dp.snares != nullptr && dp.snares->load() < 0.5f;
                 kit.strike(off ? info.engineOff : info.engine, v, kRows[r].art);
                 pushHit((int) r, v);
-                break;                                                        // a note has at most one row
+                break;                                                        // a note on a channel has at most one row
             }
     }
     renderTo(pos, n);
@@ -333,6 +443,10 @@ void TympanisProcessor::getStateInformation(juce::MemoryBlock& destData)
     juce::ValueTree map("MidiMap");
     map.setProperty("channel", midiChannel.load(), nullptr);
     for (size_t r = 0; r < kRows.size(); ++r) map.setProperty(kRows[r].id, rowNotes[r].load(), nullptr);
+    for (size_t d = 0; d < kDrums.size(); ++d) map.setProperty(juce::String("ch_") + kDrums[d].key, drumChannels[d].load(), nullptr);
+    map.setProperty("name", mapNameNow, nullptr);
+    map.setProperty("file", mapFileNow.getFullPathName(), nullptr);
+    map.setProperty("base", mapBase, nullptr);
     root.appendChild(map, nullptr);
     juce::ValueTree ui("Editor");
     ui.setProperty("page", uiPage.load(), nullptr);
@@ -355,17 +469,22 @@ void TympanisProcessor::setStateInformation(const void* data, int sizeInBytes)
     const auto map = root.getChildWithName("MidiMap");
     if (map.isValid())
     {
-        setMidiChannel((int) map.getProperty("channel", kDefaultMidiChannel));
-        // the first row (in row order) keeps a note that several saved rows share
-        std::array<bool, 128> used {};
+        // a session from before the drums' own channels: every drum on the saved channel
+        const int all = juce::jlimit(1, 16, (int) map.getProperty("channel", kDefaultMidiChannel));
+        midiChannel.store(all);
+        for (size_t d = 0; d < kDrums.size(); ++d)
+            drumChannels[d].store(juce::jlimit(1, 16, (int) map.getProperty(juce::String("ch_") + kDrums[d].key, all)));
         for (size_t r = 0; r < kRows.size(); ++r)
         {
-            int note = (int) map.getProperty(kRows[r].id, kRows[r].defaultNote);
-            note = note < 0 ? kNoteNone : juce::jlimit(0, 127, note);
-            if (note >= 0 && used[(size_t) note]) note = kNoteNone;
-            if (note >= 0) used[(size_t) note] = true;
-            rowNotes[r].store(note);
+            const int note = (int) map.getProperty(kRows[r].id, kRows[r].defaultNote);
+            rowNotes[r].store(note < 0 ? kNoteNone : juce::jlimit(0, 127, note));
         }
+        // the first row (in row order) keeps a note that several saved rows share on a channel
+        for (size_t r = 0; r < kRows.size(); ++r) clearClashes((int) r);
+        mapNameNow = map.getProperty("name", "General MIDI").toString();
+        const juce::String path = map.getProperty("file", "").toString();
+        mapFileNow = path.isNotEmpty() && juce::File::isAbsolutePath(path) ? juce::File(path) : juce::File();
+        mapBase = map.hasProperty("base") ? map.getProperty("base").toString() : generalMidiJson();
     }
     const auto ui = root.getChildWithName("Editor");
     if (ui.isValid())

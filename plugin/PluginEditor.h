@@ -25,6 +25,7 @@ class TabButton;
 class TuneRow;
 class FooterButton;
 class FinishButton;
+class PresetBox;
 
 class Content final : public juce::Component, private juce::Slider::Listener
 {
@@ -78,6 +79,10 @@ private:
     void openDrumMenu();
     void openChannelMenu();
     void openNoteMenu (int box);
+public:
+    void openGridMenu (int row); // the SETTINGS grid's note menu for a row (public for the snapshot tool)
+    void openPresetMenuForTest() { openPresetMenu(); }
+private:
     void resetParams (bool wholeKit);
     bool drumModified() const;
     juce::String paramId (const char* suffix) const;
@@ -113,6 +118,22 @@ private:
     int finish = 0;
     std::array<std::unique_ptr<FinishButton>, 2> finishButtons;
     std::array<std::unique_ptr<WireView>, 2> finishViews;
+    // SETTINGS page: the MIDI MAP: a note box per row in a grid (drums down, articulations
+    // across), the PRESET box and SAVE AS... (Kris, 2026-11-26, mockups approved)
+    std::vector<std::unique_ptr<NoteBox>> gridBoxes;
+    std::vector<int> shownGridNotes;
+    std::unique_ptr<PresetBox> presetBox;
+    std::unique_ptr<FooterButton> saveAsButton;
+    std::unique_ptr<juce::FileChooser> chooser;
+    juce::String shownMapText, shownOwnChannels;
+    static int gridRowY (int drum);
+    static int gridCellX (int column);
+    static juce::Rectangle<int> gridCell (int row);
+    void openPresetMenu();
+    void saveMapAs();
+    void loadMap();
+    void loadMapFile (const juce::File& f);
+    juce::String ownChannelsText() const; // the drums on their own channel, for the MIDI MAP band
 
     // TUNING page
     std::vector<std::unique_ptr<TuneRow>> drumTuneRows;
@@ -131,8 +152,8 @@ private:
     std::array<bool, kRows.size()> lit {};
     int shownChannel = -1;
     std::array<double, tympanis::kDrums.size()> shownDepthOff {}; // Size on Toms 1-4, inches off the drawn depth
-    std::array<bool, tympanis::kDrums.size()> shownSnaresOff {};
-    int kitHitDrum = -1; // the KIT page: the drum last played since the last refresh()  // the SNARES switches off (all on to start)
+    std::array<bool, tympanis::kDrums.size()> shownSnaresOff {};  // the SNARES switches off (all on to start)
+    int kitHitDrum = -1; // the KIT page: the drum last played since the last refresh()
     int shownLearn = -1;
     double learnStartMs = 0.0;
 };

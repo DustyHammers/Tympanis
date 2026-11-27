@@ -602,7 +602,7 @@ def tuning_page(drum, cam_small):
     rows = [('TUNE', -2, 2, 0.0, '+0.00 st', False, None, 0.0),
             ('LUG DETUNE', 0, 1, 0.35, '0.35', True, ('EVEN', '5 % RMS'), None),
             ('DECAY', 0.25, 4, 1.4, '1.40 x', True, ('SHORT', 'LONG'), None),
-            ('STRIKE POSITION', 0, 0.95, 0.35, '0.35', False, ('CENTRE', 'RIM'), None),
+            ('STRIKE POSITION', 0, 0.95, 0.35, '0.35', False, ('CENTER', 'RIM'), None),
             ('SIZE', 6.5, 26, 13.0, '13.0 in', False, ('6.5"', '26"'), None),
             ('LEVEL', -60, 6, 0.0, '0.0 dB', False, None, None),
             ('PAN', -1, 1, 0.0, 'C', False, ('L', 'R'), 0.0)]
@@ -705,14 +705,14 @@ if __name__ == '__main__':
     # takes Decay's place in the right column (hidden on the kicks, which have none)
     kn = [(487, 881, 'VELOCITY SENSITIVITY', 1.0, False, ('−', '+')),
           (787, 881, 'LEVEL', 0.88, False, ('−', '+')), (1087, 881, 'PAN', 0.5, True, ('L', 'R')),
-          (1349, 642, 'STRIKE POSITION', 0.35 / 0.95, False, ('CENTRE', 'RIM')),
+          (1349, 642, 'STRIKE POSITION', 0.35 / 0.95, False, ('CENTER', 'RIM')),
           (1350, 881, 'MAIN VOLUME', 0.88, False, ('−', '+'))]
     drum_page('tom3', tom3, cam, ROWS['tom3'], knobs=kn, spec='13" × 10"  ·  6 LUGS').save(f'{OUT}/01_drum_page_tom3.png')
     sn = Drum('SNARE 2  ·  14"', 'snare', (0, 0, 0), (0, 0, 1), 7, 6.5, 10)
     cam2 = orbit((0, 0, -3.2), 36, 70, 2250, 787, 390, az_deg=-8)
     kn2 = [(487, 881, 'VELOCITY SENSITIVITY', 1.0, False, ('−', '+')),
            (787, 881, 'LEVEL', 0.88, False, ('−', '+')), (1087, 881, 'PAN', 0.45, True, ('L', 'R')),
-           (1349, 642, 'STRIKE POSITION', 0.35 / 0.95, False, ('CENTRE', 'RIM')),
+           (1349, 642, 'STRIKE POSITION', 0.35 / 0.95, False, ('CENTER', 'RIM')),
            (1350, 881, 'MAIN VOLUME', 0.88, False, ('−', '+'))]
     drum_page('snare2', sn, cam2, ROWS['snare2'], hit=(0.05, 1.0, 0.42, math.radians(-55)), lit_row=0, knobs=kn2,
               spec='14" × 6.5"  ·  10 LUGS').save(f'{OUT}/02_drum_page_snare2_hit.png')
