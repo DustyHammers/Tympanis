@@ -529,6 +529,14 @@ int runChecks()
         }
         check(worst < std::pow(10.0, -3.0 / 20.0), "headroom: every row's velocity-127 hit peaks below -3 dBFS (loudest "
               + worstRow + ", " + juce::String(20 * std::log10(worst), 1) + " dBFS)");
+        // the octobans 4 dB down at Level 0 (Kris, 2026-11-27): Level +4 dB plays them as before
+        for (const char* key : { "octo1", "octo2", "octo3", "octo4" })
+        {
+            double trim = 0;
+            for (const auto& t : kRowTrims)
+                if (juce::String(t.row) == key) trim = t.db;
+            check(std::abs(trim + 4.0) < 1e-9, juce::String(key) + " trimmed 4 dB");
+        }
     }
     {
         // the editor's hits: one event per strike, the row and velocity

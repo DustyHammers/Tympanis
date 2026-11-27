@@ -79,7 +79,7 @@ Four pages in Cymbalis's look (docs/UI.md): DRUM, KIT, TUNING and SETTINGS. The 
 
 Stereo out (mono out: (L + R) / 2). Under Main Volume a fixed gain of 0.4 (Kris, 2026-11-24: about Cymbalis's loudness; it was 0.2). At 0 dB level, centre pan, full-velocity head hits peak around -8 dBFS and measure -20 to -30 LUFS momentary (Cymbalis's Nova Ride, a full bow hit: -25); a kick and snare groove at velocity 100 measures -26.5 LUFS integrated (Cymbalis's ride pattern at velocity 100: -28.5).
 
-Four tom rim shots peaked far above everything else (Tom 3's at -1.4 dBFS before the raise), so they have fixed level trims (`kRowTrims` in `KitMap.h`, applied in the engine to everything those strikes make): Tom 2 rim -5.5 dB, Tom 3 rim -8.0, Tom 5 rim -2.5, Tom 6 rim -3.5. With them no velocity-127 hit peaks above -3 dBFS (host check); a rim-shot roll on those toms and a busy groove with rim shots peak at -3.1 dBFS. Individual outputs come later.
+Four tom rim shots peaked far above everything else (Tom 3's at -1.4 dBFS before the raise), so they have fixed level trims (`kRowTrims` in `KitMap.h`, applied in the engine to everything those strikes make): Tom 2 rim -5.5 dB, Tom 3 rim -8.0, Tom 5 rim -2.5, Tom 6 rim -3.5. The four octobans are trimmed 4 dB the same way (Kris, 2026-11-27), so their Level at 0 dB, the default, is 4 dB under their level before and has room to come up (+4 dB plays them as before). With them no velocity-127 hit peaks above -3 dBFS (host check); a rim-shot roll on those toms and a busy groove with rim shots peak at -3.1 dBFS. Individual outputs come later.
 
 ## Open decisions (Kris)
 
