@@ -1190,7 +1190,7 @@ const std::array<TuneRow::Spec, 7> kDrumTuneSpecs { {
     { "tune", true, "TUNE", TuneRow::Format::semitones, true, nullptr, nullptr },
     { "lug_detune", true, "LUG DETUNE", TuneRow::Format::plain, false, "EVEN", "10 % RMS" },
     { "decay", true, "DECAY", TuneRow::Format::times, false, "SHORT", "LONG" },
-    { "strike_pos", true, "STRIKE POSITION", TuneRow::Format::plain, false, "CENTRE", "RIM" },
+    { "strike_pos", true, "STRIKE POSITION", TuneRow::Format::plain, false, "CENTER", "RIM" },
     { "size", true, "SIZE", TuneRow::Format::inches, false, nullptr, nullptr },
     { "level", true, "LEVEL", TuneRow::Format::decibels, false, nullptr, nullptr },
     { "pan", true, "PAN", TuneRow::Format::pan, true, "L", "R" },
@@ -1210,7 +1210,7 @@ Content::Content (TympanisProcessor& p)
           { "vel_sens", true, { 487.0f, 881.0f }, "VELOCITY SENSITIVITY", "-", "+", false },
           { "level", true, { 787.0f, 881.0f }, "LEVEL", "-", "+", false },
           { "pan", true, { 1087.0f, 881.0f }, "PAN", "L", "R", true },
-          { "strike_pos", true, { 1349.0f, 642.0f }, "STRIKE POSITION", "CENTRE", "RIM", false },
+          { "strike_pos", true, { 1349.0f, 642.0f }, "STRIKE POSITION", "CENTER", "RIM", false },
           { "main_volume", false, { 1350.0f, 881.0f }, "MAIN VOLUME", "-", "+", false },
       } }
 {
