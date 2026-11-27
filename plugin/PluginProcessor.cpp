@@ -13,8 +13,17 @@ constexpr int kStateVersion = 1;
 // note's velocity / 127, s the drum's Velocity Sensitivity. At 100 % the model's own response;
 // lower, the dynamics narrow toward velocity 100; at 0 % every hit plays at velocity 100.
 constexpr float kVelocityFloor = 100.0f / 127.0f;
-// Lug Detune at 1: 10 % RMS tension error between lugs, the engine's 2 (its 1 is the prototype's 5 %).
-constexpr double kLugDetuneScale = 2.0;
+// Lug Detune (Kris, 2026-11-27): at 1 on the toms and snares, 40 % RMS tension error between lugs
+// (the engine's 8; its 1 is the prototype's 5 %) with the full character (Drum::setLugCharacter);
+// the octobans and the gong drum get half of it; the bass drums none.
+constexpr double kLugDetuneScale = 8.0;
+double lugShare(const char* key)
+{
+    const juce::String k(key);
+    if (k.startsWith("kick")) return 0.0;
+    if (k.startsWith("octo") || k.startsWith("gong")) return 0.5;
+    return 1.0;
+}
 juce::String percentText(float v, int) { return juce::String(juce::roundToInt(v * 100.0f)) + "%"; }
 
 juce::String pid(size_t d, const char* what) { return juce::String(kDrums[d].key) + "_" + what; }
@@ -210,9 +219,15 @@ void TympanisProcessor::applyParameters()
             return true;
         };
         if (const float v = p.tune->load(); changed(0, v)) each([&](Drum& dr) { dr.setTune(v); });
-        // Lug Detune 1 = 10 % RMS tension error between lugs (Kris, 2026-11-25: 5 % more than the
-        // prototype's 5 %), the engine's 2
-        if (const float v = p.lug->load(); changed(1, v)) each([&](Drum& dr) { dr.setLugDetune(kLugDetuneScale * v); });
+        // Lug Detune: the splits and their character together (see kLugDetuneScale)
+        if (const float v = p.lug->load(); changed(1, v))
+        {
+            const double u = v * lugShare(kDrums[d].key);
+            each([&](Drum& dr) {
+                dr.setLugDetune(kLugDetuneScale * u);
+                dr.setLugCharacter(u);
+            });
+        }
         if (const float v = p.decay->load(); changed(2, v)) each([&](Drum& dr) { dr.setDecay(v); });
         if (p.strike != nullptr)
             if (const float v = p.strike->load(); changed(3, v)) each([&](Drum& dr) { dr.setStrikePos(v); });

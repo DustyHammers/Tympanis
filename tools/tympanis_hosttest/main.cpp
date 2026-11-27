@@ -217,6 +217,21 @@ int runChecks()
         check(peak(y) < 1e-30, "a note on channel 1 plays nothing");
     }
     {
+        // Lug Detune (Kris, 2026-11-27): the toms and snares change, the bass drums don't, 0 is as before
+        auto hit = [](const char* param, float v, int note) {
+            Host h(44100, 256);
+            h.set(param, v);
+            return h.play({ { 100, note, 120 } }, 44100, 256);
+        };
+        const int tomNote = kRows[(size_t) rowIndex("tom3")].defaultNote, kickNote = kRows[(size_t) rowIndex("kick1")].defaultNote;
+        const int gongNote = kRows[(size_t) rowIndex("gong")].defaultNote;
+        check(hit("tom3_lug_detune", 1.0f, tomNote) != hit("tom3_lug_detune", 0.0f, tomNote)
+                  && hit("gong_lug_detune", 1.0f, gongNote) != hit("gong_lug_detune", 0.0f, gongNote),
+              "Lug Detune changes Tom 3 and the gong drum");
+        check(hit("kick1_lug_detune", 1.0f, kickNote) == hit("kick1_lug_detune", 0.0f, kickNote),
+              "Lug Detune leaves Kick 1 as it is (the bass drums don't get it)");
+    }
+    {
         // the MIDI map (Kris, 2026-11-26): a channel per drum, notes per channel, map files
         auto drumOf = [](const char* key) {
             for (size_t d = 0; d < kDrums.size(); ++d)

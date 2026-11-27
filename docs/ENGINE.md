@@ -15,7 +15,7 @@ On each hit (`Drum::strike`):
 - **Velocity layers**: log-amplitude / linear frequency and decay interpolation between the two nearest layers; phase from the nearer layer. Level span 24 dB (the setting of every approved render).
 - **Shell depth** (`Drum::setDepth`, plugin only, not in the prototype; Kris, 2026-11-25): the models hold the recorded depth only, so a deeper or shallower shell comes from the air it encloses, q = recorded depth / depth. The modes below 1.3 x the main mode (the fundamental's group, which moves the air between the heads) get f' = f sqrt((1 + 0.12 q) / 1.12) (the air takes 12 % of their stiffness, the air spring going as 1 / depth) and decay rates x sqrt(q) (shallower: shorter); the slots within 3 % of the recorded shell's first axial air mode (c / 2 x depth) move as 1 / depth. At the recorded depth the output is bit-identical. Toms 1-4 at 4" shallower: their fundamental about 0.5 to 0.7 semitone up.
 - **Strike position** gain per slot (heads; not kicks or side sticks), energy kept constant.
-- **Uneven lug tension** (`lug_detune`, 0 .. 2): split slots get a twin oscillator a little below; the strike angle shares the hit between the pair. 0 = evenly tuned; 1 = the prototype's 1 (5 % RMS tension error); the plugin's Lug Detune reaches 2 (10 %), past the prototype's range (Kris, 2026-11-25), so the port check covers 0 .. 1.
+- **Uneven lug tension** (`lug_detune`, 0 .. 8): split slots get a twin oscillator a little below; the strike angle shares the hit between the pair. 0 = evenly tuned; 1 = the prototype's 1 (5 % RMS tension error); the plugin's Lug Detune reaches 8 (40 %) with its character (below), past the prototype's range, so the port check covers 0 .. 1.
 - **Tension-modulation glide**, two stages, accumulating in rolls (capped).
 - **Noise layer**: 19 third-octave bands with exponential decay.
 - **Modelled contact transient**: damped modes, Ricker pulses, a noise burst in 21 third-octave bands from 900 Hz up.
@@ -83,6 +83,17 @@ The JSON bake stays the source. The plugin embeds it packed (docs/BUILDS.md, "Th
 **The Popcorn Snare's wires-off model** is derived (`tools/snares_off.py`, written to `resources/models/SNRE_725_SPsnare4_off_derived.json`, `--check` in a pull request that changes it): the Snare's on/off change, measured per articulation and velocity layer (the ratio of the energy-weighted mean decay rate in bins of f / f_main; the noise bands' level and decay ratios, below 1 kHz at the same place relative to the main mode, above by absolute band), applied to Snare 4's model; amplitudes, phases, glide and transients unchanged. As a check, the same transform takes Snare 1 to within about 5 dB of the real Snare 2 (rms over octave bands and time windows; 23 dB before), the wire bands within 2-3 dB; what is left is the two takes' tuning and low-end balance. Kris approved the Popcorn's sound by ear (render 46b) and locked the model (2026-11-26, `docs/locked.md5`; its `locked` field says so).
 
 **The buzz.** Snare Buzz works as before. Both Snare models ring along when other drums play (as Snare 1 and 2 did). The Popcorn Snare's wires-off model has no sympathetic bank (`tools/bake_kit.py` NO_SYM): it plays only when hit, so nothing new joins the kit's ring along. What changed: Snare 3's ring along is gone (Kris, 2026-11-26), and the Popcorn Snare's sympathetic wire noise draws a different random sequence (it is seeded by the engine drum's place, which moved from 5 to 4; the same sound, another draw).
+
+## Lug Detune's character
+
+(Kris, 2026-11-27, by ear, after research: quantum.pauken.org "Listening between the lugs"; a Univ. Barcelona thesis measuring a 14" snare's (1,1) split 2 % tuned, 4 % at a quarter turn, 6 % at quarter turns each way.) The models carry almost no energy in the modes uneven tension splits (Tom 3 3 %, Floor Tom 5 3 %, the snares-off Snare 5 %; the fundamental's group the rest), so splits alone are inaudible on the toms and snares. Lug Detune (u = the knob x the drum's share: toms and snares 1, octobans and gong drum 0.5, bass drums 0) sets `setLugDetune(8 u)` (the splits, to 40 % RMS: Tom 3's strongest pair about 90 cents apart at full) and `Drum::setLugCharacter(u)` (plugin only, not in the prototype):
+
+- **Louder split overtones**: the lug twins' slots x 10^(6u/20) at each strike (an uneven head is no longer symmetric; a hit puts more into those modes): Tom 3's overtones near 250 Hz from 22 to 17 dB under the fundamental.
+- **The fundamental off its overtones**: the fundamental's group (slots within 6 % of the main frequency) x (1 + 1.5 % x u x the drum's own sign and size, 0.5 .. 1, from its key): Tom 3 143.2 -> 141.5 Hz at full, the toms' shifts -45 .. +49 cents.
+- **Less glide**: the tension glide x (1 - 0.85 (1 - (1 - u)^2.37)): Tom 3's full-velocity glide 2.0 semitones at 0, 1.2 at 25 %, 0.7 at 50 %, 0.4 from 75 %.
+- **More hit-to-hit wander** of the strike angle against the lugs: 0.15 + 0.45 u rad (so both halves of a pair sound, differently each hit). Its own knob (HIT VARIATION) is on the to-do.
+
+At 0 every factor is exactly 1: bit-identical. The busy stereo render (`kit_busy_stereo.json`, Lug Detune on Tom 3 at 0.6 and the Snare at 0.4) is now `14d0f93f4be4f9d5ed7be7604b95d97b`; the mono one (engine, no character) is unchanged.
 
 ## Snare wire tension
 
