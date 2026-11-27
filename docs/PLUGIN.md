@@ -30,7 +30,7 @@ Per drum (`<drum>` = `kick1 kick2 snare1 snare4 tom1..tom6 gong octo1..octo4`; `
 
 Kit: `snare_buzz` Snare Buzz 0 .. 1 (0.5); `main_volume` Main Volume -inf .. +6 dB (0 dB), on the summed stereo output.
 
-Decisions (Kris, 2026-11-24): decay, strike position, size, tune and lug detune exposed per drum; independent level and pan per drum; main volume on the 2-channel sum; individual outputs later. Velocity Sensitivity per drum (Kris, 2026-11-24), as Cymbalis's. The kicks have no strike position: their beater position is fixed (as sampled) and the engine ignores it. Re-strike damping and hit-to-hit variation are hardwired; glide amount, click and noise mix, velocity range (24 dB) and tube length are not exposed.
+Decisions (Kris, 2026-11-24): decay, strike position, size, tune and lug detune exposed per drum; independent level and pan per drum; main volume on the 2-channel sum; individual outputs later. Velocity Sensitivity per drum (Kris, 2026-11-24), as Cymbalis's. The kicks have no strike position: their beater position is fixed (as sampled) and the engine ignores it. Re-strike damping, hit-to-hit variation and the blend between velocity layers (`docs/ENGINE.md`, "Blending between velocity layers"; Kris, 2026-11-27) are hardwired; glide amount, click and noise mix, velocity range (24 dB) and tube length are not exposed.
 
 Strike position applies to head hits and rim shots (the stick's head contact), not side sticks. Tune, decay and size (depth) act live on ringing drums; strike position from the next hit. Level and pan ramp over each rendered piece (no zipper noise). A snare's sympathetic head ring and wire buzz follow that snare's level and pan; the coupling itself uses the unfaded kit, as in a room.
 

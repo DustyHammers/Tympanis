@@ -123,6 +123,8 @@ public:
     // on in the plugin is a later step, with Cymbalis's, after tests in hosts.
     void setRenderThreadsForTesting(int threads, int timingSamples = 0) { testThreads = std::max(1, threads); testTimingSamples = timingSamples; }
     dhpool::JobPool& renderPoolForTesting() { return renderPool; }
+    // Test only: the loaded kit's data (read only), for engine-level checks.
+    const tympanis::KitData* kitDataForTesting() const { return kitData.get(); }
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();

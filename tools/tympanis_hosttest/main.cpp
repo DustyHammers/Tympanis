@@ -232,6 +232,49 @@ int runChecks()
               "Lug Detune leaves Kick 1 as it is (the bass drums don't get it)");
     }
     {
+        // the layer blend (Kris, 2026-11-27): the attack's high end moves smoothly with velocity on
+        // every drum, through the layers' midpoints and edges (the prototype's way jumped by up to
+        // 15 dB there: the octobans' clicks); the plugin turns it on
+        Host h(44100, 256);
+        const tympanis::KitData* kd = h.p->kitDataForTesting();
+        check(kd != nullptr, "the kit's data is loaded");
+        if (kd != nullptr)
+        {
+            // the high end of the first 10 ms (second difference), re the hit's peak, in dB
+            auto sweep = [&](int e, bool blend) {
+                std::vector<double> att;
+                tympanis::Kit kit;
+                kit.init(kd, true, false);
+                kit.prepare(44100);
+                kit.setNoiseless(true);
+                kit.drum(e).setLayerBlend(blend);
+                std::vector<double> y(13230);
+                for (double v = 0.02; v <= 1.0001; v += 0.005)
+                {
+                    kit.drum(e).reset();
+                    kit.strike(e, v, tympanis::Art::Head);
+                    std::fill(y.begin(), y.end(), 0.0);
+                    kit.render(y.data(), (int) y.size());
+                    double pk = 1e-30, hf = 0;
+                    for (size_t i = 0; i < y.size(); ++i) pk = std::max(pk, std::abs(y[i]));
+                    for (size_t i = 2; i < 441; ++i) hf = std::max(hf, std::abs(y[i] - 2 * y[i - 1] + y[i - 2]));
+                    att.push_back(20 * std::log10(hf / pk + 1e-30));
+                }
+                double worst = 0;
+                for (size_t i = 1; i < att.size(); ++i) worst = std::max(worst, std::abs(att[i] - att[i - 1]));
+                return worst;
+            };
+            for (int e = 0; e < (int) kd->drums.size(); ++e)
+            {
+                const juce::String key = kd->drums[(size_t) e].key;
+                if (key == "gong") continue;      // a gentle 5 dB step of its own, not the blend's
+                const double off = sweep(e, false), on = sweep(e, true);
+                check(on < 3.0, key + ": the attack moves smoothly with velocity (worst step " + juce::String(on, 1)
+                                    + " dB; " + juce::String(off, 1) + " dB the prototype's way)");
+            }
+        }
+    }
+    {
         // the MIDI map (Kris, 2026-11-26): a channel per drum, notes per channel, map files
         auto drumOf = [](const char* key) {
             for (size_t d = 0; d < kDrums.size(); ++d)

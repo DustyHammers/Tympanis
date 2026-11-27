@@ -148,7 +148,11 @@ TympanisProcessor::TympanisProcessor()
                 || std::abs(kEngineDrums[(size_t) info.engine].sizeIn - info.sizeIn) > 1e-9)
                 throw std::runtime_error("KitMap.h: drum and engine drum differ for " + std::string(info.key));
         kit.init(kitData.get());
-        for (int d = 0; d < kit.numDrums(); ++d) kit.drum(d).setVelRangeDb(kVelRangeDb);
+        for (int d = 0; d < kit.numDrums(); ++d)
+        {
+            kit.drum(d).setVelRangeDb(kVelRangeDb);
+            kit.drum(d).setLayerBlend(true);    // smooth between velocity layers (Kris, 2026-11-27)
+        }
         for (const auto& t : kRowTrims)
             for (const auto& r : kRows)
                 if (juce::String(r.id) == t.row)

@@ -9,7 +9,7 @@
 //
 // seq.json:
 //   { "sample_rate": 44100, "duration": 4.0, "variation": true, "noiseless": false,
-//     "restrike_damp": true, "snare_buzz": 0.5,
+//     "restrike_damp": true, "snare_buzz": 0.5, "layer_blend": false,
 //     "drums": { "snare1": { "tune_semi": 0, "lug_detune": 0, "vel_range_db": 24 }, ... },
 //     "events": [ [time_s, "snare1", vel, "head"], ... ] }
 //
@@ -93,6 +93,8 @@ int main(int argc, char** argv)
         kit.init(&data, flag("restrike_damp", true), flag("variation", true), chunk);
         kit.prepare(sr);
         kit.setNoiseless(flag("noiseless", false));
+        if (flag("layer_blend", false))           // the plugin's blend between velocity layers
+            for (int d = 0; d < kit.numDrums(); ++d) kit.drum(d).setLayerBlend(true);
         kit.setSnareBuzz(num("snare_buzz", 0.5));
         dhpool::JobPool pool;
         if (threads > 1)
