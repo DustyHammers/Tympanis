@@ -366,6 +366,20 @@ std::vector<Pt> convexHull (std::vector<Pt> p)
     return h;
 }
 
+// Whether p lies inside a convex polygon from convexHull (on every edge's inner side).
+bool insideConvex (const std::vector<Pt>& h, Pt p)
+{
+    if (h.size() < 3)
+        return false;
+    for (size_t i = 0; i < h.size(); ++i)
+    {
+        const Pt a = h[i], b = h[(i + 1) % h.size()];
+        if ((double) (b.x - a.x) * (p.y - a.y) - (double) (b.y - a.y) * (p.x - a.x) < 0)
+            return false;
+    }
+    return true;
+}
+
 void basis (V3 axis, V3& a, V3& u, V3& v)
 {
     a = normalised (axis);
@@ -722,6 +736,11 @@ struct DrumBuilder
             }
             ew[(size_t) i] = k;
         }
+        // the far end's hoop sticks out past the shell: beyond the shell's outline on screen it
+        // shows until the shell covers it, not only where it faces the camera (the floor toms'
+        // bottom hoops stopped short on the left, Kris 2026-11-27)
+        const std::vector<Pt> shellOutline = hull (0.0, 0.0, -d);
+        bool farEnd = false;
         auto hoopLine = [&] (double dr0, double drEw, double h0, double hEw, double off, double sgn, Rgb col, float th, bool allRound) {
             Pt prev {};
             V3 prevP {};
@@ -731,7 +750,9 @@ struct DrumBuilder
                 const V3 n = normalAt (t);
                 const V3 P = C + (off + sgn * (h0 + hEw * ew[(size_t) i])) * a + (r + dr0 + drEw * ew[(size_t) i]) * n;
                 const Pt sp = cam.project (P);
-                if (i > 0 && (allRound || vis (prevP, normalAt (tt[(size_t) i - 1]))))
+                if (i > 0
+                    && (allRound || vis (prevP, normalAt (tt[(size_t) i - 1]))
+                        || (farEnd && ! insideConvex (shellOutline, { 0.5f * (prev.x + sp.x), 0.5f * (prev.y + sp.y) }))))
                     line2 (prev, sp, col * bright, th);
                 prev = sp;
                 prevP = P;
@@ -740,6 +761,7 @@ struct DrumBuilder
         for (auto [off, sgn] : ends)
         {
             const bool face = vis (C + off * a, sgn * a);
+            farEnd = ! face;
             if (s.kind == Kind::octo)
             {
                 // a 6" hoop: the same shape in fewer, finer lines (the full set crowds together)
@@ -1503,7 +1525,7 @@ void HeadMesh::draw (const Hit* hits, int numHits, std::vector<Segment>& out, st
 const DrumLook& drumLook (int drum)
 {
     // KitMap.h order. The kit as Kris described it (2026-11-24): the Popcorn Snare is a 10" snare;
-    // Tom 5 a 16" floor tom; the gong drum TAMA's 22" head on a 20" x 14" shell. Tom 1 is 10" x 10"
+    // Floor Tom 1 (tom5) a 16" floor tom; the gong drum TAMA's 22" head on a 20" x 14" shell. Tom 1 is 10" x 10"
     // and the octobans 17.5", 18.5", 21" and 23.5" long (Kris, 2026-11-25). The other depths as
     // drawn in the approved mockup.
     static const std::array<DrumLook, kDrumCount> table { {
@@ -1529,7 +1551,10 @@ void pageDrum (int drum, DrumSpec& spec, Camera& cam, double depthOffIn)
     // a bass drum lies on its side, its batter head toward the drummer, turned to show its
     // shell; the gong drum tilts left and toward the drummer, seen from low down, as on its stand
     // in Kris's photo (mirrored, his choice 2026-11-25)
-    spec.axis = look.kind == Kind::kick ? V3 { -0.5, -0.866, 0 } : look.kind == Kind::gong ? V3 { -0.8, -0.75, 1 } : V3 { 0, 0, 1 };
+    // each bass drum turned as it sits in the kit's V (Kris, 2026-11-27): Kick 1, on the left, shows its
+    // shell to the left; Kick 2, on the right, to the right (the view drawn for both until then)
+    const double side = drum == 0 ? -1.0 : 1.0;
+    spec.axis = look.kind == Kind::kick ? V3 { -0.5 * side, -0.866, 0 } : look.kind == Kind::gong ? V3 { -0.8, -0.75, 1 } : V3 { 0, 0, 1 };
     spec.r = (look.shellDiameter > 0 ? look.shellDiameter : look.diameter) / 2;
     spec.headR = look.shellDiameter > 0 ? look.diameter / 2 : 0.0;
     spec.d = look.depth + depthOffIn;
@@ -1538,7 +1563,7 @@ void pageDrum (int drum, DrumSpec& spec, Camera& cam, double depthOffIn)
     basis (spec.axis, a, u, v);
     const V3 target = spec.C - (0.5 * look.depth) * a;
     // the mockup's camera; a bass drum, lying on its side, and the gong drum seen from lower down
-    cam = Camera::orbit (target, look.kind == Kind::kick ? 14 : look.kind == Kind::gong ? 10 : 34, 70, 1000, 0, 0, -8);
+    cam = Camera::orbit (target, look.kind == Kind::kick ? 14 : look.kind == Kind::gong ? 10 : 34, 70, 1000, 0, 0, look.kind == Kind::kick ? -8 * side : -8);
 }
 
 // The deepest a drum's shell is drawn (Size: Toms 1-4 up to +2"), inches more than by default.
