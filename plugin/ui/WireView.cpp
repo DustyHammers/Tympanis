@@ -9,8 +9,9 @@ namespace tympanis::ui
 namespace
 {
 // The DRUM page's drum: its bounds at most 560 x 520, centred on 787, 400 (Tom 3 as the approved
-// mockup: 520 high). The TUNING page's small drum: 230 x 218 on 199.5, 600 (Tom 3 0.42 x that).
-constexpr wire::Pt kDrumCentre { 787.0f, 400.0f }, kSmallCentre { 199.5f, 600.0f };
+// mockup: 520 high). The TUNING page's small drum: 230 x 218 on 199.5, 740 (Tom 3 0.42 x that; 600
+// until 2026-11-27, when Kris had the left column spaced evenly).
+constexpr wire::Pt kDrumCentre { 787.0f, 400.0f }, kSmallCentre { 199.5f, 740.0f };
 constexpr double kDrumMaxW = 560, kDrumMaxH = 520, kSmallMaxW = 230, kSmallMaxH = 218;
 
 bool insideConvex (const std::vector<wire::Pt>& poly, juce::Point<float> p)
@@ -61,10 +62,10 @@ juce::Rectangle<int> WireView::area (Mode m)
     switch (m)
     {
         case Mode::drum: return { 400, 40, 780, 710 };  // inside the right column's divider and above the bottom row's
-        case Mode::small: return { 40, 476, 320, 250 }; // the left column, under the spec line
+        case Mode::small: return { 40, 615, 320, 250 }; // the TUNING page's left column, evenly spaced under the spec line
         case Mode::kit: break;
     }
-    return { 200, 300, 1310, 640 }; // out to 1510 for the gong drum on the right
+    return { 80, 300, 1330, 640 };  // the kit centred on the page (x 135 to 1390), room either side
 }
 
 void WireView::setFinish (wire::Finish f)

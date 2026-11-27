@@ -18,11 +18,16 @@ constexpr float kPopupSpacing = 2.5f;
 
 // The pages' common parts (as the approved mockups).
 const juce::Rectangle<int> kDrumBox (61, 371, 277, 62);
+// The TUNING page's left column (Kris, 2026-11-27): the DRUM box (with its label), the spec line and
+// the small drum spaced evenly between the tabs (ink to y 282) and the logo (ink from y 935), about
+// 85 apart; the DRUM page keeps the column as it was.
+constexpr int kTuneDrumDy = 19;          // the label and the box, down from the DRUM page's
+constexpr float kTuneSpecY = 536.0f;     // the spec line (452 on the DRUM page)
 const juce::Rectangle<int> kChannelBox (1404, 30, 110, 36);
 constexpr float kChannelLabelRight = 1384.0f;
 constexpr float kTabTop = 258.0f, kTabLeft = 66.0f, kTabGap = 30.0f, kTabSpacing = 3.3f;
-constexpr float kLogoSize = 48.0f;
-const juce::Point<float> kLogoCentre (199.5f, 950.0f);
+constexpr float kLogoSize = 43.2f;                  // 10 % under the mockup's 48 (Kris, 2026-11-27)
+constexpr float kLogoLeft = 66.0f, kLogoMidY = 950.0f; // left-aligned with the title and the tabs
 
 // DRUM page: the note rows' tops, the note boxes.
 constexpr std::array<int, 3> kRowTop { 140, 220, 300 };
@@ -1267,10 +1272,11 @@ Content::Content (TympanisProcessor& p)
     saveAsButton->onClick = [this] { saveMapAs(); };
     addChildComponent (*saveAsButton);
 
-    // the tabs, 30 units apart
+    // the tabs, 30 units apart, KIT first (Kris, 2026-11-27); tabs[] stays indexed by page
     const char* tabNames[] = { "DRUM", "KIT", "TUNING", "SETTINGS" };
+    const size_t tabOrder[] = { kitPage, drumPage, tuningPage, settingsPage };
     float x = kTabLeft;
-    for (size_t i = 0; i < tabs.size(); ++i)
+    for (size_t i : tabOrder)
     {
         tabs[i] = std::make_unique<TabButton> (assets, tabNames[i]);
         const float w = tabs[i]->inkWidth();
@@ -1297,7 +1303,7 @@ Content::Content (TympanisProcessor& p)
         ga.addLineOfText (assets.logoFont (kLogoSize), "DHammers", 0.0f, 0.0f);
         ga.createPath (logoPath);
         const auto ink = logoPath.getBounds();
-        logoPath.applyTransform (juce::AffineTransform::translation (kLogoCentre.x - ink.getCentreX(), kLogoCentre.y - ink.getCentreY()));
+        logoPath.applyTransform (juce::AffineTransform::translation (kLogoLeft - ink.getX(), kLogoMidY - ink.getCentreY()));
     }
 
     // DRUM page: knobs and note boxes
@@ -1406,6 +1412,7 @@ void Content::showPage (int pg)
     channelBox->setVisible (drumP || setP);
     shownChannel = -1;
     drumBox->setVisible (drumP || tuneP);
+    drumBox->setBounds (tuneP ? kDrumBox.translated (0, kTuneDrumDy) : kDrumBox);
     for (size_t i = 0; i < knobs.size(); ++i)
         knobs[i]->setVisible (drumP && (juce::String (knobSpecs[i].suffix) != "strike_pos" || kDrums[(size_t) drum].strikePos));
     for (size_t b = 0; b < noteBoxes.size(); ++b)
@@ -1768,7 +1775,7 @@ void Content::openDrumMenu()
         closePopup();
         selectDrum (i);
     };
-    const auto b = kDrumBox.withY (kDrumBox.getBottom() + 4).withHeight (panel->getHeight());
+    const auto b = drumBox->getBounds().withY (drumBox->getBottom() + 4).withHeight (panel->getHeight());
     drumBox->setOpen (true);
     showPopup (std::move (panel), b, [this] { drumBox->setOpen (false); });
 }
@@ -2014,9 +2021,10 @@ void Content::paintCommon (juce::Graphics& g)
                      palette::label);
     if (page == drumPage || page == tuningPage)
     {
-        drawAt (g, assets.font (kHeaderSize, 3.45f), "DRUM", 199.5f, 348.0f, palette::label, Anchor::centre);
+        const bool tune = page == tuningPage;
+        drawAt (g, assets.font (kHeaderSize, 3.45f), "DRUM", 199.5f, 348.0f + (tune ? (float) kTuneDrumDy : 0.0f), palette::label, Anchor::centre);
         drawAt (g, assets.font (kRowSize, 2.4f), drumSpecLine (drum, kDrums[(size_t) drum].depth ? kDrums[(size_t) drum].depthIn + shownDepthOff[(size_t) drum] : -1.0),
-                199.5f, 452.0f, palette::secondary, Anchor::centre);
+                199.5f, tune ? kTuneSpecY : 452.0f, palette::secondary, Anchor::centre);
     }
     if (! logoPath.isEmpty())
     {

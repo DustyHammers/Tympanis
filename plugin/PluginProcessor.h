@@ -169,7 +169,7 @@ private:
     juce::AbstractFifo hitFifo { hitFifoSize + 1 }; // room for hitFifoSize events
     std::array<HitEvent, hitFifoSize + 1> hitBuffer {};
 
-    std::atomic<int> uiPage { 0 }, uiDrum { 8 };    // DRUM page, Tom 3 (as the mockups)
+    std::atomic<int> uiPage { 1 }, uiDrum { 8 };    // the KIT page (Kris, 2026-11-27), Tom 3
     std::atomic<int> uiFinish { 0 };                // green
     std::atomic<int> editorWidth { 0 }, editorHeight { 0 };
 

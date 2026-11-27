@@ -613,6 +613,7 @@ int runChecks()
     {
         // the editor's state: page, drum and size are saved with the session
         Host a(44100, 256);
+        check(a.p->editorPage() == 1, "a new instance opens on the KIT page");
         a.p->setEditorPage(2);
         a.p->setSelectedDrum(11);
         a.p->setEditorSize(1200, 800);

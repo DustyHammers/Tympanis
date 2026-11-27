@@ -96,7 +96,7 @@ private:
 
     TympanisProcessor& processor;
     Assets assets;
-    int page = drumPage;
+    int page = kitPage;
     int drum = 8;
 
     std::unique_ptr<WireView> drumView, kitView, smallView;

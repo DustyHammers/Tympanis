@@ -1636,8 +1636,11 @@ const std::vector<KitItem>& kitLayout()
         it.push_back ({ 8, { Kind::floor, { 27.5, -1, 20.5 }, { -0.12, -0.08, 1.0 }, 8, 16, 8 }, 0 });
         it.push_back ({ 9, { Kind::floor, { 37.5, -18, 21.5 }, { -0.14, -0.06, 1.0 }, 9, 16, 8 }, 0 });
         // the gong drum on its stand right of the floor toms, tilted to the drummer (Kris's markup,
-        // mockup approved 2026-11-26)
-        it.push_back ({ 10, { Kind::gong, { 54, -6, 32 }, { -0.75, -0.6, 1.0 }, 10, 14, 10, 11 }, 0 });
+        // mockup approved 2026-11-26), its head turned 35 degrees toward the toms about the
+        // vertical, the tilt kept (Kris, 2026-11-27)
+        const double gt = 35 * kPi / 180;
+        it.push_back ({ 10, { Kind::gong, { 54, -6, 32 }, { -0.75 * std::cos (gt) - 0.6 * std::sin (gt), 0.75 * std::sin (gt) - 0.6 * std::cos (gt), 1.0 },
+                              10, 14, 10, 11 }, 0 });
         return it;
     }();
     return items;
@@ -1658,7 +1661,7 @@ DrumSpec kitSpec (const KitItem& item, double depthOffIn)
 
 Camera kitCamera()
 {
-    return Camera ({ 11, -128, 58 }, { 11, 4, 22 }, 1480, 800, 575);
+    return Camera ({ 11, -128, 58 }, { 11, 4, 22 }, 1480, 680, 575); // centred on the page (Kris, 2026-11-27: was 800)
 }
 
 int kitItemForDrum (int drum)

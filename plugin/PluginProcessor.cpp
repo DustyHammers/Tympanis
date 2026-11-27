@@ -508,7 +508,7 @@ void TympanisProcessor::setStateInformation(const void* data, int sizeInBytes)
     const auto ui = root.getChildWithName("Editor");
     if (ui.isValid())
     {
-        setEditorPage((int) ui.getProperty("page", 0));
+        setEditorPage((int) ui.getProperty("page", 1));    // a session without one opens on KIT
         const juce::String key = ui.getProperty("drum", "").toString();
         for (size_t d = 0; d < kDrums.size(); ++d)
             if (key == kDrums[d].key) setSelectedDrum((int) d);
