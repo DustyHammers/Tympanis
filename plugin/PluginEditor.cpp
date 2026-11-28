@@ -101,7 +101,7 @@ juce::String drumTitle (int d)
     return juce::String (kDrums[(size_t) d].name).toUpperCase() + "  " + kDot + "  " + sizeText (wire::drumLook (d).diameter);
 }
 
-// depthIn: the shell's depth played (Size on Toms 1-4), < 0: as drawn by default.
+// depthIn: the shell's depth played (Size on Toms 1-4 and the floor toms), < 0: as drawn by default.
 juce::String drumSpecLine (int d, double depthIn = -1)
 {
     auto look = wire::drumLook (d);
@@ -1496,8 +1496,8 @@ void Content::layoutTuningRows()
         const auto& spec = kDrumTuneSpecs[i];
         if (juce::String (spec.suffix) == "size")
         {
-            // the shell's depth, -4 .. +2"; it plays on Toms 1-4 only (greyed out on the others)
-            drumTuneRows[i]->attach (paramId (spec.suffix), top, sizeText (info.depthIn - kDepthDownIn), sizeText (info.depthIn + kDepthUpIn));
+            // the shell's depth, -4 .. +2" (the floor toms -6 .. 0); it plays on Toms 1-4 and the floor toms
+            drumTuneRows[i]->attach (paramId (spec.suffix), top, sizeText (info.depthIn - depthDownIn (info)), sizeText (info.depthIn + depthUpIn (info)));
             drumTuneRows[i]->setGreyed (! info.depth);
         }
         else
@@ -1588,7 +1588,7 @@ void Content::refresh()
     if (kitHitDrum >= 0 && popup == nullptr)
         selectDrum (kitHitDrum);
 
-    // Size (the shell's depth) on Toms 1-4: the drawings follow it
+    // Size (the shell's depth) on Toms 1-4 and the floor toms: the drawings follow it
     std::array<double, kDrums.size()> depthOff {};
     for (size_t d = 0; d < kDrums.size(); ++d)
         if (kDrums[d].depth)

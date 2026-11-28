@@ -46,12 +46,14 @@ struct DrumInfo
     double sizeIn;       // catalog head diameter (inches), as baked (the bake's native_in)
     bool strikePos;      // has a Strike Position parameter (not the bass drums: fixed beater, as sampled)
     double depthIn;      // shell depth (inches), as drawn: the Size parameter's default
-    bool depth;          // Size (the shell's depth) plays: Toms 1-4 only; greyed out on the others
+    bool depth;          // Size (the shell's depth) plays: Toms 1-4 and the floor toms; greyed out on the others
     int engine;          // its engine drum (index into kEngineDrums); the wires-on model on the snares
     int engineOff;       // the wires-off model behind the Snares switch, or -1 (no switch)
 };
 
 // The Size parameter is the shell's depth (Kris, 2026-11-25): its default -4 .. +2 inches, in 1" steps.
+// The floor toms only go shallower (Kris, 2026-11-28), and further: their 16" down to 10", the same
+// depth ratio (1.6) as a rack tom at its shallowest, so it changes them as much (option 1).
 constexpr double kDepthDownIn = 4, kDepthUpIn = 2;
 
 // The drums the plugin shows: their parameters, rows and drawings. Sizes as prototype/engine.py
@@ -62,11 +64,20 @@ constexpr std::array<DrumInfo, 15> kDrums { {
     { "snare1", "Snare", 14, true, 6.5, false, 2, 3 },           { "snare4", "Popcorn Snare", 10, true, 5, false, 4, 5 },
     { "tom1", "Tom 1", 10, true, 10, true, 6, -1 },              { "tom2", "Tom 2", 12, true, 9, true, 7, -1 },
     { "tom3", "Tom 3", 13, true, 10, true, 8, -1 },              { "tom4", "Tom 4", 14, true, 11, true, 9, -1 },
-    { "tom5", "Floor Tom 1", 16, true, 16, false, 10, -1 },      { "tom6", "Floor Tom 2", 18, true, 16, false, 11, -1 },
+    { "tom5", "Floor Tom 1", 16, true, 16, true, 10, -1 },       { "tom6", "Floor Tom 2", 18, true, 16, true, 11, -1 },
     { "gong", "Gong Drum", 22, true, 14, false, 12, -1 },
     { "octo1", "Octoban 1", 6, true, 17.5, false, 13, -1 },     { "octo2", "Octoban 2", 6, true, 18.5, false, 14, -1 },
     { "octo3", "Octoban 3", 6, true, 21, false, 15, -1 },       { "octo4", "Octoban 4", 6, true, 23.5, false, 16, -1 },
 } };
+
+// How much shallower and deeper than drawn Size goes: the floor toms stand on their legs and only
+// go shallower, 6" (16" to 10").
+inline bool isFloorTom(const DrumInfo& d)
+{
+    return std::string_view(d.key) == "tom5" || std::string_view(d.key) == "tom6";
+}
+inline double depthDownIn(const DrumInfo& d) { return isFloorTom(d) ? 6.0 : kDepthDownIn; }
+inline double depthUpIn(const DrumInfo& d) { return isFloorTom(d) ? 0.0 : kDepthUpIn; }
 
 struct NoteRow
 {

@@ -137,6 +137,14 @@ int runChecks()
             check(std::abs(t1->convertFrom0to1(t1->getDefaultValue()) - 10.0f) < 1e-3f && std::abs(r1.start - 6.0f) < 1e-3f
                       && std::abs(r1.end - 12.0f) < 1e-3f,
                   "Tom 1 Size: 10\" x 10\" (6\" .. 12\")");
+            // the floor toms only go shallower (Kris, 2026-11-28): 16" down to 10"
+            for (const char* ft : { "tom5_size", "tom6_size" })
+            {
+                auto* f = h.p->params.getParameter(ft);
+                const auto r = dynamic_cast<juce::RangedAudioParameter*>(f)->getNormalisableRange();
+                check(std::abs(f->convertFrom0to1(f->getDefaultValue()) - 16.0f) < 1e-3f && r.start == 10.0f && r.end == 16.0f,
+                      juce::String(ft) + ": 16\" deep, 10\" .. 16\" (shallower only)");
+            }
             auto* o4 = h.p->params.getParameter("octo4_size");
             check(std::abs(o4->convertFrom0to1(o4->getDefaultValue()) - 23.5f) < 1e-3f, "Octoban 4 Size: its 23.5\" length");
             auto* s4 = h.p->params.getParameter("snare4_size");
