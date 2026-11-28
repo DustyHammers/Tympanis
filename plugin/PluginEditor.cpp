@@ -1191,13 +1191,12 @@ private:
 
 namespace
 {
-// The TUNING page's rows: this drum's, then the whole kit's (Kris, 2026-11-24). Level and Pan
-// are on the DRUM page only (Kris, 2026-11-28).
-const std::array<TuneRow::Spec, 5> kDrumTuneSpecs { {
+// The TUNING page's rows: this drum's, then the whole kit's (Kris, 2026-11-24). Level, Pan and
+// Strike Position are on the DRUM page only (Kris, 2026-11-28).
+const std::array<TuneRow::Spec, 4> kDrumTuneSpecs { {
     { "tune", true, "TUNE", TuneRow::Format::semitones, true, nullptr, nullptr },
     { "lug_detune", true, "LUG DETUNE", TuneRow::Format::plain, false, "EVEN", "UNEVEN" },
     { "decay", true, "DECAY", TuneRow::Format::times, false, "SHORT", "LONG" },
-    { "strike_pos", true, "STRIKE POSITION", TuneRow::Format::plain, false, "CENTER", "RIM" },
     { "size", true, "SIZE", TuneRow::Format::inches, false, nullptr, nullptr },
 } };
 const TuneRow::Spec kSnaresSpec { "snares", true, "SNARES", TuneRow::Format::onOff, false, "OFF", "ON" };
@@ -1418,7 +1417,7 @@ void Content::showPage (int pg)
     for (size_t b = 0; b < noteBoxes.size(); ++b)
         noteBoxes[b]->setVisible (drumP && b < drumRows.size());
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
-        drumTuneRows[i]->setVisible (tuneP && (i != 3 || kDrums[(size_t) drum].strikePos));
+        drumTuneRows[i]->setVisible (tuneP);
     snaresRow->setVisible (tuneP && kDrums[(size_t) drum].engineOff >= 0);
     wireRow->setVisible (tuneP && kDrums[(size_t) drum].engineOff >= 0);
     for (auto& r : kitTuneRows)
@@ -1479,7 +1478,7 @@ void Content::attachDrum()
     }
 }
 
-// The TUNING page's drum rows, 56 apart from y 160 (no Strike Position on the bass drums).
+// The TUNING page's drum rows, 56 apart from y 160.
 void Content::layoutTuningRows()
 {
     int top = kTuneFirstRow;
@@ -1494,8 +1493,6 @@ void Content::layoutTuningRows()
     }
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
     {
-        if (i == 3 && ! info.strikePos)
-            continue;
         const auto& spec = kDrumTuneSpecs[i];
         if (juce::String (spec.suffix) == "size")
         {
@@ -1517,7 +1514,7 @@ bool Content::drumModified() const
     if (kDrums[(size_t) drum].engineOff >= 0 && (snaresRow->changed() || wireRow->changed()))
         return true;
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
-        if ((i != 3 || kDrums[(size_t) drum].strikePos) && drumTuneRows[i]->changed())
+        if (drumTuneRows[i]->changed())
             return true;
     for (auto& r : kitTuneRows)
         if (r->changed())
@@ -1539,8 +1536,7 @@ void Content::resetParams (bool wholeKit)
         return;
     }
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
-        if (i != 3 || kDrums[(size_t) drum].strikePos)
-            drumTuneRows[i]->reset();
+        drumTuneRows[i]->reset();
     if (kDrums[(size_t) drum].engineOff >= 0)
     {
         snaresRow->reset();
