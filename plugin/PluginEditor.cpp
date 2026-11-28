@@ -1191,15 +1191,14 @@ private:
 
 namespace
 {
-// The TUNING page's rows: this drum's, then the whole kit's (Kris, 2026-11-24).
-const std::array<TuneRow::Spec, 7> kDrumTuneSpecs { {
+// The TUNING page's rows: this drum's, then the whole kit's (Kris, 2026-11-24). Level and Pan
+// are on the DRUM page only (Kris, 2026-11-28).
+const std::array<TuneRow::Spec, 5> kDrumTuneSpecs { {
     { "tune", true, "TUNE", TuneRow::Format::semitones, true, nullptr, nullptr },
     { "lug_detune", true, "LUG DETUNE", TuneRow::Format::plain, false, "EVEN", "UNEVEN" },
     { "decay", true, "DECAY", TuneRow::Format::times, false, "SHORT", "LONG" },
     { "strike_pos", true, "STRIKE POSITION", TuneRow::Format::plain, false, "CENTER", "RIM" },
     { "size", true, "SIZE", TuneRow::Format::inches, false, nullptr, nullptr },
-    { "level", true, "LEVEL", TuneRow::Format::decibels, false, nullptr, nullptr },
-    { "pan", true, "PAN", TuneRow::Format::pan, true, "L", "R" },
 } };
 const TuneRow::Spec kSnaresSpec { "snares", true, "SNARES", TuneRow::Format::onOff, false, "OFF", "ON" };
 const TuneRow::Spec kWireSpec { "wire_tension", true, "WIRE TENSION", TuneRow::Format::plain, false, "TIGHT", "LOOSE" };
