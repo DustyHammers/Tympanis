@@ -8,7 +8,8 @@ mockup (docs/ui/tympanis_mockup.py, chrome()): TYMPANIS in Carlito, 339 units wi
 top y 97, a gradient #665E53 -> #A5A299; under it MAPLE (#4E3A28 -> #A0743E) and MODELING
 INSTRUMENT (#5C5F5F), Carlito 23 with 3.6 letter spacing, ink top y 184. Since 2026-11-27 (Kris):
 TYMPANIS 10 % smaller (305 wide), the subtitle 5 % smaller, both from x 66; then the title 25
-higher (ink top 74) and the subtitle's ink top at y 147. The tabs, the boxes, the
+higher (ink top 74) and the subtitle's ink top at y 147; then everything from x 36 and the
+subtitle at the tabs' size, 17.1. The tabs, the boxes, the
 DHammers logo and everything else are drawn by the editor.
 
 Needs numpy, opencv-python and pillow. The fonts are resources/ui/Carlito-Regular.ttf.
@@ -104,11 +105,16 @@ def main():
     # Kris, 2026-11-27 (later): the title 25 higher and the gaps to the subtitle and the tabs about
     # 20 % smaller (title ink 74-105, subtitle 147, the editor's tabs 208)
     top = 97 - 25 + (cap(55) - cap(sz)) / 2
-    pil = grad_text(pil, 'TYMPANIS', 66, top, sz, spc, hx('665E53'), hx('A5A299'))
-    ssz, ssp = 23 * 0.95, 3.6 * 0.95
-    pil = grad_text(pil, 'MAPLE', 66, 147, ssz, ssp, hx('4E3A28'), hx('A0743E'))
-    x = 66 + text_w('MAPLE', ssz, ssp) + 12 * 0.95
-    pil = grad_text(pil, 'MODELING INSTRUMENT', x, 147, ssz, ssp, hx('5C5F5F'), hx('5C5F5F'))
+    # Kris, 2026-11-27 (later still): everything from x 36; the subtitle at the tabs' size (17.1,
+    # its letter spacing in proportion), its middle kept
+    left = 36
+    pil = grad_text(pil, 'TYMPANIS', left, top, sz, spc, hx('665E53'), hx('A5A299'))
+    ssz = 17.1
+    ssp = 3.6 * ssz / 23
+    sy = 147 + (cap(23 * 0.95) - cap(ssz)) / 2
+    pil = grad_text(pil, 'MAPLE', left, sy, ssz, ssp, hx('4E3A28'), hx('A0743E'))
+    x = left + text_w('MAPLE', ssz, ssp) + 12 * ssz / 23
+    pil = grad_text(pil, 'MODELING INSTRUMENT', x, sy, ssz, ssp, hx('5C5F5F'), hx('5C5F5F'))
     pil.save(out, optimize=True)
     print(out)
 
