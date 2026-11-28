@@ -242,7 +242,17 @@ void TympanisProcessor::applyParameters()
             if (const float v = p.wire->load(); changed(5, v)) kit.drum(kDrums[d].engine).setWireTension(v);
         // level, and pan with the -3 dB compensated constant-power law (0 dB in the centre)
         const double g = dbGain(p.level->load()) * main;
-        const double th = juce::MathConstants<double>::pi * 0.25 * (juce::jlimit(-1.0f, 1.0f, p.pan->load()) + 1.0);
+        const double pan = juce::jlimit(-1.0f, 1.0f, p.pan->load());
+        static const double bleedDb = std::getenv("TYMP_BLEED_DB") ? std::atof(std::getenv("TYMP_BLEED_DB")) : 0.0;   // SCRATCH
+        if (bleedDb > 0)
+        {
+            // the far channel B dB under the near one at hard pan, power kept: 0 dB each in the centre
+            const double r = std::pow(10.0, -bleedDb * std::abs(pan) / 20.0), gn = std::sqrt(2.0 / (1 + r * r)), gf = r * gn;
+            for (const int e : engines)
+                if (e >= 0) { kit.setDrumGains(e, g * (pan > 0 ? gf : gn), g * (pan > 0 ? gn : gf)); kit.setDrumPanScratch(e, pan); }
+            continue;
+        }
+        const double th = juce::MathConstants<double>::pi * 0.25 * (pan + 1.0);
         for (const int e : engines)
             if (e >= 0) kit.setDrumGains(e, g * std::sqrt(2.0) * std::cos(th), g * std::sqrt(2.0) * std::sin(th));
     }

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 
@@ -904,6 +905,8 @@ void Kit::init(const KitData* data, bool restrikeDamp, bool variation, int chunk
     quiet_.assign(drums_.size(), 0);
     mix_.assign((size_t) chunk_, 0); head_.assign((size_t) chunk_, 0); drive_.assign((size_t) chunk_, 0); wire_.assign((size_t) chunk_, 0);
     gainL_.assign(drums_.size(), 1.0); gainR_ = gainL_; targetL_ = gainL_; targetR_ = gainL_;
+    panS_.assign(drums_.size(), 0.0); lpS_.assign(drums_.size(), 0.0); dlS_.assign(drums_.size(), std::vector<double>(512, 0.0)); dlPos_.assign(drums_.size(), 0);
+    farBuf_.assign(8192, 0.0);
 }
 
 void Kit::prepare(double sampleRate)
@@ -1080,6 +1083,37 @@ void Kit::renderChunk(double* out, double* L, double* R, int n)
             gainR_[d] = targetR_[d];
             if (l0 == 0 && r0 == 0 && dl == 0 && dr == 0) continue;
             const double* o = outs_[d].data();
+            // SCRATCH: the far channel delayed (TYMP_ITD_MS at hard pan) and high-cut (TYMP_SHADOW_HZ at hard pan)
+            static const double itdMs = std::getenv ("TYMP_ITD_MS") ? std::atof (std::getenv ("TYMP_ITD_MS")) : 0.0;
+            static const double shHz = std::getenv ("TYMP_SHADOW_HZ") ? std::atof (std::getenv ("TYMP_SHADOW_HZ")) : 0.0;
+            const double ap = std::fabs (panS_[d]);
+            if ((itdMs > 0 || shHz > 0) && ap > 0)
+            {
+                auto& line = dlS_[d]; int& wp = dlPos_[d];
+                const double dS = itdMs * 1e-3 * sr_ * ap;
+                const int di = (int) dS; const double df = dS - di;
+                const double fc = shHz > 0 ? 20000.0 * std::pow (shHz / 20000.0, ap) : 0.0;
+                const double a = fc > 0 ? std::exp (-2 * kPi * std::min (fc, 0.45 * sr_) / sr_) : 0.0;
+                double y = lpS_[d];
+                for (int i = 0; i < n; ++i)
+                {
+                    line[(size_t) wp] = o[i];
+                    const double x0 = line[(size_t) ((wp - di) & 511)], x1 = line[(size_t) ((wp - di - 1) & 511)];
+                    const double x = x0 + df * (x1 - x0);
+                    y = fc > 0 ? (1 - a) * x + a * y : x;
+                    farBuf_[(size_t) i] = y;
+                    wp = (wp + 1) & 511;
+                }
+                lpS_[d] = y;
+                const double* fL = panS_[d] > 0 ? farBuf_.data() : o;
+                const double* fR = panS_[d] > 0 ? o : farBuf_.data();
+                for (int i = 0; i < n; ++i)
+                {
+                    L[i] += (l0 + dl * (i + 1)) * fL[i];
+                    R[i] += (r0 + dr * (i + 1)) * fR[i];
+                }
+                continue;
+            }
             for (int i = 0; i < n; ++i)
             {
                 L[i] += (l0 + dl * (i + 1)) * o[i];

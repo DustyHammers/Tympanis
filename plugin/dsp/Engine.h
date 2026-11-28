@@ -230,6 +230,8 @@ public:
     // the unfaded sound; a snare's sympathetic head and wire buzz follow that snare's gains.
     void setDrumGains(int drum, double left, double right);
     void snapGains() { gainL_ = targetL_; gainR_ = targetR_; }
+    // SCRATCH (stereo bleed): the drum's pan, for the far channel's delay and high cut
+    void setDrumPanScratch(int drum, double pan) { panS_[(size_t) drum] = pan; }
     // Writes n samples of the stereo mix to L and R.
     void renderStereo(double* L, double* R, int n);
 
@@ -256,6 +258,8 @@ private:
     std::vector<std::vector<double>> outs_;
     std::vector<double> mix_, head_, drive_, wire_;
     std::vector<double> gainL_, gainR_, targetL_, targetR_;
+    std::vector<double> panS_, lpS_, farBuf_;            // SCRATCH
+    std::vector<std::vector<double>> dlS_; std::vector<int> dlPos_;
     dhpool::JobPool* pool_ = nullptr;
     std::vector<int> runOrder_, quiet_;   // per chunk: the drums to share, heaviest first; the silent ones
     int jobN_ = 0;                        // the chunk's length, for the jobs
