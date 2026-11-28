@@ -105,9 +105,9 @@ private:
     juce::Path logoPath;
 
     // DRUM page
-    std::array<KnobSpec, 5> knobSpecs;
-    std::array<std::unique_ptr<Knob>, 5> knobs;
-    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 5> knobAttachments;
+    std::array<KnobSpec, 9> knobSpecs;
+    std::array<std::unique_ptr<Knob>, 9> knobs;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 9> knobAttachments;
     int draggingKnob = -1;
     static constexpr int kMaxRows = 3;
     std::array<std::unique_ptr<NoteBox>, kMaxRows> noteBoxes;

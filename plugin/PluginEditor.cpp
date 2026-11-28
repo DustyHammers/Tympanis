@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "PluginEditor.h"
 
 #include <cmath>
@@ -1218,6 +1219,11 @@ Content::Content (TympanisProcessor& p)
           { "pan", true, { 1087.0f, 881.0f }, "PAN", "L", "R", true },
           { "strike_pos", true, { 1349.0f, 642.0f }, "STRIKE POSITION", "CENTER", "RIM", false },
           { "main_volume", false, { 1350.0f, 881.0f }, "MAIN VOLUME", "-", "+", false },
+          // SCRATCH mockup B: this drum's tuning on the DRUM page, a 2 x 2 grid in the left column
+          { "tune", true, { 105.0f, 527.0f }, "TUNE", "LOW", "HIGH", true },
+          { "lug_detune", true, { 300.0f, 527.0f }, "LUG DETUNE", "EVEN", "UNEVEN", false },
+          { "decay", true, { 105.0f, 751.0f }, "DECAY", "SHORT", "LONG", false },
+          { "size", true, { 300.0f, 751.0f }, "SIZE", "SHALLOW", "DEEP", false },
       } }
 {
     setSize (kDesignWidth, kDesignHeight);
@@ -1413,13 +1419,24 @@ void Content::showPage (int pg)
     channelBox->setVisible (drumP || setP);
     shownChannel = -1;
     drumBox->setVisible (drumP || tuneP);
-    drumBox->setBounds (tuneP ? kDrumBox.translated (0, kTuneDrumDy) : kDrumBox);
+    {
+        static const bool mockB = std::getenv ("TYMP_MOCK") && std::getenv ("TYMP_MOCK")[0] == 'B';
+        drumBox->setBounds (tuneP ? kDrumBox.translated (0, kTuneDrumDy) : mockB ? kDrumBox.translated (0, -78) : kDrumBox);
+    }
     for (size_t i = 0; i < knobs.size(); ++i)
-        knobs[i]->setVisible (drumP && (juce::String (knobSpecs[i].suffix) != "strike_pos" || kDrums[(size_t) drum].strikePos));
+    {
+        static const bool mockB = std::getenv ("TYMP_MOCK") && std::getenv ("TYMP_MOCK")[0] == 'B';
+        const juce::String suf (knobSpecs[i].suffix);
+        const bool tuneKnob = i >= 5;
+        knobs[i]->setVisible (drumP && (! tuneKnob || mockB) && (suf != "strike_pos" || kDrums[(size_t) drum].strikePos));
+        const bool grey = (suf == "lug_detune" && juce::String (kDrums[(size_t) drum].key).startsWith ("kick")) || (suf == "size" && ! kDrums[(size_t) drum].depth);
+        knobs[i]->setAlpha (grey ? 0.3f : 1.0f);
+    }
     for (size_t b = 0; b < noteBoxes.size(); ++b)
         noteBoxes[b]->setVisible (drumP && b < drumRows.size());
+    static const bool mockA = std::getenv ("TYMP_MOCK") && std::getenv ("TYMP_MOCK")[0] == 'A';
     for (size_t i = 0; i < drumTuneRows.size(); ++i)
-        drumTuneRows[i]->setVisible (tuneP && (i != 3 || kDrums[(size_t) drum].strikePos));
+        drumTuneRows[i]->setVisible (tuneP && (i != 3 || kDrums[(size_t) drum].strikePos) && ! (mockA && i >= 5));
     snaresRow->setVisible (tuneP && kDrums[(size_t) drum].engineOff >= 0);
     wireRow->setVisible (tuneP && kDrums[(size_t) drum].engineOff >= 0);
     for (auto& r : kitTuneRows)
@@ -2023,9 +2040,11 @@ void Content::paintCommon (juce::Graphics& g)
     if (page == drumPage || page == tuningPage)
     {
         const bool tune = page == tuningPage;
-        drawAt (g, assets.font (kHeaderSize, 3.45f), "DRUM", 199.5f, 348.0f + (tune ? (float) kTuneDrumDy : 0.0f), palette::label, Anchor::centre);
+        static const bool mockB = std::getenv ("TYMP_MOCK") && std::getenv ("TYMP_MOCK")[0] == 'B';
+        const float dy = tune ? (float) kTuneDrumDy : mockB ? -78.0f : 0.0f;
+        drawAt (g, assets.font (kHeaderSize, 3.45f), "DRUM", 199.5f, 348.0f + dy, palette::label, Anchor::centre);
         drawAt (g, assets.font (kRowSize, 2.4f), drumSpecLine (drum, kDrums[(size_t) drum].depth ? kDrums[(size_t) drum].depthIn + shownDepthOff[(size_t) drum] : -1.0),
-                199.5f, tune ? kTuneSpecY : 452.0f, palette::secondary, Anchor::centre);
+                199.5f, tune ? kTuneSpecY : 452.0f + dy, palette::secondary, Anchor::centre);
     }
     if (! logoPath.isEmpty())
     {
@@ -2043,7 +2062,11 @@ juce::Rectangle<int> Content::rowLabelArea (int b) const
 void Content::paintDrumPage (juce::Graphics& g)
 {
     g.setColour (palette::divider);
-    g.fillRect (39, 757, 1161 - 39, 1);
+    {
+        static const bool mockB = std::getenv ("TYMP_MOCK") && std::getenv ("TYMP_MOCK")[0] == 'B';
+        const int x0 = mockB ? 400 : 39;    // SCRATCH mockup B: the left column is the drum's own block
+        g.fillRect (x0, 757, 1161 - x0, 1);
+    }
     g.fillRect (1188, 110, 1, 850 - 110);
 
     const auto header = [this, &g] (const char* text, float x, float y, float spacing) {
@@ -2079,9 +2102,16 @@ void Content::paintDrumPage (juce::Graphics& g)
                     text = levelText (prm->convertFrom0to1 (prm->getValue()));
             }
         }
-        drawAt (g, f, text, c.x, c.y - kKnobLabelAbove, palette::knobLabel, Anchor::centre);
+        const float a = knobs[i]->getAlpha();
+        drawAt (g, f, text, c.x, c.y - kKnobLabelAbove, palette::knobLabel.withMultipliedAlpha (a), Anchor::centre);
         g.setColour (palette::secondary);
-        if (juce::String (spec.leftEnd) == "-")
+        if (i >= 5)
+        {
+            // SCRATCH mockup B: the end labels pulled in (the grid is 195 apart)
+            drawAt (g, endFont, spec.leftEnd, c.x - 58.0f, c.y + kKnobEndBelow, palette::secondary.withMultipliedAlpha (a), Anchor::centre);
+            drawAt (g, endFont, spec.rightEnd, c.x + 58.0f, c.y + kKnobEndBelow, palette::secondary.withMultipliedAlpha (a), Anchor::centre);
+        }
+        else if (juce::String (spec.leftEnd) == "-")
         {
             // - and + (Cymbalis's marks)
             g.fillRect (juce::Rectangle<float> (c.x - 81.0f, c.y + 81.0f, 11.0f, 1.0f));
