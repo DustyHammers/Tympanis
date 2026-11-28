@@ -92,7 +92,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout TympanisProcessor::createLay
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "level"), 1 }, name + " Level",
             levelRange(), 0.0f, A().withLabel("dB").withStringFromValueFunction(dbText)));
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "pan"), 1 }, name + " Pan",
-            juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), 0.0f));
+            juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), defaultPan(kDrums[d].key)));
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "vel_sens"), 1 }, name + " Velocity Sensitivity",
             juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 1.0f,
             A().withStringFromValueFunction(percentText)
@@ -240,11 +240,11 @@ void TympanisProcessor::applyParameters()
         // Snare Wire Tension: the wires-on model only (the wires-off one has no wires on it)
         if (p.wire != nullptr)
             if (const float v = p.wire->load(); changed(5, v)) kit.drum(kDrums[d].engine).setWireTension(v);
-        // level, and pan with the -3 dB compensated constant-power law (0 dB in the centre)
+        // level, and pan as the player hears it: both channels at any pan, the far one 4 dB down at
+        // hard pan, a little later and duller (Kit::setDrumImage; Kris, 2026-11-27, render 59 A)
         const double g = dbGain(p.level->load()) * main;
-        const double th = juce::MathConstants<double>::pi * 0.25 * (juce::jlimit(-1.0f, 1.0f, p.pan->load()) + 1.0);
         for (const int e : engines)
-            if (e >= 0) kit.setDrumGains(e, g * std::sqrt(2.0) * std::cos(th), g * std::sqrt(2.0) * std::sin(th));
+            if (e >= 0) kit.setDrumImage(e, g, p.pan->load());
     }
     const float b = buzzParam->load();
     if (! juce::exactlyEqual(b, lastBuzz)) { kit.setSnareBuzz(b); lastBuzz = b; }

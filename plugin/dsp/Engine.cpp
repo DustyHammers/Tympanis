@@ -904,6 +904,8 @@ void Kit::init(const KitData* data, bool restrikeDamp, bool variation, int chunk
     quiet_.assign(drums_.size(), 0);
     mix_.assign((size_t) chunk_, 0); head_.assign((size_t) chunk_, 0); drive_.assign((size_t) chunk_, 0); wire_.assign((size_t) chunk_, 0);
     gainL_.assign(drums_.size(), 1.0); gainR_ = gainL_; targetL_ = gainL_; targetR_ = gainL_;
+    panNow_.assign(drums_.size(), 0.0); panTarget_ = panNow_; farLp_ = panNow_;
+    farLine_.assign(drums_.size(), {}); farPos_.assign(drums_.size(), 0);
 }
 
 void Kit::prepare(double sampleRate)
@@ -951,6 +953,16 @@ void Kit::setDrumGains(int drum, double left, double right)
 {
     targetL_[(size_t) drum] = left;
     targetR_[(size_t) drum] = right;
+}
+
+void Kit::setDrumImage(int drum, double gain, double pan)
+{
+    // under half a step of the PAN knob (it reads C) is the centre exactly: a host's float residue
+    // (a Mac build's centred pan came in at about 1e-7) must not dull a centred drum's far side
+    const double p = std::fabs(pan) < 0.005 ? 0.0 : clampd(pan, -1, 1);
+    const double r = std::pow(10.0, -kBleedDb * std::fabs(p) / 20.0), gn = std::sqrt(2.0 / (1 + r * r)), gf = r * gn;
+    setDrumGains(drum, gain * (p > 0 ? gf : gn), gain * (p > 0 ? gn : gf));
+    panTarget_[(size_t) drum] = p;
 }
 
 void Kit::renderStereo(double* L, double* R, int n)
@@ -1078,8 +1090,45 @@ void Kit::renderChunk(double* out, double* L, double* R, int n)
             const double l0 = gainL_[d], r0 = gainR_[d], dl = (targetL_[d] - l0) * inv, dr = (targetR_[d] - r0) * inv;
             gainL_[d] = targetL_[d];
             gainR_[d] = targetR_[d];
+            const double p0 = panNow_[d], p1 = panTarget_[d];
+            panNow_[d] = p1;
             if (l0 == 0 && r0 == 0 && dl == 0 && dr == 0) continue;
             const double* o = outs_[d].data();
+            if (p0 != 0 || p1 != 0)
+            {
+                // the far channel: delayed (ramped from the last pan's delay to this one's) and high-cut
+                auto& line = farLine_[d];
+                int wp = farPos_[d];
+                const double ms = kBleedItdMs * 1e-3 * sr_, s0 = ms * std::fabs(p0), dsd = (ms * std::fabs(p1) - s0) * inv;
+                const double ap = std::fabs(p1);
+                const double fc = 20000.0 * std::pow(kBleedShadowHz / 20000.0, ap);
+                // the high cut's pole, faded in over the first 0.1 of pan so it starts from nothing
+                // (the pans in use, 0.1 and up, are as approved in render 59 A)
+                const double a = std::exp(-2 * kPi * std::min(fc, 0.45 * sr_) / sr_) * std::min(1.0, ap / 0.1);
+                if ((int) far_.size() < n) far_.assign((size_t) n, 0.0);
+                double y = farLp_[d];
+                for (int i = 0; i < n; ++i)
+                {
+                    line[(size_t) wp] = o[i];
+                    const double ds = s0 + dsd * (i + 1);
+                    const int di = (int) ds;
+                    const double df = ds - di;
+                    const double x0 = line[(size_t) ((wp - di) & 511)], x1 = line[(size_t) ((wp - di - 1) & 511)];
+                    y = (1 - a) * (x0 + df * (x1 - x0)) + a * y;
+                    far_[(size_t) i] = y;
+                    wp = (wp + 1) & 511;
+                }
+                farPos_[d] = wp;
+                farLp_[d] = y;
+                const double* fL = p1 > 0 ? far_.data() : o;
+                const double* fR = p1 > 0 ? o : far_.data();
+                for (int i = 0; i < n; ++i)
+                {
+                    L[i] += (l0 + dl * (i + 1)) * fL[i];
+                    R[i] += (r0 + dr * (i + 1)) * fR[i];
+                }
+                continue;
+            }
             for (int i = 0; i < n; ++i)
             {
                 L[i] += (l0 + dl * (i + 1)) * o[i];

@@ -491,7 +491,19 @@ int runChecks()
         ref.set("snare_buzz", 0.0f);
         const auto y0 = ref.play({ { 10, note, 127 } }, 22050, 256);
         const double p0 = peak(y0);
-        check(std::abs(peak(y0) - peak(ref.lastRight)) < 1e-6 * p0, "centre pan: left = right");
+        {
+            double dmax = 0;
+            for (size_t i = 0; i < y0.size(); ++i) dmax = std::max(dmax, (double) std::abs(y0[i] - ref.lastRight[i]));
+            Host all(44100, 256);
+            all.set("snare_buzz", 0.0f);
+            for (const auto& dp : kDefaultPans) all.set((juce::String(dp.drum) + "_pan").toRawUTF8(), 0.0f);
+            const auto ya = all.play({ { 10, note, 127 } }, 22050, 256);
+            double damax = 0;
+            for (size_t i = 0; i < ya.size(); ++i) damax = std::max(damax, (double) std::abs(ya[i] - all.lastRight[i]));
+            check(std::abs(peak(y0) - peak(ref.lastRight)) < 1e-6 * p0,
+                  "centre pan: left = right (peaks " + juce::String(peak(y0), 9) + " / " + juce::String(peak(ref.lastRight), 9)
+                      + ", max |L-R| " + juce::String(dmax, 12) + "; every drum centred: max |L-R| " + juce::String(damax, 12) + ")");
+        }
         Host off(44100, 256);
         off.set("snare1_level", -60.0f);
         off.set("snare_buzz", 0.0f);                 // else the other snare models buzz along, on their own channels
@@ -500,8 +512,41 @@ int runChecks()
         left.set("snare1_pan", -1.0f);
         left.set("snare_buzz", 0.0f);
         const auto yl = left.play({ { 10, note, 127 } }, 22050, 256);
-        check(peak(left.lastRight) < 1e-6 * p0 && std::abs(peak(yl) / p0 - std::sqrt(2.0)) < 0.15,
-              "hard left: right silent, left +3 dB (left " + juce::String(20 * std::log10(peak(yl) / p0), 2) + " dB)");
+        {
+            // the player's image (Kris, 2026-11-27): hard left still reaches the right, about 4 dB down
+            // (a little more with the far side's high cut), 0.4 ms later; the left +1.6 dB (power kept)
+            const auto& yr = left.lastRight;
+            auto rms = [](const std::vector<float>& x) { double e = 0; for (float v : x) e += (double) v * v; return std::sqrt(e / (double) x.size()); };
+            auto onset = [](const std::vector<float>& x, double thr) { for (size_t i = 0; i < x.size(); ++i) if (std::abs(x[i]) > thr) return (int) i; return -1; };
+            const double farDb = 20 * std::log10(rms(yr) / rms(yl));
+            const int lag = onset(yr, 1e-3 * peak(yr)) - onset(yl, 1e-3 * peak(yl));
+            check(farDb < -4.0 && farDb > -6.5, "hard left: the right channel " + juce::String(farDb, 2) + " dB under the left (4 dB, plus the far side's high cut)");
+            check(std::abs(lag - 18) <= 2, "hard left: the right channel " + juce::String(lag) + " samples later (0.4 ms at 44.1 kHz: 18)");
+            check(std::abs(20 * std::log10(peak(yl) / p0) - 1.56) < 0.3, "hard left: the left +1.6 dB (" + juce::String(20 * std::log10(peak(yl) / p0), 2) + " dB)");
+        }
+        {
+            // each drum's default pan, from the player's seat (KitMap.h kDefaultPans, render 58)
+            Host dflt(44100, 256);
+            bool all = true;
+            for (const auto& dp : kDefaultPans)
+                if (auto* prm = dflt.p->params.getParameter(juce::String(dp.drum) + "_pan"))
+                    all = all && std::abs(prm->convertFrom0to1(prm->getDefaultValue()) - dp.pan) < 1e-4f
+                              && std::abs(prm->convertFrom0to1(prm->getValue()) - dp.pan) < 1e-4f;
+                else
+                    all = false;
+            check(all && defaultPan("tom1") < 0 && defaultPan("tom5") > 0 && defaultPan("snare1") == 0.0f,
+                  "default pans: every drum where the player hears it (Tom 1 left, Floor Tom 1 right, the Snare centred)");
+        }
+        {
+            // a centred pan that arrives with a float residue is the centre exactly
+            Host tiny(44100, 256);
+            tiny.set("snare_buzz", 0.0f);
+            tiny.set("snare1_pan", 1e-6f);
+            const auto yt = tiny.play({ { 10, note, 127 } }, 22050, 256);
+            double dt = 0;
+            for (size_t i = 0; i < yt.size(); ++i) dt = std::max(dt, (double) std::abs(yt[i] - tiny.lastRight[i]));
+            check(dt == 0.0, "a pan of 1e-6 is the centre: left = right (max |L-R| " + juce::String(dt, 12) + ")");
+        }
         Host vol(44100, 256);
         vol.set("main_volume", -6.0f);
         vol.set("snare_buzz", 0.0f);
