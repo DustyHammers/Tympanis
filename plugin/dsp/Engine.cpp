@@ -957,7 +957,9 @@ void Kit::setDrumGains(int drum, double left, double right)
 
 void Kit::setDrumImage(int drum, double gain, double pan)
 {
-    const double p = clampd(pan, -1, 1);
+    // under half a step of the PAN knob (it reads C) is the centre exactly: a host's float residue
+    // (a Mac build's centred pan came in at about 1e-7) must not dull a centred drum's far side
+    const double p = std::fabs(pan) < 0.005 ? 0.0 : clampd(pan, -1, 1);
     const double r = std::pow(10.0, -kBleedDb * std::fabs(p) / 20.0), gn = std::sqrt(2.0 / (1 + r * r)), gf = r * gn;
     setDrumGains(drum, gain * (p > 0 ? gf : gn), gain * (p > 0 ? gn : gf));
     panTarget_[(size_t) drum] = p;
@@ -1100,7 +1102,9 @@ void Kit::renderChunk(double* out, double* L, double* R, int n)
                 const double ms = kBleedItdMs * 1e-3 * sr_, s0 = ms * std::fabs(p0), dsd = (ms * std::fabs(p1) - s0) * inv;
                 const double ap = std::fabs(p1);
                 const double fc = 20000.0 * std::pow(kBleedShadowHz / 20000.0, ap);
-                const double a = ap > 0 ? std::exp(-2 * kPi * std::min(fc, 0.45 * sr_) / sr_) : 0.0;
+                // the high cut's pole, faded in over the first 0.1 of pan so it starts from nothing
+                // (the pans in use, 0.1 and up, are as approved in render 59 A)
+                const double a = std::exp(-2 * kPi * std::min(fc, 0.45 * sr_) / sr_) * std::min(1.0, ap / 0.1);
                 if ((int) far_.size() < n) far_.assign((size_t) n, 0.0);
                 double y = farLp_[d];
                 for (int i = 0; i < n; ++i)

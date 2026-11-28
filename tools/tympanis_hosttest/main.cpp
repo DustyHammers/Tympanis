@@ -537,6 +537,16 @@ int runChecks()
             check(all && defaultPan("tom1") < 0 && defaultPan("tom5") > 0 && defaultPan("snare1") == 0.0f,
                   "default pans: every drum where the player hears it (Tom 1 left, Floor Tom 1 right, the Snare centred)");
         }
+        {
+            // a centred pan that arrives with a float residue is the centre exactly
+            Host tiny(44100, 256);
+            tiny.set("snare_buzz", 0.0f);
+            tiny.set("snare1_pan", 1e-6f);
+            const auto yt = tiny.play({ { 10, note, 127 } }, 22050, 256);
+            double dt = 0;
+            for (size_t i = 0; i < yt.size(); ++i) dt = std::max(dt, (double) std::abs(yt[i] - tiny.lastRight[i]));
+            check(dt == 0.0, "a pan of 1e-6 is the centre: left = right (max |L-R| " + juce::String(dt, 12) + ")");
+        }
         Host vol(44100, 256);
         vol.set("main_volume", -6.0f);
         vol.set("snare_buzz", 0.0f);

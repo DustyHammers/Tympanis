@@ -234,7 +234,8 @@ public:
     // reaches both channels however far it is panned, as a player's two ears hear it. The far
     // channel is kBleedDb down at hard pan (|p| times that in dB between; the power kept, so a
     // centred drum is at 0 dB in each, as before), kBleedItdMs later (|p| times that) and high-cut
-    // from 20 kHz down to kBleedShadowHz at hard pan (log in |p|). Pan changes ramp the delay over a
+    // from 20 kHz down to kBleedShadowHz at hard pan (log in |p|; faded in over the first 0.1 of pan).
+    // Under 0.005 (the PAN knob's C) is the centre exactly. Pan changes ramp the delay over a
     // render call. Not in the prototype (tympanis_render never calls it); a centred drum is
     // bit-identical to setDrumGains (g, g).
     static constexpr double kBleedDb = 4.0, kBleedItdMs = 0.4, kBleedShadowHz = 6000.0;
