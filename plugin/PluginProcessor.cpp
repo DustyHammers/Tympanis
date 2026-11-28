@@ -84,12 +84,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout TympanisProcessor::createLay
         if (kDrums[d].strikePos)
             group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "strike_pos"), 1 }, name + " Strike Position",
                 juce::NormalisableRange<float>(0.0f, 0.95f, 0.005f), 0.35f));
-        // Size: the shell's depth (Kris, 2026-11-25), -4 .. +2" in 1" steps (the floor toms -4 .. 0,
+        // Size: the shell's depth (Kris, 2026-11-25), -4 .. +2" in 1" steps (the floor toms -6 .. 0,
         // Kris 2026-11-28); it plays on Toms 1-4 and the floor toms
         // only (on the other drums it stays, greyed out in the editor, and changes nothing)
         const float dp = (float) kDrums[d].depthIn;
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "size"), 1 }, name + " Size",
-            juce::NormalisableRange<float>(dp - (float) kDepthDownIn, dp + (float) depthUpIn(kDrums[d]), 1.0f), dp, A().withLabel("in")));
+            juce::NormalisableRange<float>(dp - (float) depthDownIn(kDrums[d]), dp + (float) depthUpIn(kDrums[d]), 1.0f), dp, A().withLabel("in")));
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "level"), 1 }, name + " Level",
             levelRange(), 0.0f, A().withLabel("dB").withStringFromValueFunction(dbText)));
         group->addChild(std::make_unique<P>(juce::ParameterID { pid(d, "pan"), 1 }, name + " Pan",

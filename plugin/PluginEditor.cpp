@@ -1500,8 +1500,8 @@ void Content::layoutTuningRows()
         const auto& spec = kDrumTuneSpecs[i];
         if (juce::String (spec.suffix) == "size")
         {
-            // the shell's depth, -4 .. +2" (the floor toms -4 .. 0); it plays on Toms 1-4 and the floor toms
-            drumTuneRows[i]->attach (paramId (spec.suffix), top, sizeText (info.depthIn - kDepthDownIn), sizeText (info.depthIn + depthUpIn (info)));
+            // the shell's depth, -4 .. +2" (the floor toms -6 .. 0); it plays on Toms 1-4 and the floor toms
+            drumTuneRows[i]->attach (paramId (spec.suffix), top, sizeText (info.depthIn - depthDownIn (info)), sizeText (info.depthIn + depthUpIn (info)));
             drumTuneRows[i]->setGreyed (! info.depth);
         }
         else
