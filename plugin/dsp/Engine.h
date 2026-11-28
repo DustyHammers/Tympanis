@@ -259,6 +259,7 @@ private:
     std::vector<double> mix_, head_, drive_, wire_;
     std::vector<double> gainL_, gainR_, targetL_, targetR_;
     std::vector<double> panS_, lpS_, farBuf_;            // SCRATCH
+    std::vector<double> erL_, erR_; int erPos_ = 0; double erLpL_ = 0, erLpR_ = 0, erHpL_ = 0, erHpR_ = 0; // SCRATCH early reflections
     std::vector<std::vector<double>> dlS_; std::vector<int> dlPos_;
     dhpool::JobPool* pool_ = nullptr;
     std::vector<int> runOrder_, quiet_;   // per chunk: the drums to share, heaviest first; the silent ones

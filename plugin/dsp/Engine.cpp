@@ -906,7 +906,7 @@ void Kit::init(const KitData* data, bool restrikeDamp, bool variation, int chunk
     mix_.assign((size_t) chunk_, 0); head_.assign((size_t) chunk_, 0); drive_.assign((size_t) chunk_, 0); wire_.assign((size_t) chunk_, 0);
     gainL_.assign(drums_.size(), 1.0); gainR_ = gainL_; targetL_ = gainL_; targetR_ = gainL_;
     panS_.assign(drums_.size(), 0.0); lpS_.assign(drums_.size(), 0.0); dlS_.assign(drums_.size(), std::vector<double>(512, 0.0)); dlPos_.assign(drums_.size(), 0);
-    farBuf_.assign(8192, 0.0);
+    farBuf_.assign(8192, 0.0); erL_.assign(8192, 0.0); erR_.assign(8192, 0.0);
 }
 
 void Kit::prepare(double sampleRate)
@@ -1118,6 +1118,36 @@ void Kit::renderChunk(double* out, double* L, double* R, int n)
             {
                 L[i] += (l0 + dl * (i + 1)) * o[i];
                 R[i] += (r0 + dr * (i + 1)) * o[i];
+            }
+        }
+        // SCRATCH: early reflections, a shared small room on the stereo mix (TYMP_ER_DB: their level)
+        static const double erDb = std::getenv ("TYMP_ER_DB") ? std::atof (std::getenv ("TYMP_ER_DB")) : -999.0;
+        if (erDb > -99)
+        {
+            struct Tap { double ms; bool fromL; double g; };
+            static const Tap toL[] = { { 4.3, true, .50 }, { 6.8, false, .44 }, { 11.7, true, .34 }, { 14.9, false, .30 },
+                                       { 19.2, true, .24 }, { 23.1, false, .20 }, { 27.9, true, .17 }, { 33.5, false, .13 } };
+            static const Tap toR[] = { { 4.9, false, .50 }, { 7.4, true, .44 }, { 12.6, false, .34 }, { 15.8, true, .30 },
+                                       { 18.1, false, .24 }, { 21.7, true, .20 }, { 29.4, false, .17 }, { 31.6, true, .13 } };
+            const double w = std::pow (10.0, erDb / 20.0);
+            const double aLp = std::exp (-2 * kPi * 6000.0 / sr_), aHp = std::exp (-2 * kPi * 100.0 / sr_);
+            int tl[8], tr[8];
+            for (int k = 0; k < 8; ++k) { tl[k] = (int) std::lround (toL[k].ms * 1e-3 * sr_); tr[k] = (int) std::lround (toR[k].ms * 1e-3 * sr_); }
+            for (int i = 0; i < n; ++i)
+            {
+                // the send: high cut 6 kHz, low cut 100 Hz
+                erLpL_ = (1 - aLp) * L[i] + aLp * erLpL_; erLpR_ = (1 - aLp) * R[i] + aLp * erLpR_;
+                erHpL_ = (1 - aHp) * erLpL_ + aHp * erHpL_; erHpR_ = (1 - aHp) * erLpR_ + aHp * erHpR_;
+                erL_[(size_t) erPos_] = erLpL_ - erHpL_; erR_[(size_t) erPos_] = erLpR_ - erHpR_;
+                double yl = 0, yr = 0;
+                for (int k = 0; k < 8; ++k)
+                {
+                    yl += toL[k].g * (toL[k].fromL ? erL_ : erR_)[(size_t) ((erPos_ - tl[k]) & 8191)];
+                    yr += toR[k].g * (toR[k].fromL ? erL_ : erR_)[(size_t) ((erPos_ - tr[k]) & 8191)];
+                }
+                erPos_ = (erPos_ + 1) & 8191;
+                L[i] += w * yl;
+                R[i] += w * yr;
             }
         }
     }
