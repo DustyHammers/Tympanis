@@ -217,7 +217,8 @@ struct KitItem
 };
 const std::vector<KitItem>& kitLayout();
 // A kit item with its shell depthOffIn deeper (a rack tom: its bottom stays where it rests on the
-// kick; the head moves along the axis, down when shallower; Kris, 2026-11-25).
+// kick; the head moves along the axis, down when shallower; Kris, 2026-11-25; a floor tom: its head
+// stays at playing height and its bottom moves; Kris, 2026-11-28).
 DrumSpec kitSpec (const KitItem& item, double depthOffIn);
 Camera kitCamera();
 // The kit item a drum is drawn as, or -1.

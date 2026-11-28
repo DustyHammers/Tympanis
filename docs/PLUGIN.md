@@ -21,7 +21,7 @@ Per drum (`<drum>` = `kick1 kick2 snare1 snare4 tom1..tom6 gong octo1..octo4`; `
 | `<drum>_lug_detune` | `<Drum> Lug Detune` | 0 .. 1: an unevenly tuned head (Kris, 2026-11-27; `docs/ENGINE.md`, "Lug Detune's character"). On the toms and snares 1 = 40 % RMS tension error between lugs with the full character; the octobans and the gong drum get half; the bass drums none (greyed out) | 0 |
 | `<drum>_decay` | `<Drum> Decay` | 0.25 .. 4 x ring time (highs change less) | 1 |
 | `<drum>_strike_pos` | `<Drum> Strike Position` | 0 (centre) .. 0.95 (near the rim); not on the bass drums | 0.35 |
-| `<drum>_size` | `<Drum> Size` | the shell's depth, inches: -4 .. +2 in 1" steps; plays on Toms 1-4 only (greyed out on the others) | the depth as drawn |
+| `<drum>_size` | `<Drum> Size` | the shell's depth, inches: -4 .. +2 in 1" steps (the floor toms -4 .. 0); plays on Toms 1-4 and the floor toms (greyed out on the others) | the depth as drawn |
 | `<drum>_level` | `<Drum> Level` | -inf (bottom, -60) .. +6 dB | 0 dB |
 | `<drum>_pan` | `<Drum> Pan` | -1 (left) .. +1 (right), as the player hears it: both channels at any pan, the far one 4 dB down at hard pan, 0.4 ms later, high-cut to 6 kHz (power kept, 0 dB each in the centre) | the drum's place in the kit (below) |
 | `<drum>_snares` | `<Drum> Snares` | On / Off: which model a new hit plays, wires on or off; the Snare and the Popcorn Snare only | On |
@@ -38,7 +38,7 @@ Catalog sizes: kicks 22", the Snare 14", the Popcorn Snare 10" (Kris, 2026-11-24
 
 The floor toms are named Floor Tom 1 (16") and Floor Tom 2 (18") (Kris, 2026-11-27; were Tom 5 and Tom 6). Their IDs stay `tom5` and `tom6` (parameters `tom5_*`, `tom6_*`, rows `tom5`, `tom5_rim`, ...), so sessions, automation and MIDI maps saved before keep working; hosts show the new names.
 
-Size is the shell's depth (Kris, 2026-11-25), on Toms 1-4: 10, 9, 10 and 11" by default (as drawn; Tom 1 is 10" x 10", Kris, 2026-11-25), 4" shallower to 2" deeper in 1" steps (`kDepthDownIn`, `kDepthUpIn` in `KitMap.h`). At the default depth the toms sound as modelled. The other drums keep their Size parameter (their drawn depth, same range), greyed out in the editor; it changes nothing. The sound of depth is in `docs/ENGINE.md`; the drawings follow it (`docs/UI.md`).
+Size is the shell's depth (Kris, 2026-11-25), on Toms 1-4: 10, 9, 10 and 11" by default (as drawn; Tom 1 is 10" x 10", Kris, 2026-11-25), 4" shallower to 2" deeper in 1" steps (`kDepthDownIn`, `kDepthUpIn` in `KitMap.h`). The floor toms too (Kris, 2026-11-28), shallower only: 16" down to 12" (`depthUpIn`); at 12" Floor Tom 1's fundamental rises 95.3 -> 96.8 Hz and Floor Tom 2's 81.1 -> 82.1 Hz, and their low end dies about 13 % sooner. At the default depth the toms sound as modelled. The other drums keep their Size parameter (their drawn depth, same range), greyed out in the editor; it changes nothing. The sound of depth is in `docs/ENGINE.md`; the drawings follow it (`docs/UI.md`).
 
 ## MIDI map (session state, not parameters)
 

@@ -1654,7 +1654,10 @@ DrumSpec kitSpec (const KitItem& item, double depthOffIn)
         V3 a, u, v;
         basis (s.axis, a, u, v);
         s.d += depthOffIn;
-        s.C = s.C + depthOffIn * a;
+        // a floor tom stands on its legs with its head at playing height: its bottom moves
+        // (Kris, 2026-11-28); a rack tom rests on the kick: its head moves
+        if (item.spec.kind != Kind::floor)
+            s.C = s.C + depthOffIn * a;
     }
     return s;
 }
