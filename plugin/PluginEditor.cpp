@@ -2079,7 +2079,20 @@ void Content::paintDrumPage (juce::Graphics& g)
                     text = levelText (prm->convertFrom0to1 (prm->getValue()));
             }
         }
+        // SCRATCH mockup: the pan's value always shown (A: under the knob, B: in the label)
+        static const char* panMock = std::getenv ("TYMP_PANMOCK");
+        juce::String panValue;
+        if (panMock != nullptr && juce::String (spec.suffix) == "pan")
+            if (auto* prm = processor.params.getParameter (paramId (spec.suffix)))
+            {
+                const float v = prm->convertFrom0to1 (prm->getValue());
+                panValue = std::abs (v) < 0.005f ? juce::String ("C") : (v < 0 ? "L " : "R ") + juce::String (juce::roundToInt (std::abs (v) * 100.0f));
+                if (panMock[0] == 'B' && (int) i != draggingKnob)
+                    text = juce::String (spec.label) + juce::String (juce::CharPointer_UTF8 (" \xc2\xb7 ")) + panValue;
+            }
         drawAt (g, f, text, c.x, c.y - kKnobLabelAbove, palette::knobLabel, Anchor::centre);
+        if (panValue.isNotEmpty() && panMock[0] == 'A')
+            drawAt (g, endFont, panValue, c.x, c.y + kKnobEndBelow, palette::knobLabel, Anchor::centre);
         g.setColour (palette::secondary);
         if (juce::String (spec.leftEnd) == "-")
         {

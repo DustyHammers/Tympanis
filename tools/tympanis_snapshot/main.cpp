@@ -1,3 +1,4 @@
+#include <cstdlib>
 // tympanis_snapshot — renders the editor's pages to PNG files (docs/UI.md).
 //
 //   tympanis_snapshot OUT_DIR
@@ -98,6 +99,8 @@ int main (int argc, char** argv)
     if (! processor.isKitLoaded())
         std::fprintf (stderr, "warning: kit failed to load: %s\n", processor.getLoadError().toRawUTF8());
 
+    if (std::getenv ("TYMP_PANSET")) // SCRATCH mockup: Tom 1 at its measured pan
+        if (auto* prm = processor.params.getParameter ("tom1_pan")) prm->setValueNotifyingHost (prm->convertTo0to1 ((float) std::atof (std::getenv ("TYMP_PANSET"))));
     using Content = tympanis::ui::Content;
     auto open = [&processor] (int page, int drum, int width = 1536) {
         processor.setEditorPage (page);
