@@ -500,8 +500,31 @@ int runChecks()
         left.set("snare1_pan", -1.0f);
         left.set("snare_buzz", 0.0f);
         const auto yl = left.play({ { 10, note, 127 } }, 22050, 256);
-        check(peak(left.lastRight) < 1e-6 * p0 && std::abs(peak(yl) / p0 - std::sqrt(2.0)) < 0.15,
-              "hard left: right silent, left +3 dB (left " + juce::String(20 * std::log10(peak(yl) / p0), 2) + " dB)");
+        {
+            // the player's image (Kris, 2026-11-27): hard left still reaches the right, about 4 dB down
+            // (a little more with the far side's high cut), 0.4 ms later; the left +1.6 dB (power kept)
+            const auto& yr = left.lastRight;
+            auto rms = [](const std::vector<float>& x) { double e = 0; for (float v : x) e += (double) v * v; return std::sqrt(e / (double) x.size()); };
+            auto onset = [](const std::vector<float>& x, double thr) { for (size_t i = 0; i < x.size(); ++i) if (std::abs(x[i]) > thr) return (int) i; return -1; };
+            const double farDb = 20 * std::log10(rms(yr) / rms(yl));
+            const int lag = onset(yr, 1e-3 * peak(yr)) - onset(yl, 1e-3 * peak(yl));
+            check(farDb < -4.0 && farDb > -6.5, "hard left: the right channel " + juce::String(farDb, 2) + " dB under the left (4 dB, plus the far side's high cut)");
+            check(std::abs(lag - 18) <= 2, "hard left: the right channel " + juce::String(lag) + " samples later (0.4 ms at 44.1 kHz: 18)");
+            check(std::abs(20 * std::log10(peak(yl) / p0) - 1.56) < 0.3, "hard left: the left +1.6 dB (" + juce::String(20 * std::log10(peak(yl) / p0), 2) + " dB)");
+        }
+        {
+            // each drum's default pan, from the player's seat (KitMap.h kDefaultPans, render 58)
+            Host dflt(44100, 256);
+            bool all = true;
+            for (const auto& dp : kDefaultPans)
+                if (auto* prm = dflt.p->params.getParameter(juce::String(dp.drum) + "_pan"))
+                    all = all && std::abs(prm->convertFrom0to1(prm->getDefaultValue()) - dp.pan) < 1e-4f
+                              && std::abs(prm->convertFrom0to1(prm->getValue()) - dp.pan) < 1e-4f;
+                else
+                    all = false;
+            check(all && defaultPan("tom1") < 0 && defaultPan("tom5") > 0 && defaultPan("snare1") == 0.0f,
+                  "default pans: every drum where the player hears it (Tom 1 left, Floor Tom 1 right, the Snare centred)");
+        }
         Host vol(44100, 256);
         vol.set("main_volume", -6.0f);
         vol.set("snare_buzz", 0.0f);

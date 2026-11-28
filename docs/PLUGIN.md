@@ -23,7 +23,7 @@ Per drum (`<drum>` = `kick1 kick2 snare1 snare4 tom1..tom6 gong octo1..octo4`; `
 | `<drum>_strike_pos` | `<Drum> Strike Position` | 0 (centre) .. 0.95 (near the rim); not on the bass drums | 0.35 |
 | `<drum>_size` | `<Drum> Size` | the shell's depth, inches: -4 .. +2 in 1" steps; plays on Toms 1-4 only (greyed out on the others) | the depth as drawn |
 | `<drum>_level` | `<Drum> Level` | -inf (bottom, -60) .. +6 dB | 0 dB |
-| `<drum>_pan` | `<Drum> Pan` | -1 (left) .. +1 (right), -3 dB compensated constant power (0 dB centre, +3 dB hard) | 0 |
+| `<drum>_pan` | `<Drum> Pan` | -1 (left) .. +1 (right), as the player hears it: both channels at any pan, the far one 4 dB down at hard pan, 0.4 ms later, high-cut to 6 kHz (power kept, 0 dB each in the centre) | the drum's place in the kit (below) |
 | `<drum>_snares` | `<Drum> Snares` | On / Off: which model a new hit plays, wires on or off; the Snare and the Popcorn Snare only | On |
 | `<drum>_wire_tension` | `<Drum> Snare Wire Tension` | 0 (tight) .. 1 (loose): the strainer backed off, the drum rings longer and the wire noise starts softer and lasts longer; the wires-on model only (`docs/ENGINE.md`, "Snare wire tension"); the Snare and the Popcorn Snare only (Kris, 2026-11-26) | 0 (tight: as recorded) |
 | `<drum>_vel_sens` | `<Drum> Velocity Sensitivity` | 0 .. 1, shown 0% .. 100%. The velocity the drum plays is vf + s (v - vf), v the note's velocity / 127, vf = 100/127 (as Cymbalis). 100%: the model's full velocity response; lower narrows the dynamics toward velocity 100; 0%: every hit plays as velocity 100 | 1 (100%) |
@@ -79,9 +79,20 @@ Four pages in Cymbalis's look (docs/UI.md): DRUM, KIT, TUNING and SETTINGS. The 
 
 ## Output
 
+**Stereo image** (Kris, 2026-11-27, renders 55-59). Each drum's default Pan is where it sits from the player's seat at the Snare: measured on the KIT page's layout (the sideways share of each drum's direction), then set by ear (`kDefaultPans` in `KitMap.h`):
+
+| Drum | Pan | Drum | Pan |
+|---|---|---|---|
+| Octobans 1-4 | L 74, L 70, L 66, L 62 | Snare | C |
+| Popcorn Snare | L 68 | Tom 3 / Tom 4 | R 10 / R 39 |
+| Tom 1 / Tom 2 | L 44 / L 19 | Floor Tom 1 / 2 | R 58 / R 64 |
+| Kick 1 / Kick 2 | L 15 / R 15 | Gong Drum | R 67 |
+
+Panned drums reach both channels, as a player's two ears hear them, never one channel alone (`Kit::setDrumImage`, `docs/ENGINE.md`): the far channel is 4 dB down at hard pan, 0.4 ms later and high-cut to 6 kHz, each in proportion to the pan; a centred drum is as before. No parameter (Kris). Sessions saved before keep their pans (saved as set); a new instance or RESET DRUM / RESET ALL uses these. Not in the plugin for now (on the to-do): a room's early reflections, reflections off the other drums, the toms ringing in sympathy.
+
 Stereo out (mono out: (L + R) / 2). Under Main Volume a fixed gain of 0.4 (Kris, 2026-11-24: about Cymbalis's loudness; it was 0.2). At 0 dB level, centre pan, full-velocity head hits peak around -8 dBFS and measure -20 to -30 LUFS momentary (Cymbalis's Nova Ride, a full bow hit: -25); a kick and snare groove at velocity 100 measures -26.5 LUFS integrated (Cymbalis's ride pattern at velocity 100: -28.5).
 
-Four tom rim shots peaked far above everything else (Tom 3's at -1.4 dBFS before the raise), so they have fixed level trims (`kRowTrims` in `KitMap.h`, applied in the engine to everything those strikes make): Tom 2 rim -5.5 dB, Tom 3 rim -8.0, Floor Tom 1 rim -2.5, Floor Tom 2 rim -3.5. The four octobans are trimmed 4 dB the same way (Kris, 2026-11-27), so their Level at 0 dB, the default, is 4 dB under their level before and has room to come up (+4 dB plays them as before). With them no velocity-127 hit peaks above -3 dBFS (host check); a rim-shot roll on those toms and a busy groove with rim shots peak at -3.1 dBFS. Individual outputs come later.
+Four tom rim shots peaked far above everything else (Tom 3's at -1.4 dBFS before the raise), so they have fixed level trims (`kRowTrims` in `KitMap.h`, applied in the engine to everything those strikes make): Tom 2 rim -5.5 dB, Tom 3 rim -8.0, Floor Tom 1 rim -3.5 (-2.5 until its pan moved to R 58, 2026-11-27), Floor Tom 2 rim -3.5. The four octobans are trimmed 4 dB the same way (Kris, 2026-11-27), so their Level at 0 dB, the default, is 4 dB under their level before and has room to come up (+4 dB plays them as before). With them no velocity-127 hit peaks above -3 dBFS (host check); a rim-shot roll on those toms and a busy groove with rim shots peak at -3.1 dBFS. Individual outputs come later.
 
 ## Open decisions (Kris)
 

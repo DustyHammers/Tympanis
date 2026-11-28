@@ -21,6 +21,7 @@
 #include "dsp/KitData.h"
 
 #include <array>
+#include <string_view>
 
 namespace tympanis
 {
@@ -104,6 +105,29 @@ constexpr std::array<NoteRow, 25> kRows { {
     { "octo4",       "Octoban 4",               14, Art::Head, 63 },
 } };
 
+// Each drum's default Pan: where it sits from the player's seat at the Snare (Kris, 2026-11-27, render
+// 58): measured on the KIT page's layout (the sideways share of each drum's direction), then by ear:
+// the bass drums just off centre, the sides brought in, the octobans by the Popcorn Snare. -1 left,
+// +1 right; L/R as the PAN knob reads them.
+struct DrumPan
+{
+    const char* drum;   // a kDrums key
+    float pan;
+};
+constexpr std::array<DrumPan, 15> kDefaultPans { {
+    { "kick1", -0.15f }, { "kick2", 0.15f }, { "snare1", 0.0f }, { "snare4", -0.68f },
+    { "tom1", -0.44f }, { "tom2", -0.19f }, { "tom3", 0.10f }, { "tom4", 0.39f },
+    { "tom5", 0.58f }, { "tom6", 0.64f }, { "gong", 0.67f },
+    { "octo1", -0.74f }, { "octo2", -0.70f }, { "octo3", -0.66f }, { "octo4", -0.62f },
+} };
+
+inline float defaultPan(const char* drum)
+{
+    for (const auto& p : kDefaultPans)
+        if (std::string_view(p.drum) == drum) return p.pan;
+    return 0.0f;
+}
+
 // Level trims (dB) for the rows whose full-velocity hits peak far above the rest (Kris,
 // 2026-11-24): with the output gain raised 6 dB to Cymbalis's loudness, each is turned down so
 // its loudest hit at velocity 127 (worst of 32) peaks at or below -3 dBFS at the default
@@ -118,7 +142,7 @@ struct RowTrim
 constexpr std::array<RowTrim, 8> kRowTrims { {
     { "tom2_rim", -5.5 },   // -3.7 dBFS before, +2.3 with the 6 dB
     { "tom3_rim", -8.0 },   // -1.4 dBFS before, +4.6 with the 6 dB
-    { "tom5_rim", -2.5 },   // -6.8 dBFS before, -0.7 with the 6 dB
+    { "tom5_rim", -3.5 },   // -6.8 dBFS before, -0.7 with the 6 dB; -3.5 (was -2.5) with its pan at R 58 (2026-11-27)
     { "tom6_rim", -3.5 },   // -5.6 dBFS before, +0.4 with the 6 dB
     { "octo1", -4.0 },      // the octobans (Kris, 2026-11-27)
     { "octo2", -4.0 },

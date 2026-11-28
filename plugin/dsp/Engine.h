@@ -19,6 +19,7 @@
 #include "Filters.h"
 #include "KitData.h"
 
+#include <array>
 #include <complex>
 #include <cstdint>
 #include <vector>
@@ -229,7 +230,16 @@ public:
     // ramp linearly over the next render call. The drums' acoustic coupling (snare buzz) uses
     // the unfaded sound; a snare's sympathetic head and wire buzz follow that snare's gains.
     void setDrumGains(int drum, double left, double right);
-    void snapGains() { gainL_ = targetL_; gainR_ = targetR_; }
+    // The plugin's stereo image (Kris, 2026-11-27, render 59 A): a drum at gain g and pan p (-1..1)
+    // reaches both channels however far it is panned, as a player's two ears hear it. The far
+    // channel is kBleedDb down at hard pan (|p| times that in dB between; the power kept, so a
+    // centred drum is at 0 dB in each, as before), kBleedItdMs later (|p| times that) and high-cut
+    // from 20 kHz down to kBleedShadowHz at hard pan (log in |p|). Pan changes ramp the delay over a
+    // render call. Not in the prototype (tympanis_render never calls it); a centred drum is
+    // bit-identical to setDrumGains (g, g).
+    static constexpr double kBleedDb = 4.0, kBleedItdMs = 0.4, kBleedShadowHz = 6000.0;
+    void setDrumImage(int drum, double gain, double pan);
+    void snapGains() { gainL_ = targetL_; gainR_ = targetR_; panNow_ = panTarget_; }
     // Writes n samples of the stereo mix to L and R.
     void renderStereo(double* L, double* R, int n);
 
@@ -256,6 +266,10 @@ private:
     std::vector<std::vector<double>> outs_;
     std::vector<double> mix_, head_, drive_, wire_;
     std::vector<double> gainL_, gainR_, targetL_, targetR_;
+    // the stereo image's far channel, per drum: the pan, its delay line, the high cut's state
+    std::vector<double> panNow_, panTarget_, farLp_, far_;
+    std::vector<std::array<double, 512>> farLine_;
+    std::vector<int> farPos_;
     dhpool::JobPool* pool_ = nullptr;
     std::vector<int> runOrder_, quiet_;   // per chunk: the drums to share, heaviest first; the silent ones
     int jobN_ = 0;                        // the chunk's length, for the jobs
