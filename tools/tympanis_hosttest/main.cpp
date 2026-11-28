@@ -491,7 +491,19 @@ int runChecks()
         ref.set("snare_buzz", 0.0f);
         const auto y0 = ref.play({ { 10, note, 127 } }, 22050, 256);
         const double p0 = peak(y0);
-        check(std::abs(peak(y0) - peak(ref.lastRight)) < 1e-6 * p0, "centre pan: left = right");
+        {
+            double dmax = 0;
+            for (size_t i = 0; i < y0.size(); ++i) dmax = std::max(dmax, (double) std::abs(y0[i] - ref.lastRight[i]));
+            Host all(44100, 256);
+            all.set("snare_buzz", 0.0f);
+            for (const auto& dp : kDefaultPans) all.set((juce::String(dp.drum) + "_pan").toRawUTF8(), 0.0f);
+            const auto ya = all.play({ { 10, note, 127 } }, 22050, 256);
+            double damax = 0;
+            for (size_t i = 0; i < ya.size(); ++i) damax = std::max(damax, (double) std::abs(ya[i] - all.lastRight[i]));
+            check(std::abs(peak(y0) - peak(ref.lastRight)) < 1e-6 * p0,
+                  "centre pan: left = right (peaks " + juce::String(peak(y0), 9) + " / " + juce::String(peak(ref.lastRight), 9)
+                      + ", max |L-R| " + juce::String(dmax, 12) + "; every drum centred: max |L-R| " + juce::String(damax, 12) + ")");
+        }
         Host off(44100, 256);
         off.set("snare1_level", -60.0f);
         off.set("snare_buzz", 0.0f);                 // else the other snare models buzz along, on their own channels
