@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 
@@ -899,6 +900,25 @@ void Kit::init(const KitData* data, bool restrikeDamp, bool variation, int chunk
         s.wires.resize((int) d.bands.size(), 23 + (uint32_t) i);
         sym_.push_back(std::move(s));
     }
+    // SCRATCH: the drums without a sympathetic bank (toms, kicks, gong, octobans) get one the snares'
+    // way: the hardest head layer's modes below 1.5 kHz, weighted by their share of the head's motion
+    res_.clear();
+    for (size_t i = 0; i < drums_.size(); ++i)
+    {
+        const DrumData& d = data->drums[i];
+        if (d.hasSym || ! d.hasArt(Art::Head)) continue;
+        const Layer& l = d.arts[(size_t) Art::Head][0];
+        Sym s;
+        s.drum = (int) i;
+        double norm = 0;
+        for (size_t k = 0; k < l.freq.size(); ++k)
+            if (l.amp[k] > 0 && l.freq[k] < 1500) { s.F.push_back(l.freq[k]); s.D.push_back(l.decay[k]); s.w.push_back(l.amp[k]); norm += l.amp[k] * l.amp[k]; }
+        if (s.F.empty()) continue;
+        for (auto& w : s.w) w /= std::sqrt(norm);
+        s.c.assign(s.F.size(), 0); s.y.assign(s.F.size(), 0); s.p.assign(s.F.size(), 0);
+        s.yr.assign(s.F.size(), 0); s.yi = s.yr; s.pr = s.yr; s.pi = s.yr;
+        res_.push_back(std::move(s));
+    }
     outs_.assign(drums_.size(), std::vector<double>((size_t) chunk_, 0.0));
     runOrder_.assign(drums_.size(), 0);
     quiet_.assign(drums_.size(), 0);
@@ -1077,6 +1097,49 @@ void Kit::renderChunk(double* out, double* L, double* R, int n)
                 mix_[(size_t) i] += wire_[(size_t) i];
                 ownOut[i] += wire_[(size_t) i];
             }
+        }
+    }
+    // SCRATCH: the other drums' heads ringing in sympathy, driven by the rest of the kit as the snares'
+    // heads are (the same air coupling, times TYMP_SYMRES); each into its own sound
+    static const double resAmt = std::getenv("TYMP_SYMRES") ? std::atof(std::getenv("TYMP_SYMRES")) : 0.0;
+    if (resAmt > 0 && ! res_.empty())
+    {
+        if (resOut_.size() < res_.size()) resOut_.assign(res_.size(), std::vector<double>());
+        static const int only = std::getenv("TYMP_SYMONLY") ? std::atoi(std::getenv("TYMP_SYMONLY")) : -1;
+        for (size_t r = 0; r < res_.size(); ++r)
+        {
+            Sym& s = res_[r];
+            if (only >= 0 && s.drum != only) { resOut_[r].assign((size_t) n, 0.0); continue; }
+            Drum& dr = drums_[(size_t) s.drum];
+            const double* own = outs_[(size_t) s.drum].data();
+            auto& acc = resOut_[r];
+            acc.assign((size_t) n, 0.0);
+            const size_t M = s.F.size();
+            const double tune = dr.tuneRatio();
+            // shares: the kicks' and the gong drum's low heads sit on each other's pitch (about 40 Hz)
+            // and ring for seconds, so they take 0.3 and 0.2 of it; toms and octobans the whole
+            const double share = s.drum <= 1 ? 0.3 : s.drum == 12 ? 0.2 : 1.0;
+            for (size_t j = 0; j < M; ++j)
+            {
+                s.c[j] = resAmt * share * 0.00017 * s.w[j];
+                s.p[j] = std::exp(C(-s.D[j] * dr.decayMul(s.F[j]), 2 * kPi * s.F[j] * tune) / sr_);
+            }
+            for (int i = 0; i < n; ++i)
+            {
+                const double x = mix_[(size_t) i] - own[i];
+                double a = 0;
+                for (size_t j = 0; j < M; ++j)
+                {
+                    s.y[j] = s.c[j] * x + s.p[j] * s.y[j];
+                    a += s.y[j].real();
+                }
+                acc[(size_t) i] = a;
+            }
+        }
+        for (size_t r = 0; r < res_.size(); ++r)
+        {
+            double* ownOut = outs_[(size_t) res_[r].drum].data();
+            for (int i = 0; i < n; ++i) { ownOut[i] += resOut_[r][(size_t) i]; mix_[(size_t) i] += resOut_[r][(size_t) i]; }
         }
     }
     if (out) std::copy(mix_.begin(), mix_.begin() + n, out);

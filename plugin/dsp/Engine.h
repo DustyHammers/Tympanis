@@ -261,6 +261,8 @@ private:
     const KitData* data_ = nullptr;
     std::vector<Drum> drums_;
     std::vector<Sym> sym_;
+    std::vector<std::vector<double>> resOut_;
+    std::vector<Sym> res_;     // SCRATCH: every other drum's head ringing in sympathy (TYMP_SYMRES: amount)
     double sr_ = 44100, buzz_ = 0.5;
     int chunk_ = kChunk;
     bool noiseless_ = false;
