@@ -88,7 +88,7 @@ Four pages in Cymbalis's look (docs/UI.md): DRUM, KIT, TUNING and SETTINGS. The 
 | Tom 1 / Tom 2 | L 44 / L 19 | Floor Tom 1 / 2 | R 58 / R 64 |
 | Kick 1 / Kick 2 | L 15 / R 15 | Gong Drum | R 67 |
 
-Panned drums reach both channels, as a player's two ears hear them, never one channel alone (`Kit::setDrumImage`, `docs/ENGINE.md`): the far channel is 4 dB down at hard pan, 0.4 ms later and high-cut to 6 kHz, each in proportion to the pan; a centred drum is as before. No parameter (Kris). Sessions saved before keep their pans (saved as set); a new instance or RESET DRUM / RESET ALL uses these. Not in the plugin for now (on the to-do): a room's early reflections, reflections off the other drums, the toms ringing in sympathy.
+Panned drums reach both channels, as a player's two ears hear them, never one channel alone (`Kit::setDrumImage`, `docs/ENGINE.md`): the far channel is 4 dB down at hard pan, 0.4 ms later and high-cut to 6 kHz, each in proportion to the pan; a centred drum is as before. No parameter (Kris). Sessions saved before keep their pans (saved as set); a new instance or RESET ALL uses these (Level, Pan and Strike Position are not on the TUNING page since 2026-11-28, so RESET DRUM leaves them). Not in the plugin for now (on the to-do): a room's early reflections, reflections off the other drums, the toms ringing in sympathy.
 
 Stereo out (mono out: (L + R) / 2). Under Main Volume a fixed gain of 0.4 (Kris, 2026-11-24: about Cymbalis's loudness; it was 0.2). At 0 dB level, centre pan, full-velocity head hits peak around -8 dBFS and measure -20 to -30 LUFS momentary (Cymbalis's Nova Ride, a full bow hit: -25); a kick and snare groove at velocity 100 measures -26.5 LUFS integrated (Cymbalis's ride pattern at velocity 100: -28.5).
 
