@@ -232,6 +232,10 @@ public:
     void snapGains() { gainL_ = targetL_; gainR_ = targetR_; }
     // SCRATCH (stereo bleed): the drum's pan, for the far channel's delay and high cut
     void setDrumPanScratch(int drum, double pan) { panS_[(size_t) drum] = pan; }
+    // SCRATCH: reflections off the other drums: tap (source, reflector, delay in seconds, gain);
+    // per reflector, the frequency below which it reflects little (its size)
+    struct ReflTap { int src, dst; double delay, g; };
+    void setReflectionsScratch(std::vector<ReflTap> taps, std::vector<double> hpHz);
     // Writes n samples of the stereo mix to L and R.
     void renderStereo(double* L, double* R, int n);
 
@@ -259,6 +263,7 @@ private:
     std::vector<double> mix_, head_, drive_, wire_;
     std::vector<double> gainL_, gainR_, targetL_, targetR_;
     std::vector<double> panS_, lpS_, farBuf_;            // SCRATCH
+    std::vector<ReflTap> rTaps_; std::vector<double> rHp_, rHpA_, rHpB_; std::vector<std::vector<double>> rLine_, rAcc_; long long rBase_ = 0; // SCRATCH
     std::vector<double> erL_, erR_; int erPos_ = 0; double erLpL_ = 0, erLpR_ = 0, erHpL_ = 0, erHpR_ = 0; // SCRATCH early reflections
     std::vector<std::vector<double>> dlS_; std::vector<int> dlPos_;
     dhpool::JobPool* pool_ = nullptr;

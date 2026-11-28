@@ -153,6 +153,44 @@ TympanisProcessor::TympanisProcessor()
             kit.drum(d).setVelRangeDb(kVelRangeDb);
             kit.drum(d).setLayerBlend(true);    // smooth between velocity layers (Kris, 2026-11-27)
         }
+        if (const char* kr = std::getenv("TYMP_KR_DB"))   // SCRATCH: reflections off the other drums
+        {
+            // head centres (inches, the KIT page's layout; octobans: a temporary row by the Popcorn Snare),
+            // the player's ears above and behind the Snare
+            struct G { double x, y, z, dia; };
+            const G g[15] = { { -13.8, 7, 11.5, 22 }, { 13.8, 7, 11.5, 22 }, { 0, -14, 25, 14 }, { -27, -12, 25, 10 },
+                              { -24.5, 14.5, 33.5, 10 }, { -9.5, 16, 34.5, 12 }, { 6.5, 16, 35.5, 13 }, { 23, 14.5, 36.5, 14 },
+                              { 27.5, -1, 20.5, 16 }, { 37.5, -18, 21.5, 18 }, { 54, -6, 32, 22 },
+                              { -38, -2, 40, 6 }, { -34, 2, 40, 6 }, { -30, 6, 40, 6 }, { -26, 10, 40, 6 } };
+            const double ex = 0, ey = -32, ez = 50, in = 0.0254, c = 343.0;
+            auto dist = [](double ax, double ay, double az, double bx, double by, double bz) { return std::sqrt((ax-bx)*(ax-bx)+(ay-by)*(ay-by)+(az-bz)*(az-bz)); };
+            std::vector<Kit::ReflTap> taps;
+            std::vector<double> hp((size_t) kit.numDrums(), 0.0);
+            std::vector<double> energy(15, 0.0);
+            for (int sd = 0; sd < 15; ++sd)
+                for (int rd = 0; rd < 15; ++rd)
+                {
+                    if (sd == rd) continue;
+                    const auto& S = g[sd]; const auto& Rf = g[rd];
+                    const double d0 = dist(S.x,S.y,S.z, ex,ey,ez) * in, d1 = dist(S.x,S.y,S.z, Rf.x,Rf.y,Rf.z) * in, d2 = dist(Rf.x,Rf.y,Rf.z, ex,ey,ez) * in;
+                    const double a = 0.5 * Rf.dia * in;                  // the reflector's radius
+                    const double gain = a * d0 / (d1 * d2);              // a small reflector: its size over the two legs, re the direct path
+                    const double delay = (d1 + d2 - d0) / c;
+                    for (int se : { kDrums[(size_t) sd].engine, kDrums[(size_t) sd].engineOff })
+                        if (se >= 0) taps.push_back({ se, kDrums[(size_t) rd].engine, delay, gain });
+                    energy[(size_t) sd] += gain * gain;
+                }
+            for (int rd = 0; rd < 15; ++rd)
+                hp[(size_t) kDrums[(size_t) rd].engine] = c / (2 * juce::MathConstants<double>::pi * 0.5 * g[rd].dia * in);
+            // scale: the mean, over the drums, of each one's reflected level re its direct sound = TYMP_KR_DB
+            double mean = 0; for (double e : energy) mean += std::sqrt(e) / 15;
+            const double k = std::pow(10.0, std::atof(kr) / 20.0) / mean;
+            for (auto& t : taps) t.g *= k;
+            std::fprintf(stderr, "reflections: %d taps, raw mean %.3f, delays %.2f-%.2f ms\n", (int) taps.size(), mean,
+                         std::min_element(taps.begin(), taps.end(), [](auto& x, auto& y){ return x.delay < y.delay; })->delay * 1e3,
+                         std::max_element(taps.begin(), taps.end(), [](auto& x, auto& y){ return x.delay < y.delay; })->delay * 1e3);
+            kit.setReflectionsScratch(std::move(taps), std::move(hp));
+        }
         for (const auto& t : kRowTrims)
             for (const auto& r : kRows)
                 if (juce::String(r.id) == t.row)

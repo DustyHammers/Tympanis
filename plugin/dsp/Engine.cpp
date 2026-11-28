@@ -956,6 +956,15 @@ void Kit::setDrumGains(int drum, double left, double right)
     targetR_[(size_t) drum] = right;
 }
 
+void Kit::setReflectionsScratch(std::vector<ReflTap> taps, std::vector<double> hpHz)
+{
+    rTaps_ = std::move(taps);
+    rHp_ = std::move(hpHz);
+    rHpA_.assign(drums_.size(), 0.0); rHpB_.assign(drums_.size(), 0.0);
+    rLine_.assign(drums_.size(), std::vector<double>(4096, 0.0));
+    rAcc_.assign(drums_.size(), std::vector<double>((size_t) chunk_ + 1024, 0.0));
+}
+
 void Kit::renderStereo(double* L, double* R, int n)
 {
     for (int k = 0; k < n; k += chunk_) renderChunk(nullptr, L + k, R + k, std::min(chunk_, n - k));
@@ -1069,6 +1078,47 @@ void Kit::renderChunk(double* out, double* L, double* R, int n)
                 ownOut[i] += wire_[(size_t) i];
             }
         }
+    }
+    // SCRATCH: first-order reflections off the other drums, into each reflector's own buffer (so they
+    // come from where it sits), its size's high-pass; the lines hold the dry sound before they're added
+    if (! rTaps_.empty() && L && R)
+    {
+        const size_t D = drums_.size();
+        for (size_t d = 0; d < D; ++d)
+        {
+            const double* o = outs_[d].data();
+            for (int i = 0; i < n; ++i) rLine_[d][(size_t) ((rBase_ + i) & 4095)] = o[i];
+            if ((int) rAcc_[d].size() < n) rAcc_[d].assign((size_t) n, 0.0);
+            std::fill(rAcc_[d].begin(), rAcc_[d].begin() + n, 0.0);
+        }
+        for (const auto& t : rTaps_)
+        {
+            const double ds = t.delay * sr_;
+            const long long di = (long long) ds; const double df = ds - (double) di;
+            const auto& line = rLine_[(size_t) t.src];
+            double* acc = rAcc_[(size_t) t.dst].data();
+            for (int i = 0; i < n; ++i)
+            {
+                const long long j = rBase_ + i - di;
+                const double x0 = line[(size_t) (j & 4095)], x1 = line[(size_t) ((j - 1) & 4095)];
+                acc[i] += t.g * (x0 + df * (x1 - x0));
+            }
+        }
+        for (size_t d = 0; d < D; ++d)
+        {
+            if (rHp_[d] <= 0) continue;
+            // two one-pole high-passes at the reflector's size
+            const double a = std::exp(-2 * kPi * rHp_[d] / sr_);
+            double la = rHpA_[d], lb = rHpB_[d];
+            double* acc = rAcc_[d].data(); double* o = outs_[d].data();
+            for (int i = 0; i < n; ++i)
+            {
+                la = (1 - a) * acc[i] + a * la; const double h1 = acc[i] - la;
+                lb = (1 - a) * h1 + a * lb; o[i] += h1 - lb;
+            }
+            rHpA_[d] = la; rHpB_[d] = lb;
+        }
+        rBase_ += n;
     }
     if (out) std::copy(mix_.begin(), mix_.begin() + n, out);
     if (L && R)
